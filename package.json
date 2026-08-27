@@ -1,0 +1,17 @@
+{
+  "name": "halka-arz-portfoy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BIST halka arz portfoy takip uygulamasi",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "android:sync": "node scripts/sync-android-assets.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

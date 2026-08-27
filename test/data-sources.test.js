@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createDataSources } from '../public/core/data-sources.js';
+
+test('market source requests Yahoo BIST symbol and parses response', async () => {
+  let seen = '';
+  const sources = createDataSources({
+    getJson: async url => {
+      seen = url;
+      return { chart:{ result:[{ meta:{ regularMarketPrice:15, chartPreviousClose:14 }, timestamp:[1760000000], indicators:{ quote:[{ close:[15], high:[15], low:[14], open:[14] }] } }] } };
+    },
+    getText: async () => '',
+  });
+  const out = await sources.getMarket('TEST');
+  assert.match(seen, /TEST\.IS/);
+  assert.equal(out.current, 15);
+});
+
+test('IPO source finds ticker on Ahlatcı and follows detail link', async () => {
+  const urls = [];
+  const sources = createDataSources({
+    getJson: async () => ({}),
+    getText: async url => {
+      urls.push(url);
+      if (url.includes('/halka-arz/test')) return '<h1>Test AŞ</h1><p>Halka Arz Fiyatı 94,00 ₺ İlk İşlem Tarihi: 21 Ağustos 2026</p>';
+      if (url.includes('sayfa=1')) return '<table><tr><td>Test AŞ TEST</td><td>x</td><td>94,00 ₺</td><td>18-19 Ağustos 2026</td><td><a href="/halka-arz/test">Detay</a></td></tr></table>';
+      return '<table></table>';
+    },
+  });
+  const out = await sources.getIpo('TEST');
+  assert.equal(out.ipoPrice, 94);
+  assert.equal(out.firstTradeDate, '2026-08-21');
+  assert.ok(urls.some(url => url.includes('/halka-arz/test')));
+});

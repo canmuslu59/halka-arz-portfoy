@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Halka Arz Portföyüm</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div>
+        <div class="eyebrow">BIST • HALKA ARZ</div>
+        <h1>Portföyüm</h1>
+      </div>
+      <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="shell main">
+    <section class="hero-card" aria-labelledby="portfolioValueLabel">
+      <div class="hero-topline">
+        <span id="portfolioValueLabel" class="muted">Toplam portföy büyüklüğü</span>
+        <span id="lastUpdated" class="status-dot">—</span>
+      </div>
+      <div id="totalWealth" class="hero-value">₺0,00</div>
+      <div class="hero-return-row">
+        <span id="totalProfitBadge" class="pill neutral">₺0,00 · %0,00</span>
+        <span class="muted small">halka arzdan beri</span>
+      </div>
+      <div class="hero-grid">
+        <div>
+          <span class="metric-label">Bugün</span>
+          <strong id="dailyProfit">₺0,00</strong>
+          <small id="dailyPct">%0,00</small>
+        </div>
+        <div>
+          <span class="metric-label">Yatırılan</span>
+          <strong id="invested">₺0,00</strong>
+          <small>ilk maliyet</small>
+        </div>
+        <div>
+          <span class="metric-label">Aktif değer</span>
+          <strong id="activeValue">₺0,00</strong>
+          <small>eldeki hisseler</small>
+        </div>
+        <div>
+          <span class="metric-label">Satış nakdi</span>
+          <strong id="salesProceeds">₺0,00</strong>
+          <small>gerçekleşen satış</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">PERFORMANS</span>
+          <h2>Portföy geçmişi</h2>
+        </div>
+        <select id="chartRange" class="select" aria-label="Grafik aralığı">
+          <option value="30">30 Gün</option>
+          <option value="90">90 Gün</option>
+          <option value="365">1 Yıl</option>
+        </select>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="portfolioChart" height="220"></canvas>
+        <div id="chartEmpty" class="empty-chart">Hisse eklediğinde performans grafiği burada oluşacak.</div>
+      </div>
+    </section>
+
+    <section class="section holdings-section">
+      <div class="section-head sticky-title">
+        <div>
+          <span class="eyebrow">HİSSELERİM</span>
+          <h2>Halka arzlar</h2>
+        </div>
+        <span id="holdingCount" class="count-chip">0 hisse</span>
+      </div>
+      <div id="holdings" class="holdings-list"></div>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">↗</div>
+        <h3>İlk hissenizi ekleyin</h3>
+        <p>Yalnızca BIST kodunu ve lot sayısını girin. Halka arz fiyatı, tarih ve güncel fiyat otomatik bulunur.</p>
+      </div>
+    </section>
+  </main>
+
+  <button id="addFab" class="fab" aria-label="Hisse ekle">
+    <span>+</span><b>Hisse ekle</b>
+  </button>
+
+  <div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+  <section id="addSheet" class="sheet" aria-modal="true" role="dialog" aria-labelledby="addTitle" hidden>
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div>
+        <span class="eyebrow">YENİ KAYIT</span>
+        <h2 id="addTitle">Halka arz ekle</h2>
+      </div>
+      <button class="close-btn" data-close-sheet aria-label="Kapat">×</button>
+    </div>
+    <form id="addForm" class="form-stack">
+      <label>
+        <span>Hisse kodu</span>
+        <input id="tickerInput" name="ticker" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="Örn. KPEKS" maxlength="8" required />
+      </label>
+      <label>
+        <span>Elinizdeki lot</span>
+        <input id="lotsInput" name="lots" inputmode="numeric" type="number" min="1" step="1" placeholder="Örn. 24" required />
+      </label>
+      <div id="lookupPreview" class="lookup-preview" hidden></div>
+      <button id="addSubmit" class="primary-btn" type="submit">Otomatik bul ve ekle</button>
+      <p class="form-note">Fiyat verisi ücretsiz piyasa kaynağından gelir ve gecikmeli olabilir. Halka arz verisi bulunamazsa sonradan elle düzeltilebilir.</p>
+    </form>
+  </section>
+
+  <section id="detailSheet" class="sheet detail-sheet" aria-modal="true" role="dialog" aria-labelledby="detailTitle" hidden>
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div>
+        <span class="eyebrow">HİSSE DETAYI</span>
+        <h2 id="detailTitle">—</h2>
+      </div>
+      <button class="close-btn" data-close-sheet aria-label="Kapat">×</button>
+    </div>
+    <div id="detailContent"></div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <template id="holdingTemplate">
+    <article class="holding-card">
+      <button class="holding-main" type="button">
+        <div class="holding-title-row">
+          <div>
+            <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
+            <div class="company muted"></div>
+          </div>
+          <div class="price-stack">
+            <strong class="current-price"></strong>
+            <span class="daily-pct"></span>
+          </div>
+        </div>
+        <div class="holding-metrics">
+          <div><span>Bugün</span><strong class="daily-profit"></strong></div>
+          <div><span>Toplam</span><strong class="total-profit"></strong></div>
+          <div><span>Güncel değer</span><strong class="active-value"></strong></div>
+        </div>
+        <div class="progress-row">
+          <span class="ipo-price"></span>
+          <span class="trade-date"></span>
+        </div>
+      </button>
+    </article>
+  </template>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
