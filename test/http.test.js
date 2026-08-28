@@ -31,3 +31,31 @@ test('httpGetText surfaces native HTTP failure', async () => {
     if (oldWindow === undefined) delete globalThis.window; else globalThis.window = oldWindow;
   }
 });
+
+test('httpGetText uses asynchronous Android bridge without blocking caller', async () => {
+  const oldWindow = globalThis.window;
+  let called = false;
+  globalThis.window = { AndroidBridge: { httpGetAsync: (_url, id) => {
+    called = true;
+    queueMicrotask(() => globalThis.window.__nativeHttpResolve(id, JSON.stringify({ ok:true, status:200, body:'async-ok' })));
+  } } };
+  try {
+    const promise = httpGetText('https://example.com/async');
+    assert.equal(called, true);
+    assert.equal(await promise, 'async-ok');
+  } finally {
+    if (oldWindow === undefined) delete globalThis.window; else globalThis.window = oldWindow;
+  }
+});
+
+test('async Android bridge rejects native failure callback', async () => {
+  const oldWindow = globalThis.window;
+  globalThis.window = { AndroidBridge: { httpGetAsync: (_url, id) => {
+    queueMicrotask(() => globalThis.window.__nativeHttpReject(id, 'Ağ yok'));
+  } } };
+  try {
+    await assert.rejects(() => httpGetText('https://example.com/async'), /Ağ yok/);
+  } finally {
+    if (oldWindow === undefined) delete globalThis.window; else globalThis.window = oldWindow;
+  }
+});

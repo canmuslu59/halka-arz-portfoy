@@ -12,7 +12,7 @@ export function profitPct(profit, cost) {
   return Number(cost) > 0 ? (Number(profit) / Number(cost)) * 100 : 0;
 }
 
-export function calculateHolding(holding) {
+export function calculateHolding(holding, { today = null } = {}) {
   const initialLots = Number(holding.initialLots ?? holding.currentLots ?? 0);
   const currentLots = Number(holding.currentLots ?? 0);
   const ipoPrice = Number.isFinite(Number(holding.ipoPrice)) && Number(holding.ipoPrice) > 0 ? Number(holding.ipoPrice) : null;
@@ -29,8 +29,18 @@ export function calculateHolding(holding) {
   const unrealizedProfit = currentPrice == null || ipoPrice == null ? null : currentLots * (currentPrice - ipoPrice);
   const totalProfit = realizedProfit == null || unrealizedProfit == null ? null : realizedProfit + unrealizedProfit;
   const totalWealth = activeValue == null ? null : activeValue + salesProceeds;
-  const dailyProfit = currentPrice == null || previousClose == null ? null : currentLots * (currentPrice - previousClose);
-  const dailyPct = currentPrice == null || !(previousClose > 0) ? null : ((currentPrice - previousClose) / previousClose) * 100;
+  const latestMarketDate = holding.latestMarketDate || null;
+  const sessionIsToday = !today || !latestMarketDate || latestMarketDate === today;
+  const dailyProfit = !sessionIsToday
+    ? 0
+    : currentPrice == null || previousClose == null
+      ? null
+      : currentLots * (currentPrice - previousClose);
+  const dailyPct = !sessionIsToday
+    ? 0
+    : currentPrice == null || !(previousClose > 0)
+      ? null
+      : ((currentPrice - previousClose) / previousClose) * 100;
 
   return {
     ...holding,
@@ -40,6 +50,7 @@ export function calculateHolding(holding) {
     ipoPrice,
     currentPrice,
     previousClose,
+    latestMarketDate,
     sales,
     invested,
     activeValue,
@@ -51,6 +62,7 @@ export function calculateHolding(holding) {
     totalProfitPct: invested != null && totalProfit != null ? profitPct(totalProfit, invested) : null,
     dailyProfit,
     dailyPct,
+    dailySessionActive: sessionIsToday,
   };
 }
 
@@ -64,28 +76,91 @@ export function calculateTotals(holdings) {
   }
   totals.totalProfitPct = totals.invested > 0 ? (totals.totalProfit / totals.invested) * 100 : 0;
   const dailyBase = holdings.reduce((sum, holding) => {
+    if (holding.dailySessionActive === false) return sum;
     return sum + (Number.isFinite(holding.previousClose) ? holding.previousClose * Number(holding.currentLots || 0) : 0);
   }, 0);
   totals.dailyPct = dailyBase > 0 ? (totals.dailyProfit / dailyBase) * 100 : 0;
   return totals;
 }
 
+function normalizedSales(holding) {
+  return (Array.isArray(holding.sales) ? holding.sales : [])
+    .filter(sale => sale && typeof sale.date === 'string')
+    .map(sale => ({ date: sale.date, lots: Number(sale.lots || 0), price: Number(sale.price || 0) }))
+    .filter(sale => sale.lots > 0 && sale.price > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function historyStateOnDate(holding, date) {
+  const start = holding.firstTradeDate || holding.history?.[0]?.date || null;
+  const ipoPrice = Number(holding.ipoPrice);
+  const initialLots = Number(holding.initialLots || 0);
+  if (!start || date < start || !(ipoPrice > 0) || !(initialLots > 0)) return null;
+
+  const rows = Array.isArray(holding.history) ? holding.history : [];
+  let close = null;
+  for (const row of rows) {
+    if (!row?.date || row.date > date) break;
+    if (row.date >= start && Number.isFinite(Number(row.close))) close = Number(row.close);
+  }
+  if (close == null && date === start) close = ipoPrice;
+  if (close == null) return null;
+
+  let soldLots = 0;
+  let proceeds = 0;
+  for (const sale of normalizedSales(holding)) {
+    if (sale.date > date) break;
+    soldLots += sale.lots;
+    proceeds += sale.lots * sale.price;
+  }
+  const activeLots = Math.max(0, initialLots - soldLots);
+  const cost = initialLots * ipoPrice;
+  return {
+    value: activeLots * close + proceeds,
+    cost,
+    capitalAdded: date === start ? cost : 0,
+  };
+}
+
 export function makePortfolioHistory(holdings) {
-  const byDate = new Map();
+  const dates = new Set();
   for (const holding of holdings) {
-    if (!holding.ipoPrice || !holding.initialLots || !Array.isArray(holding.history)) continue;
-    const start = holding.firstTradeDate || holding.history[0]?.date;
-    for (const row of holding.history) {
-      if (start && row.date < start) continue;
-      if (!byDate.has(row.date)) byDate.set(row.date, { date: row.date, value: 0, cost: 0 });
-      const bucket = byDate.get(row.date);
-      bucket.value += Number(row.close) * Number(holding.currentLots || 0);
-      bucket.cost += Number(holding.ipoPrice) * Number(holding.currentLots || 0);
+    const start = holding.firstTradeDate || holding.history?.[0]?.date;
+    if (!start || !holding.ipoPrice || !holding.initialLots) continue;
+    dates.add(start);
+    for (const row of Array.isArray(holding.history) ? holding.history : []) {
+      if (row?.date && row.date >= start) dates.add(row.date);
+    }
+    for (const sale of normalizedSales(holding)) {
+      if (sale.date >= start) dates.add(sale.date);
     }
   }
-  return [...byDate.values()]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map(row => ({ ...row, profit: row.value - row.cost }));
+
+  const rows = [...dates].sort().map(date => {
+    let value = 0;
+    let cost = 0;
+    let capitalAdded = 0;
+    for (const holding of holdings) {
+      const state = historyStateOnDate(holding, date);
+      if (!state) continue;
+      value += state.value;
+      cost += state.cost;
+      capitalAdded += state.capitalAdded;
+    }
+    const profit = value - cost;
+    return { date, value, cost, profit, profitPct: profitPct(profit, cost), capitalAdded };
+  }).filter(row => row.cost > 0);
+
+  let previousValue = 0;
+  let previousProfit = 0;
+  return rows.map((row, index) => {
+    const dailyProfit = row.profit - (index ? previousProfit : 0);
+    const dailyBase = previousValue + row.capitalAdded;
+    const dailyPct = dailyBase > 0 ? (dailyProfit / dailyBase) * 100 : 0;
+    previousValue = row.value;
+    previousProfit = row.profit;
+    return { ...row, dailyProfit, dailyPct };
+  });
 }
 
 export function validateSale(holding, lots, price) {

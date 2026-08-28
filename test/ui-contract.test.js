@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+
+async function read(path) { return fs.readFile(path, 'utf8'); }
+
+test('home UI contains market status, sorting, daily history, sector allocation and chart tooltip', async () => {
+  const html = await read('public/index.html');
+  for (const id of ['marketStatus','holdingSort','dailyHistory','sectorAllocation','sectorDonut','chartTooltip']) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /Bugün TL/);
+  assert.match(html, /Bugün %/);
+  assert.match(html, /Güncel değer/);
+});
+
+test('app wires BIST calendar, interactive chart, sorting and browser-history sheet navigation', async () => {
+  const app = await read('public/app.js');
+  assert.match(app, /getBistMarketStatus/);
+  assert.match(app, /history\.pushState/);
+  assert.match(app, /popstate/);
+  assert.match(app, /pointerdown/);
+  assert.match(app, /holdingSort/);
+  assert.match(app, /sectorAllocation/);
+  assert.match(app, /refreshHistory/);
+  assert.match(app, /__showBackExitHint/);
+});
+
+test('responsive CSS styles new analytics controls and S22-class widths', async () => {
+  const css = await read('public/styles.css');
+  for (const selector of ['.market-status','.daily-row','.sector-donut','.chart-tooltip','.holding-controls','.sector-tag']) {
+    assert.match(css, new RegExp(selector.replace('.', '\\\.')));
+  }
+  assert.match(css, /@media\s*\(max-width:430px\)/);
+  assert.match(css, /topbar-actions/);
+});
+
+test('chart range offers full IPO-to-present history', async () => {
+  const html = await read('public/index.html');
+  assert.match(html, /<option value="0">Tümü<\/option>/);
+  const app = await read('public/app.js');
+  assert.match(app, /days\s*<=\s*0\s*\?\s*history/);
+});

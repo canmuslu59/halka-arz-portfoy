@@ -73,24 +73,42 @@ export function parseYahooChart(json, ticker) {
   const meta = result.meta || {};
   const timestamps = result.timestamp || [];
   const quote = result.indicators?.quote?.[0] || {};
+  const zone = meta.exchangeTimezoneName || 'Europe/Istanbul';
+  const dateInZone = epoch => {
+    if (!Number.isFinite(epoch)) return null;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone:zone, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date(epoch * 1000));
+    const pick = type => parts.find(p => p.type === type)?.value;
+    const y = pick('year'), m = pick('month'), d = pick('day');
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  };
   const rows = [];
   for (let i = 0; i < timestamps.length; i += 1) {
     const close = quote.close?.[i];
     if (!Number.isFinite(close)) continue;
     rows.push({
-      date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+      date: dateInZone(timestamps[i]) || new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
       close,
       high: Number.isFinite(quote.high?.[i]) ? quote.high[i] : null,
       low: Number.isFinite(quote.low?.[i]) ? quote.low[i] : null,
       open: Number.isFinite(quote.open?.[i]) ? quote.open[i] : null,
     });
   }
-  const lastClose = rows.at(-1)?.close ?? null;
-  const previousClose = Number.isFinite(meta.chartPreviousClose)
-    ? meta.chartPreviousClose
-    : rows.length > 1
-      ? rows.at(-2).close
-      : lastClose;
+  rows.sort((a,b) => a.date.localeCompare(b.date));
+  const latestMarketDate = dateInZone(meta.regularMarketTime) || rows.at(-1)?.date || null;
+  const exactLatestIndex = latestMarketDate ? rows.findLastIndex(row => row.date === latestMarketDate) : rows.length - 1;
+  const latestCompletedBeforeMarket = latestMarketDate
+    ? rows.findLast(row => row.date < latestMarketDate)
+    : null;
+  const latestRow = exactLatestIndex >= 0 ? rows[exactLatestIndex] : rows.at(-1) || null;
+  const previousRow = exactLatestIndex > 0
+    ? rows[exactLatestIndex - 1]
+    : exactLatestIndex < 0
+      ? latestCompletedBeforeMarket
+      : null;
+  const lastClose = latestRow?.close ?? rows.at(-1)?.close ?? null;
+  const previousClose = previousRow?.close
+    ?? (Number.isFinite(meta.previousClose) ? meta.previousClose : null)
+    ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : lastClose);
   const current = Number.isFinite(meta.regularMarketPrice) ? meta.regularMarketPrice : lastClose;
   return {
     ticker: key,
@@ -98,8 +116,10 @@ export function parseYahooChart(json, ticker) {
     currency: meta.currency || 'TRY',
     current,
     previousClose,
+    latestMarketDate,
     marketTime: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : null,
     exchangeName: meta.fullExchangeName || meta.exchangeName || 'BIST',
+    exchangeTimezoneName: zone,
     history: rows,
   };
 }
@@ -141,4 +161,15 @@ export function parseAhlatciDetail(html, base = {}) {
   const offerMatch = text.match(/Talep Tarihleri\s*([^₺]{3,45}?20\d{2})/i);
   if (offerMatch) offerDates = offerMatch[1].trim();
   return { ...base, company, ipoPrice, firstTradeDate, offerDates, source: 'Ahlatcı Yatırım' };
+}
+
+
+export function parseFintablesSector(html, ticker) {
+  const key = cleanTicker(ticker);
+  const text = textFromHtml(String(html || ''));
+  const match = text.match(/Sektörler\s*[:|]?\s*([^|•]+?)(?=\s+(?:Temettü|Finansallar|Ortaklık\s+Yapısı|Şirket|Karne|Kaynak|Son\s+temettü|$))/i)
+    || text.match(/Sektörler\s*[:|]?\s*([A-Za-zÇĞİÖŞÜçğıöşü&.()\-\s]{2,80})/i);
+  let sector = match?.[1]?.trim() || null;
+  if (sector) sector = sector.replace(/\s{2,}.*/, '').trim();
+  return { ticker:key, sector, source: sector ? 'Fintables' : null };
 }

@@ -21,16 +21,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private static final String APP_ORIGIN = "https://app.local";
     private static final String START_URL = "https://app.local/index.html";
     private static final String PREFS = "halka_arz_portfoy";
     private static final String PORTFOLIO_KEY = "portfolio_json_v1";
     private static final String BACKUP_KEY = "portfolio_json_v1_backup";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+    private static final long DOUBLE_BACK_MS = 2000L;
 
+    private final ExecutorService networkExecutor = Executors.newFixedThreadPool(4);
     private WebView webView;
+    private long lastBackPressAt = 0L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +47,13 @@ public class MainActivity extends Activity {
         configureWebView(webView);
         setContentView(webView);
         webView.loadUrl(START_URL);
+    }
+
+    @Override
+    protected void onDestroy() {
+        networkExecutor.shutdownNow();
+        if (webView != null) webView.destroy();
+        super.onDestroy();
     }
 
     private void configureWebView(WebView view) {
@@ -65,9 +76,66 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
+            lastBackPressAt = 0L;
             webView.goBack();
-        } else {
+            return;
+        }
+        long current = System.currentTimeMillis();
+        if (current - lastBackPressAt <= DOUBLE_BACK_MS) {
             super.onBackPressed();
+            return;
+        }
+        lastBackPressAt = current;
+        if (webView != null) {
+            webView.evaluateJavascript("window.__showBackExitHint && window.__showBackExitHint();", null);
+        }
+    }
+
+    private void postNativeResolve(String requestId, String envelope) {
+        if (webView == null) return;
+        String script = "window.__nativeHttpResolve && window.__nativeHttpResolve(" +
+                JSONObject.quote(requestId) + "," + JSONObject.quote(envelope) + ");";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+    }
+
+    private void postNativeReject(String requestId, String message) {
+        if (webView == null) return;
+        String script = "window.__nativeHttpReject && window.__nativeHttpReject(" +
+                JSONObject.quote(requestId) + "," + JSONObject.quote(message) + ");";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+    }
+
+    private static String performHttpGet(String urlText) throws Exception {
+        JSONObject envelope = new JSONObject();
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(urlText);
+            if (!"https".equalsIgnoreCase(url.getProtocol())) {
+                throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
+            }
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(12000);
+            connection.setRequestMethod("GET");
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
+            connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
+            connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
+            String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
+            if (status < 200 || status >= 300) {
+                envelope.put("ok", false);
+                envelope.put("status", status);
+                envelope.put("error", "HTTP " + status);
+            } else {
+                envelope.put("ok", true);
+                envelope.put("status", status);
+                envelope.put("body", body);
+            }
+            return envelope.toString();
+        } finally {
+            if (connection != null) connection.disconnect();
         }
     }
 
@@ -92,8 +160,7 @@ public class MainActivity extends Activity {
             if (path.contains("..")) return null;
             try {
                 InputStream input = context.getAssets().open("www/" + path);
-                String mime = mimeType(path);
-                return new WebResourceResponse(mime, "UTF-8", input);
+                return new WebResourceResponse(mimeType(path), "UTF-8", input);
             } catch (Exception ignored) {
                 return null;
             }
@@ -111,7 +178,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private static class AndroidBridge {
+    private class AndroidBridge {
         private final SharedPreferences prefs;
 
         AndroidBridge(Context context) {
@@ -138,50 +205,37 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String httpGet(String urlText) {
-            JSONObject envelope = new JSONObject();
-            HttpURLConnection connection = null;
             try {
-                URL url = new URL(urlText);
-                if (!"https".equalsIgnoreCase(url.getProtocol())) {
-                    throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
-                }
-
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(12000);
-                connection.setReadTimeout(12000);
-                connection.setRequestMethod("GET");
-                connection.setInstanceFollowRedirects(true);
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
-                connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
-                connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
-
-                int status = connection.getResponseCode();
-                InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
-                String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
-                if (status < 200 || status >= 300) {
-                    envelope.put("ok", false);
-                    envelope.put("status", status);
-                    envelope.put("error", "HTTP " + status);
-                } else {
-                    envelope.put("ok", true);
-                    envelope.put("status", status);
-                    envelope.put("body", body);
-                }
+                return performHttpGet(urlText);
             } catch (Exception error) {
-                try {
-                    envelope.put("ok", false);
-                    envelope.put("status", 0);
-                    envelope.put("error", error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
-                } catch (Exception ignored) {
-                    return "{\"ok\":false,\"status\":0,\"error\":\"Ağ isteği başarısız.\"}";
-                }
-            } finally {
-                if (connection != null) connection.disconnect();
+                return errorEnvelope(error);
             }
-            return envelope.toString();
         }
 
-        private static boolean isValidJsonObject(String value) {
+        @JavascriptInterface
+        public void httpGetAsync(String urlText, String requestId) {
+            networkExecutor.execute(() -> {
+                try {
+                    postNativeResolve(requestId, performHttpGet(urlText));
+                } catch (Exception error) {
+                    postNativeReject(requestId, error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
+                }
+            });
+        }
+
+        private String errorEnvelope(Exception error) {
+            try {
+                JSONObject envelope = new JSONObject();
+                envelope.put("ok", false);
+                envelope.put("status", 0);
+                envelope.put("error", error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
+                return envelope.toString();
+            } catch (Exception ignored) {
+                return "{\"ok\":false,\"status\":0,\"error\":\"Ağ isteği başarısız.\"}";
+            }
+        }
+
+        private boolean isValidJsonObject(String value) {
             if (value == null || value.trim().isEmpty()) return false;
             try {
                 new JSONObject(value);
@@ -190,20 +244,20 @@ public class MainActivity extends Activity {
                 return false;
             }
         }
+    }
 
-        private static String readUtf8(InputStream input, int maxBytes) throws Exception {
-            try (BufferedInputStream buffered = new BufferedInputStream(input);
-                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-                byte[] chunk = new byte[8192];
-                int total = 0;
-                int read;
-                while ((read = buffered.read(chunk)) != -1) {
-                    total += read;
-                    if (total > maxBytes) throw new IllegalStateException("Yanıt çok büyük.");
-                    output.write(chunk, 0, read);
-                }
-                return output.toString("UTF-8");
+    private static String readUtf8(InputStream input, int maxBytes) throws Exception {
+        try (BufferedInputStream buffered = new BufferedInputStream(input);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] chunk = new byte[8192];
+            int total = 0;
+            int read;
+            while ((read = buffered.read(chunk)) != -1) {
+                total += read;
+                if (total > maxBytes) throw new IllegalStateException("Yanıt çok büyük.");
+                output.write(chunk, 0, read);
             }
+            return output.toString("UTF-8");
         }
     }
 }

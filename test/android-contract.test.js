@@ -66,3 +66,32 @@ test('native bridge avoids Charset overload unavailable on older Android APIs', 
   assert.doesNotMatch(java, /toString\(StandardCharsets\.UTF_8\)/);
   assert.match(java, /toString\("UTF-8"\)/);
 });
+
+test('Android bridge performs HTTPS asynchronously on a bounded executor', async () => {
+  const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  assert.match(java, /ExecutorService/);
+  assert.match(java, /newFixedThreadPool\([234]\)/);
+  assert.match(java, /@JavascriptInterface\s+public void httpGetAsync\(/s);
+  assert.match(java, /__nativeHttpResolve/);
+  assert.match(java, /__nativeHttpReject/);
+  assert.match(java, /evaluateJavascript/);
+});
+
+test('Android root back requires a second press within two seconds', async () => {
+  const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  assert.match(java, /lastBackPress/);
+  assert.match(java, /2000/);
+  assert.match(java, /__showBackExitHint/);
+  assert.match(java, /webView\.canGoBack\(\)/);
+});
+
+test('Android debug APK uses a repository-stable signing key for future in-place updates', async () => {
+  const gradle = await read('android/app/build.gradle');
+  await fs.access('android/app/halkaarz-debug.keystore');
+  assert.match(gradle, /signingConfigs\s*\{/);
+  assert.match(gradle, /halkaarz-debug\.keystore/);
+  assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
+  assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
+  assert.match(gradle, /versionCode 2/);
+  assert.match(gradle, /versionName ['"]2\.0\.0['"]/);
+});

@@ -20,9 +20,14 @@
         <div class="eyebrow">BIST • HALKA ARZ</div>
         <h1>Portföyüm</h1>
       </div>
-      <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
-      </button>
+      <div class="topbar-actions">
+        <div id="marketStatus" class="market-status closed" aria-live="polite">
+          <strong>KAPALI</strong><span>Seans bilgisi yükleniyor</span>
+        </div>
+        <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -71,11 +76,33 @@
           <option value="30">30 Gün</option>
           <option value="90">90 Gün</option>
           <option value="365">1 Yıl</option>
+          <option value="0">Tümü</option>
         </select>
       </div>
       <div class="chart-wrap">
         <canvas id="portfolioChart" height="220"></canvas>
+        <div id="chartTooltip" class="chart-tooltip" hidden></div>
         <div id="chartEmpty" class="empty-chart">Hisse eklediğinde performans grafiği burada oluşacak.</div>
+      </div>
+      <p class="chart-help">Grafiğe dokun: gün, portföy büyüklüğü ve kâr/zararı gör.</p>
+    </section>
+
+    <section class="section analytics-card">
+      <div class="section-head">
+        <div><span class="eyebrow">GÜNLÜK GELİŞİM</span><h2>Gün gün kâr / zarar</h2></div>
+        <span class="muted small">en yeni üstte</span>
+      </div>
+      <div id="dailyHistory" class="daily-history"></div>
+    </section>
+
+    <section id="sectorAllocation" class="section analytics-card">
+      <div class="section-head">
+        <div><span class="eyebrow">DAĞILIM</span><h2>Sektörler</h2></div>
+        <span class="muted small">aktif değer</span>
+      </div>
+      <div class="sector-layout">
+        <div id="sectorDonut" class="sector-donut" aria-label="Sektör dağılımı"><span>—</span></div>
+        <div id="sectorLegend" class="sector-legend"></div>
       </div>
     </section>
 
@@ -85,7 +112,17 @@
           <span class="eyebrow">HİSSELERİM</span>
           <h2>Halka arzlar</h2>
         </div>
-        <span id="holdingCount" class="count-chip">0 hisse</span>
+        <div class="holding-controls">
+          <select id="holdingSort" class="select" aria-label="Hisseleri sırala">
+            <option value="dailyProfit">Bugün TL</option>
+            <option value="dailyPct">Bugün %</option>
+            <option value="totalProfit">Toplam kâr</option>
+            <option value="totalProfitPct">Toplam %</option>
+            <option value="activeValue">Güncel değer</option>
+            <option value="ticker">Hisse kodu</option>
+          </select>
+          <span id="holdingCount" class="count-chip">0 hisse</span>
+        </div>
       </div>
       <div id="holdings" class="holdings-list"></div>
       <div id="emptyState" class="empty-state">
@@ -145,7 +182,7 @@
         <div class="holding-title-row">
           <div>
             <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
-            <div class="company muted"></div>
+            <div class="company muted"></div><div class="sector-tag"></div>
           </div>
           <div class="price-stack">
             <strong class="current-price"></strong>

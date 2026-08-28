@@ -1,4 +1,52 @@
-function bridgeGet(url) {
+let nativeRequestId = 0;
+const nativePending = new Map();
+
+function installNativeCallbacks(win) {
+  win.__nativeHttpResolve = (id, envelopeText) => {
+    const pending = nativePending.get(String(id));
+    if (!pending) return;
+    nativePending.delete(String(id));
+    clearTimeout(pending.timer);
+    try {
+      const envelope = JSON.parse(String(envelopeText || '{}'));
+      if (!envelope?.ok) pending.reject(new Error(envelope?.error || `HTTP ${envelope?.status || 0}`));
+      else pending.resolve(String(envelope.body ?? ''));
+    } catch {
+      pending.reject(new Error('Android ağ yanıtı okunamadı.'));
+    }
+  };
+  win.__nativeHttpReject = (id, message) => {
+    const pending = nativePending.get(String(id));
+    if (!pending) return;
+    nativePending.delete(String(id));
+    clearTimeout(pending.timer);
+    pending.reject(new Error(String(message || 'Ağ isteği başarısız.')));
+  };
+}
+
+function bridgeGetAsync(url) {
+  const win = globalThis.window;
+  const bridge = win?.AndroidBridge;
+  if (!bridge?.httpGetAsync) return null;
+  installNativeCallbacks(win);
+  const id = `req-${Date.now()}-${++nativeRequestId}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      nativePending.delete(id);
+      reject(new Error('İstek zaman aşımına uğradı.'));
+    }, 15_000);
+    nativePending.set(id, { resolve, reject, timer });
+    try {
+      bridge.httpGetAsync(String(url), id);
+    } catch (error) {
+      clearTimeout(timer);
+      nativePending.delete(id);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
+}
+
+function bridgeGetLegacy(url) {
   const bridge = globalThis.window?.AndroidBridge;
   if (!bridge?.httpGet) return null;
   let envelope;
@@ -33,8 +81,10 @@ async function fetchGet(url) {
 }
 
 export async function httpGetText(url) {
-  const native = bridgeGet(url);
-  if (native !== null) return native;
+  const asyncNative = bridgeGetAsync(url);
+  if (asyncNative !== null) return asyncNative;
+  const legacyNative = bridgeGetLegacy(url);
+  if (legacyNative !== null) return legacyNative;
   return fetchGet(url);
 }
 

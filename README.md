@@ -10,11 +10,18 @@ Tek kullanıcılı BIST halka arz portföy takip sitesi. Hisse kodu + lot girild
 - Halka arzdan bugüne toplam kâr/zarar
 - Başlangıç yatırımı, aktif portföy, satış nakdi ve toplam portföy büyüklüğü
 - Satış kaydı: gerçekleşen / gerçekleşmemiş kâr ayrımı
-- 30 / 90 / 365 günlük portföy performans grafiği
+- 30 / 90 / 365 gün ve tüm dönem için portföy büyüklüğü grafiği
+- Grafiğe dokununca tarih, portföy büyüklüğü, günlük ve toplam kâr/zarar
+- Gün gün geçmiş kâr/zarar ve günlük büyüme tablosu
+- Bugünkü TL / %, toplam kâr / %, güncel değer ve koda göre hisse sıralama
+- Aktif portföy değerine göre sektör dağılımı
+- BIST açık/kapalı ve sonraki seans açılış zamanı
 - Mobil-first responsive arayüz (Samsung S22 Ultra dahil)
 - PWA: telefonda ana ekrana eklenebilir
 - İsteğe bağlı APP_PIN ile basit tek kullanıcı koruması
-- Otomatik veri bulunamazsa halka arz fiyatı/tarihi manuel düzeltme
+- Otomatik veri bulunamazsa halka arz fiyatı/tarihi/sektörü manuel düzeltme
+- Android geri tuşunda önce sayfa/detay geri dönüşü; ana ekranda çıkmak için çift geri
+- Önce cihaz önbelleğini gösteren, ağ yenilemelerini arka planda yapan hızlı açılış
 
 ## Veri kaynakları
 
@@ -103,7 +110,7 @@ Uygulama kişisel portföy takibi içindir; yatırım tavsiyesi üretmez. Ücret
 
 Projeyi bir GitHub deposuna gönderdiğinizde `.github/workflows/android-apk.yml` otomatik olarak debug APK oluşturur. GitHub'da **Actions → Build Android APK → Run workflow** yolunu kullanın. Build tamamlandığında **halka-arz-portfoy-apk** adlı artifact içindeki `halka-arz-portfoy.apk` dosyasını telefona indirip kurabilirsiniz.
 
-Workflow; Node.js testlerini çalıştırır, Android SDK 35 ve build-tools 35.0.0 kurar, web varlıklarını Android uygulamasına senkronlar ve Gradle 8.11.1 ile `assembleDebug` çalıştırır.
+Workflow; Node.js testlerini çalıştırır, Android SDK 35 ve build-tools 35.0.0 kurar, web varlıklarını Android uygulamasına senkronlar ve Gradle 8.11.1 ile `assembleDebug` çalıştırır. V2 ile birlikte debug APK, projedeki sabit `halkaarz-debug.keystore` ile imzalanır; böylece bu sürümden sonraki APK dosyaları mevcut uygulamanın üstüne güncelleme olarak kurulabilir. Bu anahtar kişisel/sideload kullanım içindir; Play Store yayını için ayrı ve gizli bir release anahtarı kullanılmalıdır.
 
 ### Android Studio / yerel Gradle ile derleme
 
@@ -126,4 +133,4 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 APK'yı telefona aktarın ve dosyayı açın. Android isterse APK'yı açtığınız uygulama için **Bilinmeyen uygulamaları yükle** iznini verin. Ardından **Yükle** seçeneğine dokunun. Uygulama 360–430 px mobil genişlikler, ekran çentiği/safe-area ve S22 Ultra sınıfı ekranlar için responsive hazırlanmıştır.
 
-> Bu ilk Android sürümünde veriler yalnızca cihazda tutulur; web sürümüyle otomatik senkronizasyon yoktur.
+> Veriler yalnızca cihazda tutulur; web sürümüyle otomatik senkronizasyon yoktur. Önceki V1 APK geçici GitHub debug anahtarıyla imzalandıysa V2 ilk kurulumunda imza uyuşmazlığı nedeniyle eski uygulamayı kaldırmak gerekebilir. V2 kurulduktan sonra sabit imza anahtarı sayesinde sonraki güncellemeler üstüne kurulabilir. Eski uygulamayı kaldırmadan önce hisse kodu/lot ve varsa satış kayıtlarını not edin.

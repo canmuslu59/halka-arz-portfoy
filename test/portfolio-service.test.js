@@ -86,3 +86,118 @@ test('manual IPO override takes precedence over fetched IPO', async () => {
   assert.equal(updated.firstTradeDate, '2026-08-21');
   assert.equal(updated.totalProfit, 30);
 });
+
+test('addHolding loads long history from IPO first trade date and caches sector', async () => {
+  let historyStart = null;
+  let sectorCalls = 0;
+  const service = createPortfolioService({
+    repository: memoryRepository(),
+    getQuote: async () => market(),
+    getHistory: async (_ticker, start) => { historyStart = start; return market(); },
+    getIpo: async () => ipo(),
+    getSector: async () => { sectorCalls += 1; return { ticker:'TEST', sector:'Enerji', source:'Fintables' }; },
+    now: () => new Date('2026-08-28T10:00:00.000Z'), uuid: () => 'holding-1',
+  });
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  assert.equal(historyStart, '2026-08-20');
+  assert.equal(holding.sector, 'Enerji');
+  assert.equal(sectorCalls, 1);
+});
+
+test('normal portfolio refresh only refreshes lightweight quote and does not repeat static IPO sector or history', async () => {
+  let nowValue = new Date('2026-08-28T10:00:00.000Z');
+  const calls = { quote:0, history:0, ipo:0, sector:0 };
+  const service = createPortfolioService({
+    repository: memoryRepository(),
+    getQuote: async () => { calls.quote += 1; return market(); },
+    getHistory: async () => { calls.history += 1; return market(); },
+    getIpo: async () => { calls.ipo += 1; return ipo(); },
+    getSector: async () => { calls.sector += 1; return { ticker:'TEST', sector:'Enerji' }; },
+    now: () => nowValue, uuid: () => 'holding-1',
+  });
+  await service.addHolding({ ticker:'TEST', lots:10 });
+  const afterAdd = { ...calls };
+  nowValue = new Date('2026-08-28T10:02:00.000Z');
+  await service.getPortfolio({ refresh:true });
+  assert.equal(calls.quote, afterAdd.quote + 1);
+  assert.equal(calls.history, afterAdd.history);
+  assert.equal(calls.ipo, afterAdd.ipo);
+  assert.equal(calls.sector, afterAdd.sector);
+});
+
+test('refreshHistory refreshes daily history at most once per Istanbul date unless forced', async () => {
+  let nowValue = new Date('2026-08-28T10:00:00.000Z');
+  let historyCalls = 0;
+  const service = createPortfolioService({
+    repository: memoryRepository(),
+    getQuote: async () => market(),
+    getHistory: async () => { historyCalls += 1; return market(); },
+    getIpo: async () => ipo(),
+    getSector: async () => ({ ticker:'TEST', sector:'Enerji' }),
+    now: () => nowValue, uuid: () => 'holding-1',
+  });
+  await service.addHolding({ ticker:'TEST', lots:10 });
+  assert.equal(historyCalls, 1);
+  await service.refreshHistory();
+  assert.equal(historyCalls, 1);
+  nowValue = new Date('2026-08-29T10:00:00.000Z');
+  await service.refreshHistory();
+  assert.equal(historyCalls, 2);
+});
+
+test('legacy marketSnapshot remains readable after v2 upgrade', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'legacy-1', ticker:'TEST', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo(), fetchedAt:'2026-08-20T10:00:00Z' },
+    marketSnapshot:{ ...market(), fetchedAt:'2026-08-28T09:00:00Z' },
+  }] });
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => market(), getHistory: async () => market(), getIpo: async () => ipo(), getSector: async () => ({ticker:'TEST',sector:null}),
+    now: () => new Date('2026-08-28T10:00:00.000Z'), uuid: () => 'unused',
+  });
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(portfolio.holdings[0].currentPrice, 15);
+  assert.equal(portfolio.holdings[0].history.length, 2);
+});
+
+test('background history refresh backfills missing sector for legacy holding', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'legacy-2', ticker:'TEST', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo(), fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(), fetchedAt:'2026-08-28T09:00:00Z' },
+    historySnapshot:{ history:market().history, fetchedAt:'2026-08-27T09:00:00Z', fetchedLocalDate:'2026-08-27', startDate:'2026-08-20' },
+  }] });
+  let sectorCalls = 0;
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(),
+    getSector:async()=>{ sectorCalls += 1; return {ticker:'TEST',sector:'Enerji',source:'Fintables'}; },
+    now:()=>new Date('2026-08-28T10:00:00Z'), uuid:()=> 'unused',
+  });
+  const portfolio = await service.refreshHistory();
+  assert.equal(sectorCalls, 1);
+  assert.equal(portfolio.holdings[0].sector, 'Enerji');
+});
+
+test('cached long history is overlaid with recent quote rows so today appears in chart history', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'merge-1', ticker:'TEST', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo(), fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(15,14), latestMarketDate:'2026-08-28', fetchedAt:'2026-08-28T09:00:00Z' },
+    historySnapshot:{
+      history:[{date:'2026-08-20',close:10},{date:'2026-08-27',close:14}],
+      fetchedAt:'2026-08-27T09:00:00Z', fetchedLocalDate:'2026-08-27', startDate:'2026-08-20',
+    },
+  }] });
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(), getSector:async()=>({ticker:'TEST',sector:null}),
+    now:()=>new Date('2026-08-28T10:00:00Z'), uuid:()=> 'unused',
+  });
+  const portfolio = await service.getPortfolio({refresh:false});
+  assert.equal(portfolio.holdings[0].history.at(-1).date, '2026-08-28');
+  assert.equal(portfolio.history.at(-1).date, '2026-08-28');
+  assert.equal(portfolio.history.at(-1).value, 150);
+});

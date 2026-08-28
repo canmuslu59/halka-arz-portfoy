@@ -1,16 +1,27 @@
 import { cleanTicker } from './domain.js';
-import { parseYahooChart, parseAhlatciList, parseAhlatciDetail } from './parsers.js';
+import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseFintablesSector } from './parsers.js';
 
 export function createDataSources({ getJson, getText }) {
   if (typeof getJson !== 'function' || typeof getText !== 'function') {
     throw new TypeError('HTTP veri fonksiyonları gerekli.');
   }
 
-  async function getMarket(ticker) {
+  async function getQuote(ticker) {
     const key = cleanTicker(ticker);
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
     const symbol = `${key}.IS`;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d&includePrePost=false&events=div%2Csplits`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=false&events=div%2Csplits`;
+    return parseYahooChart(await getJson(url), key);
+  }
+
+  async function getHistory(ticker, startDate) {
+    const key = cleanTicker(ticker);
+    if (!key) throw new Error('Geçerli bir hisse kodu girin.');
+    const startMs = Date.parse(`${startDate || '2010-01-01'}T00:00:00Z`);
+    const period1 = Math.floor((Number.isFinite(startMs) ? startMs : Date.parse('2010-01-01T00:00:00Z')) / 1000) - 86400;
+    const period2 = Math.floor(Date.now() / 1000) + 86400;
+    const symbol = `${key}.IS`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d&includePrePost=false&events=div%2Csplits`;
     return parseYahooChart(await getJson(url), key);
   }
 
@@ -54,5 +65,16 @@ export function createDataSources({ getJson, getText }) {
     };
   }
 
-  return { getMarket, getIpo };
+  async function getSector(ticker) {
+    const key = cleanTicker(ticker);
+    if (!key) throw new Error('Geçerli bir hisse kodu girin.');
+    try {
+      const html = await getText(`https://fintables.com/sirketler/${encodeURIComponent(key)}`);
+      return parseFintablesSector(html, key);
+    } catch {
+      return { ticker:key, sector:null, source:null };
+    }
+  }
+
+  return { getQuote, getMarket:getQuote, getHistory, getIpo, getSector };
 }

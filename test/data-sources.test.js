@@ -11,7 +11,7 @@ test('market source requests Yahoo BIST symbol and parses response', async () =>
     },
     getText: async () => '',
   });
-  const out = await sources.getMarket('TEST');
+  const out = await sources.getQuote('TEST');
   assert.match(seen, /TEST\.IS/);
   assert.equal(out.current, 15);
 });
@@ -31,4 +31,47 @@ test('IPO source finds ticker on Ahlatcı and follows detail link', async () => 
   assert.equal(out.ipoPrice, 94);
   assert.equal(out.firstTradeDate, '2026-08-21');
   assert.ok(urls.some(url => url.includes('/halka-arz/test')));
+});
+
+
+test('history source requests daily Yahoo rows beginning near IPO date', async () => {
+  let seen = '';
+  const sources = createDataSources({
+    getJson: async url => {
+      seen = url;
+      return { chart:{ result:[{ meta:{ regularMarketPrice:15 }, timestamp:[1760000000], indicators:{ quote:[{ close:[15], high:[15], low:[14], open:[14] }] } }] } };
+    },
+    getText: async () => '',
+  });
+  await sources.getHistory('TEST', '2026-08-20');
+  assert.match(seen, /interval=1d/);
+  assert.match(seen, /period1=/);
+  assert.doesNotMatch(seen, /range=1y/);
+});
+
+test('quote source uses lightweight five-day range', async () => {
+  let seen = '';
+  const sources = createDataSources({
+    getJson: async url => {
+      seen = url;
+      return { chart:{ result:[{ meta:{ regularMarketPrice:15 }, timestamp:[1760000000], indicators:{ quote:[{ close:[15], high:[15], low:[14], open:[14] }] } }] } };
+    },
+    getText: async () => '',
+  });
+  await sources.getQuote('TEST');
+  assert.match(seen, /range=5d/);
+});
+
+test('sector source fetches company page once and parses sector', async () => {
+  let seen = '';
+  const sources = createDataSources({
+    getJson: async () => ({}),
+    getText: async url => {
+      seen = url;
+      return '<div>Şirket Detayları</div><div>Sektörler</div><div>Gayrimenkul Yatırım Ortaklıkları</div>';
+    },
+  });
+  const out = await sources.getSector('TRGYO');
+  assert.match(seen, /fintables\.com\/sirketler\/TRGYO/);
+  assert.equal(out.sector, 'Gayrimenkul Yatırım Ortaklıkları');
 });

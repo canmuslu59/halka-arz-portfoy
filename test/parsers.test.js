@@ -6,6 +6,7 @@ import {
   parseYahooChart,
   parseAhlatciList,
   parseAhlatciDetail,
+  parseFintablesSector,
 } from '../public/core/parsers.js';
 
 test('numTR handles Turkish decimal and thousands separators', () => {
@@ -50,4 +51,36 @@ test('Ahlatcı parsers extract IPO price and first trade date', () => {
 
 test('parseAhlatciList returns null when ticker is not in table', () => {
   assert.equal(parseAhlatciList('<table><tr><td>Other OTHR</td></tr></table>', 'TEST'), null);
+});
+
+
+test('parseYahooChart derives previous close from the trading day before latest market date', () => {
+  const aug27 = Math.floor(new Date('2026-08-27T12:00:00Z').getTime()/1000);
+  const aug28 = Math.floor(new Date('2026-08-28T12:00:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: { regularMarketPrice:15, chartPreviousClose:9, regularMarketTime:aug28, exchangeTimezoneName:'Europe/Istanbul' },
+    timestamp:[aug27, aug28],
+    indicators:{ quote:[{ close:[14,15], high:[14,15], low:[14,15], open:[14,15] }] },
+  }] } };
+  const out = parseYahooChart(json, 'TEST');
+  assert.equal(out.latestMarketDate, '2026-08-28');
+  assert.equal(out.previousClose, 14);
+});
+
+test('parseFintablesSector extracts company sector label', () => {
+  const html = '<html><body><div>Şirket Detayları</div><div>Sektörler</div><div>Enerji</div></body></html>';
+  assert.equal(parseFintablesSector(html, 'TEST').sector, 'Enerji');
+});
+
+test('parseYahooChart uses latest completed row as previous close when today candle is not present yet', () => {
+  const aug27 = Math.floor(new Date('2026-08-27T12:00:00Z').getTime()/1000);
+  const aug28 = Math.floor(new Date('2026-08-28T12:00:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: { regularMarketPrice:15, chartPreviousClose:9, regularMarketTime:aug28, exchangeTimezoneName:'Europe/Istanbul' },
+    timestamp:[aug27],
+    indicators:{ quote:[{ close:[14], high:[14], low:[14], open:[14] }] },
+  }] } };
+  const out = parseYahooChart(json, 'TEST');
+  assert.equal(out.latestMarketDate, '2026-08-28');
+  assert.equal(out.previousClose, 14);
 });
