@@ -221,7 +221,7 @@ test('background refresh replaces an obviously corrupted cached sector label', a
   assert.equal(before.holdings[0].sector, null);
   const after = await service.refreshHistory();
   assert.equal(sectorCalls, 1);
-  assert.equal(after.holdings[0].sector, 'Gıda Perakendeciliği');
+  assert.equal(after.holdings[0].sector, 'Gıda');
 });
 
 
@@ -239,7 +239,7 @@ test('holding falls back to company-name sector inference when remote sector is 
     now:()=>new Date('2026-08-28T20:00:00Z'), uuid:()=> 'unused',
   });
   const portfolio = await service.getPortfolio({ refresh:false });
-  assert.equal(portfolio.holdings[0].sector, 'Perakende Ticaret');
+  assert.equal(portfolio.holdings[0].sector, 'Gıda');
   assert.equal(portfolio.holdings[0].sectorSource, 'Otomatik sınıflandırma');
 });
 
@@ -261,7 +261,28 @@ test('background refresh persists inferred company sector when remote provider r
     now:()=>new Date('2026-08-28T20:00:00Z'), uuid:()=> 'unused',
   });
   const portfolio = await service.refreshHistory({ force:true });
-  assert.equal(portfolio.holdings[0].sector, 'Perakende Ticaret');
-  assert.equal(stored.holdings[0].sectorSnapshot.sector, 'Perakende Ticaret');
+  assert.equal(portfolio.holdings[0].sector, 'Gıda');
+  assert.equal(stored.holdings[0].sectorSnapshot.sector, 'Gıda');
   assert.equal(stored.holdings[0].sectorSnapshot.source, 'Otomatik sınıflandırma');
+});
+
+
+test('specific company business line overrides generic remote retail sector', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'sector-specific-1', ticker:'CITAS', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ticker:'CITAS', company:'Çitlekçi Mağazacılık Gıda A.Ş.', ipoPrice:73.70, firstTradeDate:'2026-07-20', fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(), ticker:'CITAS', fetchedAt:'2026-08-28T09:00:00Z' },
+    sectorSnapshot:{ ticker:'CITAS', sector:'Perakende Ticaret', source:'Fintables', fetchedAt:'2026-08-28T09:00:00Z' },
+  }] });
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(),
+    getSector:async()=>({ticker:'CITAS',sector:'Perakende Ticaret',source:'Fintables'}),
+    now:()=>new Date('2026-08-28T20:00:00Z'), uuid:()=> 'unused',
+  });
+  const before = await service.getPortfolio({ refresh:false });
+  assert.equal(before.holdings[0].sector, 'Gıda');
+  await service.refreshHistory({ force:true });
+  const after = await service.getPortfolio({ refresh:false });
+  assert.equal(after.holdings[0].sector, 'Gıda');
 });

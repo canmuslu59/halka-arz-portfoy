@@ -3,6 +3,8 @@ package com.innative.halkaarz;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -49,13 +51,23 @@ public class MainActivity extends Activity {
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
         configureWebView(webView);
         SharedPreferences appPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int currentAssetVersion = getAppVersionCode();
         int previousAssetVersion = appPrefs.getInt(ASSET_VERSION_KEY, -1);
-        if (previousAssetVersion != BuildConfig.VERSION_CODE) {
+        if (previousAssetVersion != currentAssetVersion) {
             webView.clearCache(true);
-            appPrefs.edit().putInt(ASSET_VERSION_KEY, BuildConfig.VERSION_CODE).apply();
+            appPrefs.edit().putInt(ASSET_VERSION_KEY, currentAssetVersion).apply();
         }
         setContentView(webView);
         webView.loadUrl(START_URL);
+    }
+
+    private int getAppVersionCode() {
+        try {
+            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException error) {
+            return -1;
+        }
     }
 
     @Override

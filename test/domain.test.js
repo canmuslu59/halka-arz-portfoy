@@ -12,7 +12,9 @@ import {
 
 
 test('inferSectorFromCompany classifies common Turkish listed-company names', () => {
-  assert.equal(inferSectorFromCompany('Çitlekçi Mağazacılık Gıda A.Ş.', 'CITAS'), 'Perakende Ticaret');
+  assert.equal(inferSectorFromCompany('Çitlekçi Mağazacılık Gıda A.Ş.', 'CITAS'), 'Gıda');
+  assert.equal(inferSectorFromCompany('Örnek Teknoloji Mağazacılık A.Ş.', 'TEKNO'), 'Teknoloji');
+  assert.equal(inferSectorFromCompany('Moda Giyim Mağazacılık A.Ş.', 'MODA'), 'Tekstil');
   assert.equal(inferSectorFromCompany('Adra Gayrimenkul Yatırım Ortaklığı A.Ş.', 'ADGYO'), 'GYO');
   assert.equal(inferSectorFromCompany('A1 Yenilenebilir Enerji Üretim A.Ş.', 'A1YEN'), 'Enerji');
 });

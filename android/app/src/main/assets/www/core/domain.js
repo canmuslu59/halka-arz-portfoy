@@ -10,27 +10,34 @@ export function cleanTicker(value) {
 
 
 
-export function inferSectorFromCompany(company, ticker = '') {
-  const name = String(company ?? '').replace(/\s+/g, ' ').trim().toLocaleUpperCase('tr-TR');
+export function cleanSectorName(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length < 2 || text.length > 64) return null;
+  if (/(?:analizler|trade ekranı|terminal araştırma|spl eğitim|giriş yap|ücretsiz kaydol|hisseler\s*\/|al\s*\/\s*sat|karşılaştır|özet rapor)/i.test(text)) return null;
+  return text;
+}
+
+function specificSectorFromText(value, ticker = '') {
+  const name = String(value ?? '').replace(/\s+/g, ' ').trim().toLocaleUpperCase('tr-TR');
   const key = cleanTicker(ticker);
   if (!name && !key) return null;
 
-  if (/GAYRİMENKUL\s+YATIRIM\s+ORTAK/.test(name) || /GYO$/.test(key)) return 'GYO';
-  if (/(?:ENERJİ|ELEKTRİK|YENİLENEBİLİR|DOĞAL\s+GAZ|PETROL|AKARYAKIT)/.test(name)) return 'Enerji';
-  if (/(?:GIDA|YİYECEK|İÇECEK)/.test(name) && /(?:MAĞAZ|PERAKENDE|MARKET)/.test(name)) return 'Perakende Ticaret';
-  if (/(?:GIDA|YİYECEK|İÇECEK|TARIM|SÜT|UN\b|ŞEKER|ET\b)/.test(name)) return 'Gıda';
-  if (/(?:MAĞAZ|PERAKENDE|MARKET)/.test(name)) return 'Perakende';
+  // Specific economic activity always wins over generic business-model words such as
+  // mağazacılık, ticaret and perakende. This makes the allocation useful to investors.
+  if (/GAYRİMENKUL\s+YATIRIM\s+ORTAK/.test(name) || /(?:GYO|GMYO)$/.test(key)) return 'GYO';
+  if (/(?:ENERJİ|ELEKTRİK|YENİLENEBİLİR|DOĞAL\s+GAZ|PETROL|AKARYAKIT|GÜNEŞ|RÜZGAR)/.test(name)) return 'Enerji';
+  if (/(?:GIDA|YİYECEK|İÇECEK|TARIM|SÜT|UN\b|ŞEKER|ET\b|TAVUK|PİLİÇ|MAKARNA|BAKLİYAT|YEM\b)/.test(name)) return 'Gıda';
   if (/(?:BANKA|BANKASI|BANKACILIK)/.test(name)) return 'Bankacılık';
   if (/(?:SİGORTA|EMEKLİLİK)/.test(name)) return 'Sigorta / Emeklilik';
   if (/(?:FİNANS|FAKTORİNG|FİNANSAL\s+KİRALAMA|MENKUL\s+DEĞERLER|YATIRIM\s+MENKUL)/.test(name)) return 'Finans';
-  if (/(?:TEKNOLOJİ|YAZILIM|BİLİŞİM|SİBER|ELEKTRONİK)/.test(name)) return 'Teknoloji';
-  if (/(?:SAĞLIK|İLAÇ|HASTANE|TIBBİ)/.test(name)) return 'Sağlık';
+  if (/(?:TEKNOLOJİ|YAZILIM|BİLİŞİM|SİBER|ELEKTRONİK|BİLGİSAYAR)/.test(name)) return 'Teknoloji';
+  if (/(?:SAĞLIK|İLAÇ|HASTANE|TIBBİ|MEDİKAL)/.test(name)) return 'Sağlık';
   if (/(?:MADEN|MADENCİLİK)/.test(name)) return 'Madencilik';
   if (/(?:İNŞAAT|ÇİMENTO|BETON|YAPI\s+MALZEM)/.test(name)) return 'İnşaat / Yapı';
   if (/(?:DEMİR|ÇELİK|METAL|ALÜMİNYUM)/.test(name)) return 'Metal';
-  if (/(?:TEKSTİL|GİYİM|KONFEKSİYON)/.test(name)) return 'Tekstil';
-  if (/(?:OTOMOTİV|MOTORLU\s+ARAÇ)/.test(name)) return 'Otomotiv';
-  if (/(?:LOJİSTİK|TAŞIMACILIK|ULAŞIM|HAVAYOLLARI|HAVA\s+YOLLARI)/.test(name)) return 'Ulaştırma / Lojistik';
+  if (/(?:TEKSTİL|GİYİM|KONFEKSİYON|DERİ\b)/.test(name)) return 'Tekstil';
+  if (/(?:OTOMOTİV|MOTORLU\s+ARAÇ|OTOMOBİL)/.test(name)) return 'Otomotiv';
+  if (/(?:LOJİSTİK|TAŞIMACILIK|ULAŞIM|HAVAYOLLARI|HAVA\s+YOLLARI|KARGO)/.test(name)) return 'Ulaştırma / Lojistik';
   if (/(?:TURİZM|OTEL|KONAKLAMA)/.test(name)) return 'Turizm';
   if (/(?:TELEKOM|İLETİŞİM)/.test(name)) return 'İletişim';
   if (/(?:KİMYA|PETROKİMYA)/.test(name)) return 'Kimya';
@@ -38,11 +45,30 @@ export function inferSectorFromCompany(company, ticker = '') {
   return null;
 }
 
-export function cleanSectorName(value) {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
-  if (text.length < 2 || text.length > 64) return null;
-  if (/(?:analizler|trade ekranı|terminal araştırma|spl eğitim|giriş yap|ücretsiz kaydol|hisseler\s*\/|al\s*\/\s*sat|karşılaştır|özet rapor)/i.test(text)) return null;
-  return text;
+export function inferSectorFromCompany(company, ticker = '') {
+  const text = String(company ?? '').replace(/\s+/g, ' ').trim();
+  const specific = specificSectorFromText(text, ticker);
+  if (specific) return specific;
+  const name = text.toLocaleUpperCase('tr-TR');
+  if (/(?:MAĞAZ|PERAKENDE|MARKET|TİCARET)/.test(name)) return 'Perakende';
+  return null;
+}
+
+export function canonicalSectorName(value) {
+  const clean = cleanSectorName(value);
+  if (!clean) return null;
+  const specific = specificSectorFromText(clean);
+  if (specific) return specific;
+  const upper = clean.toLocaleUpperCase('tr-TR');
+  if (/(?:PERAKENDE|TOPTAN\s+VE\s+PERAKENDE)/.test(upper)) return 'Perakende';
+  return clean;
+}
+
+export function isGenericSectorName(value) {
+  const clean = cleanSectorName(value);
+  if (!clean) return true;
+  const upper = clean.toLocaleUpperCase('tr-TR');
+  return /^(?:PERAKENDE|PERAKENDE TİCARET|TOPTAN VE PERAKENDE TİCARET|TİCARET|SANAYİ|HİZMET|HİZMETLER)$/.test(upper);
 }
 
 export function profitPct(profit, cost) {

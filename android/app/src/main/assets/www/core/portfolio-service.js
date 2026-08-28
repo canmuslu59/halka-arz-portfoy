@@ -1,6 +1,8 @@
 import {
   cleanTicker,
   cleanSectorName,
+  canonicalSectorName,
+  isGenericSectorName,
   inferSectorFromCompany,
   calculateHolding,
   calculateTotals,
@@ -33,6 +35,33 @@ function mergeHistoryRows(baseRows = [], recentRows = []) {
   return [...byDate.values()].sort((a,b) => a.date.localeCompare(b.date));
 }
 
+
+function chooseSector({ manual = null, remote = null, remoteSource = null, inferred = null } = {}) {
+  const manualSector = cleanSectorName(manual);
+  if (manualSector) return { sector: manualSector, source: 'Elle' };
+  const remoteSector = canonicalSectorName(remote);
+  const inferredSector = cleanSectorName(inferred);
+  if (inferredSector && (!remoteSector || isGenericSectorName(remoteSector))) {
+    return { sector: inferredSector, source: 'Otomatik sınıflandırma' };
+  }
+  if (remoteSector) return { sector: remoteSector, source: remoteSource || null };
+  if (inferredSector) return { sector: inferredSector, source: 'Otomatik sınıflandırma' };
+  return { sector: null, source: null };
+}
+
+function normalizedSectorSnapshot(sectorResult, inferredSector, stamp) {
+  const chosen = chooseSector({
+    remote: sectorResult?.sector,
+    remoteSource: sectorResult?.source,
+    inferred: inferredSector,
+  });
+  return {
+    ...(sectorResult || {}),
+    sector: chosen.sector,
+    source: chosen.source,
+    fetchedAt: stamp,
+  };
+}
 function dateInIstanbul(date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone:'Europe/Istanbul', year:'numeric', month:'2-digit', day:'2-digit',
@@ -76,9 +105,13 @@ export function createPortfolioService({
         : [];
     const history = mergeHistoryRows(baseHistory, Array.isArray(quote.history) ? quote.history : []);
     const today = dateInIstanbul(now());
-    const manualSector = cleanSectorName(raw.sectorOverride);
-    const remoteSector = cleanSectorName(sectorSnapshot.sector);
     const inferredSector = inferSectorFromCompany(ipo.company, raw.ticker);
+    const chosenSector = chooseSector({
+      manual: raw.sectorOverride,
+      remote: sectorSnapshot.sector,
+      remoteSource: sectorSnapshot.source,
+      inferred: inferredSector,
+    });
     return calculateHolding({
       ...raw,
       company: ipo.company || null,
@@ -86,8 +119,8 @@ export function createPortfolioService({
       ipoPrice,
       firstTradeDate,
       offerDates: ipo.offerDates || null,
-      sector: manualSector || remoteSector || inferredSector,
-      sectorSource: manualSector ? 'Elle' : remoteSector ? (sectorSnapshot.source || null) : inferredSector ? 'Otomatik sınıflandırma' : null,
+      sector: chosenSector.sector,
+      sectorSource: chosenSector.source,
       currentPrice: Number.isFinite(Number(quote.current)) ? Number(quote.current) : null,
       previousClose: Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null,
       latestMarketDate: quote.latestMarketDate || quote.history?.at?.(-1)?.date || history.at(-1)?.date || null,
@@ -143,21 +176,16 @@ export function createPortfolioService({
       const rowErrors = {};
 
       const ipo = nextRaw.ipoSnapshot || {};
-      if (!nextRaw.sectorOverride && !cleanSectorName(nextRaw.sectorSnapshot?.sector)) {
+      const inferredSector = inferSectorFromCompany(ipo.company, nextRaw.ticker);
+      const cachedSector = canonicalSectorName(nextRaw.sectorSnapshot?.sector);
+      const cachedIsTooGeneric = Boolean(inferredSector && cachedSector && isGenericSectorName(cachedSector));
+      if (!nextRaw.sectorOverride && (!cachedSector || cachedIsTooGeneric)) {
         try {
           const sector = await sectorFn(nextRaw.ticker);
-          const remoteSector = cleanSectorName(sector?.sector);
-          const inferredSector = inferSectorFromCompany(ipo.company, nextRaw.ticker);
-          nextRaw.sectorSnapshot = {
-            ...sector,
-            sector: remoteSector || inferredSector || null,
-            source: remoteSector ? (sector?.source || null) : inferredSector ? 'Otomatik sınıflandırma' : null,
-            fetchedAt:now().toISOString(),
-          };
+          nextRaw.sectorSnapshot = normalizedSectorSnapshot(sector, inferredSector, now().toISOString());
         } catch (error) {
-          const inferredSector = inferSectorFromCompany(ipo.company, nextRaw.ticker);
           if (inferredSector) {
-            nextRaw.sectorSnapshot = { ticker:nextRaw.ticker, sector:inferredSector, source:'Otomatik sınıflandırma', fetchedAt:now().toISOString() };
+            nextRaw.sectorSnapshot = normalizedSectorSnapshot({ ticker:nextRaw.ticker, sector:null, source:null }, inferredSector, now().toISOString());
           } else {
             rowErrors.sector = messageOf(error, 'Sektör verisi alınamadı.');
           }
@@ -246,7 +274,7 @@ export function createPortfolioService({
         startDate:firstTradeDate,
       } : null,
       ipoSnapshot: ipoData ? { ...ipoData, fetchedAt: stamp } : null,
-      sectorSnapshot: sectorResult.status === 'fulfilled' ? { ...sectorResult.value, fetchedAt:stamp } : null,
+      sectorSnapshot: sectorResult.status === 'fulfilled' ? normalizedSectorSnapshot(sectorResult.value, inferSectorFromCompany(ipoData?.company, key), stamp) : normalizedSectorSnapshot({ ticker:key, sector:null, source:null }, inferSectorFromCompany(ipoData?.company, key), stamp),
     };
     data.holdings.push(raw);
     await repository.save(data);
@@ -323,8 +351,13 @@ export function createPortfolioService({
     else errors.market = messageOf(quoteResult.reason, 'Fiyat verisi alınamadı.');
     if (ipoResult.status === 'fulfilled') raw.ipoSnapshot = { ...ipoResult.value, fetchedAt:stamp };
     else errors.ipo = messageOf(ipoResult.reason, 'Halka arz verisi alınamadı.');
-    if (sectorResult.status === 'fulfilled') raw.sectorSnapshot = { ...sectorResult.value, fetchedAt:stamp };
-    else errors.sector = messageOf(sectorResult.reason, 'Sektör verisi alınamadı.');
+    if (sectorResult.status === 'fulfilled') {
+      raw.sectorSnapshot = normalizedSectorSnapshot(sectorResult.value, inferSectorFromCompany(raw.ipoSnapshot?.company, raw.ticker), stamp);
+    } else {
+      const inferredSector = inferSectorFromCompany(raw.ipoSnapshot?.company, raw.ticker);
+      if (inferredSector) raw.sectorSnapshot = normalizedSectorSnapshot({ ticker:raw.ticker, sector:null, source:null }, inferredSector, stamp);
+      else errors.sector = messageOf(sectorResult.reason, 'Sektör verisi alınamadı.');
+    }
     const firstTradeDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || null;
     if (firstTradeDate) {
       try {

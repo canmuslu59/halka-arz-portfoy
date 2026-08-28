@@ -92,13 +92,14 @@ test('Android debug APK uses a repository-stable signing key for future in-place
   assert.match(gradle, /halkaarz-debug\.keystore/);
   assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
   assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
-  assert.match(gradle, /versionCode 5/);
-  assert.match(gradle, /versionName ['"]2\.0\.3['"]/);
+  assert.match(gradle, /versionCode 6/);
+  assert.match(gradle, /versionName ['"]2\.0\.4['"]/);
 });
 
-test('Android invalidates stale local web assets when APK version changes', async () => {
+test('Android invalidates stale local web assets without relying on generated BuildConfig', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
-  assert.match(java, /BuildConfig\.VERSION_CODE/);
+  assert.doesNotMatch(java, /BuildConfig\.VERSION_CODE/);
+  assert.match(java, /getPackageManager\(\)\.getPackageInfo/);
   assert.match(java, /clearCache\(true\)/);
   assert.match(java, /ASSET_VERSION/);
   assert.match(java, /Cache-Control/);
