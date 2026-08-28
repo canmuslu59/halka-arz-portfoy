@@ -1,5 +1,6 @@
 import {
   cleanTicker,
+  cleanSectorName,
   calculateHolding,
   calculateTotals,
   makePortfolioHistory,
@@ -81,7 +82,7 @@ export function createPortfolioService({
       ipoPrice,
       firstTradeDate,
       offerDates: ipo.offerDates || null,
-      sector: raw.sectorOverride || sectorSnapshot.sector || null,
+      sector: cleanSectorName(raw.sectorOverride) || cleanSectorName(sectorSnapshot.sector),
       sectorSource: sectorSnapshot.source || null,
       currentPrice: Number.isFinite(Number(quote.current)) ? Number(quote.current) : null,
       previousClose: Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null,
@@ -137,7 +138,7 @@ export function createPortfolioService({
       let nextRaw = { ...raw };
       const rowErrors = {};
 
-      if (!nextRaw.sectorOverride && !nextRaw.sectorSnapshot?.sector) {
+      if (!nextRaw.sectorOverride && !cleanSectorName(nextRaw.sectorSnapshot?.sector)) {
         try {
           const sector = await sectorFn(nextRaw.ticker);
           nextRaw.sectorSnapshot = { ...sector, fetchedAt:now().toISOString() };

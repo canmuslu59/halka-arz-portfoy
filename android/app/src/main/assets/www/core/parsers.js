@@ -1,4 +1,4 @@
-import { cleanTicker } from './domain.js';
+import { cleanTicker, cleanSectorName } from './domain.js';
 
 export function numTR(value) {
   if (value == null) return null;
@@ -166,10 +166,22 @@ export function parseAhlatciDetail(html, base = {}) {
 
 export function parseFintablesSector(html, ticker) {
   const key = cleanTicker(ticker);
-  const text = textFromHtml(String(html || ''));
-  const match = text.match(/Sektörler\s*[:|]?\s*([^|•]+?)(?=\s+(?:Temettü|Finansallar|Ortaklık\s+Yapısı|Şirket|Karne|Kaynak|Son\s+temettü|$))/i)
-    || text.match(/Sektörler\s*[:|]?\s*([A-Za-zÇĞİÖŞÜçğıöşü&.()\-\s]{2,80})/i);
-  let sector = match?.[1]?.trim() || null;
-  if (sector) sector = sector.replace(/\s{2,}.*/, '').trim();
+  const raw = String(html || '');
+  const marker = raw.search(/Sektörler/i);
+  const scope = marker >= 0 ? raw.slice(marker, marker + 6000) : raw;
+
+  const linkedSectors = [...scope.matchAll(/<a\b[^>]*href=["'][^"']*\/sektorler\/[^"']+["'][^>]*>([\s\S]*?)<\/a>/gi)]
+    .map(match => cleanSectorName(textFromHtml(match[1])))
+    .filter(Boolean)
+    .filter((value, index, rows) => rows.indexOf(value) === index);
+
+  let sector = linkedSectors.at(-1) || null;
+  if (!sector) {
+    const text = textFromHtml(scope);
+    const match = text.match(/Sektörler\s*[:|]?\s*([^|•]{2,160}?)(?=\s+(?:Temettü|Finansallar|Ortaklık\s+Yapısı|Şirket|Karne|Kaynak|Son\s+temettü|Brüt\s+Kar|$))/i)
+      || text.match(/Sektörler\s*[:|]?\s*([A-Za-zÇĞİÖŞÜçğıöşü&.()\-\s]{2,80})(?:$|\s{2,})/i);
+    sector = cleanSectorName(match?.[1]);
+  }
+
   return { ticker:key, sector, source: sector ? 'Fintables' : null };
 }

@@ -8,6 +8,13 @@ export function cleanTicker(value) {
     .slice(0, 8);
 }
 
+export function cleanSectorName(value) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length < 2 || text.length > 64) return null;
+  if (/(?:analizler|trade ekranı|terminal araştırma|spl eğitim|giriş yap|ücretsiz kaydol|hisseler\s*\/|al\s*\/\s*sat|karşılaştır|özet rapor)/i.test(text)) return null;
+  return text;
+}
+
 export function profitPct(profit, cost) {
   return Number(cost) > 0 ? (Number(profit) / Number(cost)) * 100 : 0;
 }

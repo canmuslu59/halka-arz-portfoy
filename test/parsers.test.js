@@ -84,3 +84,15 @@ test('parseYahooChart uses latest completed row as previous close when today can
   assert.equal(out.latestMarketDate, '2026-08-28');
   assert.equal(out.previousClose, 14);
 });
+
+test('parseFintablesSector prefers actual sector links and ignores page navigation spam', () => {
+  const html = `
+    <html><body>
+      <div>Şirket Detayları</div>
+      <div>Sektörler</div>
+      <a href="/sektorler/gida-ve-icecek">Gıda ve İçecek</a>
+      <a href="/sektorler/gida-perakendeciligi">Gıda Perakendeciliği</a>
+      <div>Analizler Yeni Trade Ekranı Terminal Araştırma SPL Eğitimleri Giriş yap Ücretsiz kaydol Hisseler / CITAS Al / Sat CITAS Karşılaştır Çitlekçi Mağazacılık Gıda A.Ş. Özet Rapor</div>
+    </body></html>`;
+  assert.equal(parseFintablesSector(html, 'CITAS').sector, 'Gıda Perakendeciliği');
+});

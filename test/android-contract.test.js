@@ -92,6 +92,6 @@ test('Android debug APK uses a repository-stable signing key for future in-place
   assert.match(gradle, /halkaarz-debug\.keystore/);
   assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
   assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
-  assert.match(gradle, /versionCode 2/);
-  assert.match(gradle, /versionName ['"]2\.0\.0['"]/);
+  assert.match(gradle, /versionCode 3/);
+  assert.match(gradle, /versionName ['"]2\.0\.1['"]/);
 });

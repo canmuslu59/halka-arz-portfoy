@@ -201,3 +201,25 @@ test('cached long history is overlaid with recent quote rows so today appears in
   assert.equal(portfolio.history.at(-1).date, '2026-08-28');
   assert.equal(portfolio.history.at(-1).value, 150);
 });
+
+test('background refresh replaces an obviously corrupted cached sector label', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'bad-sector-1', ticker:'CITAS', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo(), ticker:'CITAS', fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(), ticker:'CITAS', fetchedAt:'2026-08-28T09:00:00Z' },
+    historySnapshot:{ history:market().history, fetchedAt:'2026-08-28T09:00:00Z', fetchedLocalDate:'2026-08-28', startDate:'2026-08-20' },
+    sectorSnapshot:{ ticker:'CITAS', sector:'Analizler Yeni Trade Ekranı Terminal Araştırma SPL Eğitimleri Giriş yap Ücretsiz kaydol Hisseler / CITAS Al / Sat CITAS Karşılaştır Çitlekçi Mağazacılık Gıda A.Ş. Özet Rapor', source:'Fintables' },
+  }] });
+  let sectorCalls = 0;
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(),
+    getSector:async()=>{ sectorCalls += 1; return { ticker:'CITAS', sector:'Gıda Perakendeciliği', source:'Fintables' }; },
+    now:()=>new Date('2026-08-28T10:00:00Z'), uuid:()=> 'unused',
+  });
+  const before = await service.getPortfolio({ refresh:false });
+  assert.equal(before.holdings[0].sector, null);
+  const after = await service.refreshHistory();
+  assert.equal(sectorCalls, 1);
+  assert.equal(after.holdings[0].sector, 'Gıda Perakendeciliği');
+});

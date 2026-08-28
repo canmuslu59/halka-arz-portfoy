@@ -41,3 +41,13 @@ test('chart range offers full IPO-to-present history', async () => {
   const app = await read('public/app.js');
   assert.match(app, /days\s*<=\s*0\s*\?\s*history/);
 });
+
+test('add holding flow keeps a stable form reference across await and always opens blank', async () => {
+  const app = await read('public/app.js');
+  assert.match(app, /const addForm = event\.currentTarget;/);
+  assert.match(app, /new FormData\(addForm\)/);
+  assert.match(app, /addForm\.reset\(\)/);
+  assert.doesNotMatch(app, /event\.currentTarget\.reset\(\)/);
+  assert.match(app, /function resetAddEntryForm\(/);
+  assert.match(app, /function openAddSheet[\s\S]*resetAddEntryForm\(\)/);
+});

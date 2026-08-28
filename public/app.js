@@ -233,8 +233,7 @@ function closeSheets({ useHistory = true } = {}) {
 
 function applyNavigationState(nav) {
   if (nav?.sheet === '#addSheet') {
-    openSheet('#addSheet', {}, { push:false });
-    setTimeout(() => $('#tickerInput')?.focus(), 100);
+    openAddSheet({ push:false });
     return;
   }
   if (nav?.sheet === '#detailSheet' && nav.holdingId) {
@@ -365,14 +364,15 @@ $('#tickerInput').addEventListener('input', event => {
 
 $('#addForm').addEventListener('submit', async event => {
   event.preventDefault();
+  const addForm = event.currentTarget;
   const btn = $('#addSubmit');
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(addForm);
   btn.disabled = true;
   btn.textContent = 'Bulunuyor…';
   try {
     const result = await service.addHolding({ ticker:form.get('ticker'), lots:Number(form.get('lots')) });
     closeSheets();
-    event.currentTarget.reset();
+    addForm.reset();
     $('#lookupPreview').hidden = true;
     await loadPortfolio({ quiet:true });
     toast(result.autoIpoFound ? `${result.holding.ticker} eklendi.` : `${result.holding.ticker} eklendi; halka arz bilgisi kontrol edin.`);
@@ -487,7 +487,16 @@ function showChartPoint(clientX) {
   tooltip.style.left = `${left}px`;
 }
 
+function resetAddEntryForm() {
+  clearTimeout(lookupTimer);
+  const form = $('#addForm');
+  if (form) form.reset();
+  const preview = $('#lookupPreview');
+  if (preview) { preview.hidden = true; preview.textContent = ''; }
+}
+
 function openAddSheet({ push = true } = {}) {
+  resetAddEntryForm();
   openSheet('#addSheet', {}, { push });
   setTimeout(() => $('#tickerInput').focus(),100);
 }
