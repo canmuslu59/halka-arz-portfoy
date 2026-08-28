@@ -2,11 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cleanTicker,
+  inferSectorFromCompany,
   calculateHolding,
   calculateTotals,
   makePortfolioHistory,
   validateSale,
 } from '../public/core/domain.js';
+
+
+
+test('inferSectorFromCompany classifies common Turkish listed-company names', () => {
+  assert.equal(inferSectorFromCompany('Çitlekçi Mağazacılık Gıda A.Ş.', 'CITAS'), 'Perakende Ticaret');
+  assert.equal(inferSectorFromCompany('Adra Gayrimenkul Yatırım Ortaklığı A.Ş.', 'ADGYO'), 'GYO');
+  assert.equal(inferSectorFromCompany('A1 Yenilenebilir Enerji Üretim A.Ş.', 'A1YEN'), 'Enerji');
+});
 
 test('cleanTicker normalizes BIST suffixes and punctuation', () => {
   assert.equal(cleanTicker(' kpeks.IS '), 'KPEKS');

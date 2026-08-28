@@ -51,3 +51,9 @@ test('add holding flow keeps a stable form reference across await and always ope
   assert.match(app, /function resetAddEntryForm\(/);
   assert.match(app, /function openAddSheet[\s\S]*resetAddEntryForm\(\)/);
 });
+
+test('home screen exposes app version so installed APK can be verified', async () => {
+  const html = await read('public/index.html');
+  assert.match(html, /id=["']appVersion["']/);
+  assert.match(html, /v2\.0\.3/);
+});

@@ -8,6 +8,36 @@ export function cleanTicker(value) {
     .slice(0, 8);
 }
 
+
+
+export function inferSectorFromCompany(company, ticker = '') {
+  const name = String(company ?? '').replace(/\s+/g, ' ').trim().toLocaleUpperCase('tr-TR');
+  const key = cleanTicker(ticker);
+  if (!name && !key) return null;
+
+  if (/GAYRİMENKUL\s+YATIRIM\s+ORTAK/.test(name) || /GYO$/.test(key)) return 'GYO';
+  if (/(?:ENERJİ|ELEKTRİK|YENİLENEBİLİR|DOĞAL\s+GAZ|PETROL|AKARYAKIT)/.test(name)) return 'Enerji';
+  if (/(?:GIDA|YİYECEK|İÇECEK)/.test(name) && /(?:MAĞAZ|PERAKENDE|MARKET)/.test(name)) return 'Perakende Ticaret';
+  if (/(?:GIDA|YİYECEK|İÇECEK|TARIM|SÜT|UN\b|ŞEKER|ET\b)/.test(name)) return 'Gıda';
+  if (/(?:MAĞAZ|PERAKENDE|MARKET)/.test(name)) return 'Perakende';
+  if (/(?:BANKA|BANKASI|BANKACILIK)/.test(name)) return 'Bankacılık';
+  if (/(?:SİGORTA|EMEKLİLİK)/.test(name)) return 'Sigorta / Emeklilik';
+  if (/(?:FİNANS|FAKTORİNG|FİNANSAL\s+KİRALAMA|MENKUL\s+DEĞERLER|YATIRIM\s+MENKUL)/.test(name)) return 'Finans';
+  if (/(?:TEKNOLOJİ|YAZILIM|BİLİŞİM|SİBER|ELEKTRONİK)/.test(name)) return 'Teknoloji';
+  if (/(?:SAĞLIK|İLAÇ|HASTANE|TIBBİ)/.test(name)) return 'Sağlık';
+  if (/(?:MADEN|MADENCİLİK)/.test(name)) return 'Madencilik';
+  if (/(?:İNŞAAT|ÇİMENTO|BETON|YAPI\s+MALZEM)/.test(name)) return 'İnşaat / Yapı';
+  if (/(?:DEMİR|ÇELİK|METAL|ALÜMİNYUM)/.test(name)) return 'Metal';
+  if (/(?:TEKSTİL|GİYİM|KONFEKSİYON)/.test(name)) return 'Tekstil';
+  if (/(?:OTOMOTİV|MOTORLU\s+ARAÇ)/.test(name)) return 'Otomotiv';
+  if (/(?:LOJİSTİK|TAŞIMACILIK|ULAŞIM|HAVAYOLLARI|HAVA\s+YOLLARI)/.test(name)) return 'Ulaştırma / Lojistik';
+  if (/(?:TURİZM|OTEL|KONAKLAMA)/.test(name)) return 'Turizm';
+  if (/(?:TELEKOM|İLETİŞİM)/.test(name)) return 'İletişim';
+  if (/(?:KİMYA|PETROKİMYA)/.test(name)) return 'Kimya';
+  if (/(?:HOLDİNG|YATIRIM\s+HOLDİNG)/.test(name)) return 'Holding';
+  return null;
+}
+
 export function cleanSectorName(value) {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim();
   if (text.length < 2 || text.length > 64) return null;

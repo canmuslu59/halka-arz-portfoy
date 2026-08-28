@@ -223,3 +223,45 @@ test('background refresh replaces an obviously corrupted cached sector label', a
   assert.equal(sectorCalls, 1);
   assert.equal(after.holdings[0].sector, 'Gıda Perakendeciliği');
 });
+
+
+test('holding falls back to company-name sector inference when remote sector is unavailable', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'sector-fallback-1', ticker:'CITAS', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo(), ticker:'CITAS', company:'Çitlekçi Mağazacılık Gıda A.Ş.', fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(), ticker:'CITAS', fetchedAt:'2026-08-28T09:00:00Z' },
+    sectorSnapshot:{ ticker:'CITAS', sector:null, source:null, fetchedAt:'2026-08-28T09:00:00Z' },
+  }] });
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(),
+    getSector:async()=>({ticker:'CITAS',sector:null,source:null}),
+    now:()=>new Date('2026-08-28T20:00:00Z'), uuid:()=> 'unused',
+  });
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(portfolio.holdings[0].sector, 'Perakende Ticaret');
+  assert.equal(portfolio.holdings[0].sectorSource, 'Otomatik sınıflandırma');
+});
+
+test('background refresh persists inferred company sector when remote provider returns no sector', async () => {
+  let stored = { holdings:[{
+    id:'sector-persist-1', ticker:'CITAS', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ticker:'CITAS', company:'Çitlekçi Mağazacılık Gıda A.Ş.', ipoPrice:73.70, firstTradeDate:'2026-07-20', fetchedAt:'2026-08-20T10:00:00Z' },
+    quoteSnapshot:{ ...market(), ticker:'CITAS', fetchedAt:'2026-08-28T09:00:00Z' },
+    historySnapshot:{ history:market().history, fetchedAt:'2026-08-28T09:00:00Z', fetchedLocalDate:'2026-08-28', startDate:'2026-07-20' },
+    sectorSnapshot:{ ticker:'CITAS', sector:null, source:null, fetchedAt:'2026-08-28T09:00:00Z' },
+  }] };
+  const repository = {
+    load: async () => structuredClone(stored),
+    save: async value => { stored = structuredClone(value); },
+  };
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(),
+    getSector:async()=>({ticker:'CITAS',sector:null,source:null}),
+    now:()=>new Date('2026-08-28T20:00:00Z'), uuid:()=> 'unused',
+  });
+  const portfolio = await service.refreshHistory({ force:true });
+  assert.equal(portfolio.holdings[0].sector, 'Perakende Ticaret');
+  assert.equal(stored.holdings[0].sectorSnapshot.sector, 'Perakende Ticaret');
+  assert.equal(stored.holdings[0].sectorSnapshot.source, 'Otomatik sınıflandırma');
+});

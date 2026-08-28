@@ -21,6 +21,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,6 +31,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "halka_arz_portfoy";
     private static final String PORTFOLIO_KEY = "portfolio_json_v1";
     private static final String BACKUP_KEY = "portfolio_json_v1_backup";
+    private static final String ASSET_VERSION_KEY = "web_asset_version";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
     private static final long DOUBLE_BACK_MS = 2000L;
 
@@ -45,6 +48,12 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
         configureWebView(webView);
+        SharedPreferences appPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int previousAssetVersion = appPrefs.getInt(ASSET_VERSION_KEY, -1);
+        if (previousAssetVersion != BuildConfig.VERSION_CODE) {
+            webView.clearCache(true);
+            appPrefs.edit().putInt(ASSET_VERSION_KEY, BuildConfig.VERSION_CODE).apply();
+        }
         setContentView(webView);
         webView.loadUrl(START_URL);
     }
@@ -160,7 +169,11 @@ public class MainActivity extends Activity {
             if (path.contains("..")) return null;
             try {
                 InputStream input = context.getAssets().open("www/" + path);
-                return new WebResourceResponse(mimeType(path), "UTF-8", input);
+                WebResourceResponse response = new WebResourceResponse(mimeType(path), "UTF-8", input);
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+                response.setResponseHeaders(headers);
+                return response;
             } catch (Exception ignored) {
                 return null;
             }
