@@ -75,3 +75,18 @@ test('sector source fetches company page once and parses sector', async () => {
   assert.match(seen, /fintables\.com\/sirketler\/TRGYO/);
   assert.equal(out.sector, 'Gayrimenkul Yatırım Ortaklıkları');
 });
+
+test('lightweight quote requests intraday 5 minute data so recent trading sessions can backfill daily closes', async () => {
+  let requested = null;
+  const sources = createDataSources({
+    getJson: async url => {
+      requested = url;
+      const t = Math.floor(new Date('2026-08-31T10:15:00Z').getTime()/1000);
+      return { chart:{ result:[{ meta:{ regularMarketPrice:128, previousClose:142.2, regularMarketTime:t, exchangeTimezoneName:'Europe/Istanbul' }, timestamp:[t], indicators:{quote:[{close:[128],high:[128],low:[128],open:[128]}]} }] } };
+    },
+    getText: async () => '',
+  });
+  await sources.getQuote('CITAS');
+  assert.match(requested, /range=5d/);
+  assert.match(requested, /interval=5m/);
+});

@@ -81,24 +81,48 @@ export function parseYahooChart(json, ticker) {
     const y = pick('year'), m = pick('month'), d = pick('day');
     return y && m && d ? `${y}-${m}-${d}` : null;
   };
-  const rows = [];
+
+  const ticks = [];
   for (let i = 0; i < timestamps.length; i += 1) {
+    const epoch = Number(timestamps[i]);
     const close = quote.close?.[i];
-    if (!Number.isFinite(close)) continue;
-    rows.push({
-      date: dateInZone(timestamps[i]) || new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+    if (!Number.isFinite(epoch) || !Number.isFinite(close)) continue;
+    ticks.push({
+      epoch,
+      date: dateInZone(epoch) || new Date(epoch * 1000).toISOString().slice(0, 10),
       close,
       high: Number.isFinite(quote.high?.[i]) ? quote.high[i] : null,
       low: Number.isFinite(quote.low?.[i]) ? quote.low[i] : null,
       open: Number.isFinite(quote.open?.[i]) ? quote.open[i] : null,
     });
   }
-  rows.sort((a,b) => a.date.localeCompare(b.date));
-  const latestMarketDate = dateInZone(meta.regularMarketTime) || rows.at(-1)?.date || null;
+  ticks.sort((a,b) => a.epoch - b.epoch);
+
+  // Intraday endpoints contain many candles for the same session. Collapse them
+  // to one daily OHLC row so recent quotes can safely backfill missing daily history.
+  const byDate = new Map();
+  for (const tick of ticks) {
+    const existing = byDate.get(tick.date);
+    if (!existing) {
+      byDate.set(tick.date, { date:tick.date, close:tick.close, high:tick.high, low:tick.low, open:tick.open, lastEpoch:tick.epoch });
+      continue;
+    }
+    existing.close = tick.close;
+    existing.lastEpoch = tick.epoch;
+    if (Number.isFinite(tick.high)) existing.high = Number.isFinite(existing.high) ? Math.max(existing.high, tick.high) : tick.high;
+    if (Number.isFinite(tick.low)) existing.low = Number.isFinite(existing.low) ? Math.min(existing.low, tick.low) : tick.low;
+    if (!Number.isFinite(existing.open) && Number.isFinite(tick.open)) existing.open = tick.open;
+  }
+  const rows = [...byDate.values()]
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(({ lastEpoch, ...row }) => row);
+
+  const latestTick = ticks.at(-1) || null;
+  const metaEpoch = Number(meta.regularMarketTime);
+  const marketEpoch = Math.max(Number.isFinite(metaEpoch) ? metaEpoch : 0, latestTick?.epoch || 0) || null;
+  const latestMarketDate = marketEpoch ? dateInZone(marketEpoch) : rows.at(-1)?.date || null;
   const exactLatestIndex = latestMarketDate ? rows.findLastIndex(row => row.date === latestMarketDate) : rows.length - 1;
-  const latestCompletedBeforeMarket = latestMarketDate
-    ? rows.findLast(row => row.date < latestMarketDate)
-    : null;
+  const latestCompletedBeforeMarket = latestMarketDate ? rows.findLast(row => row.date < latestMarketDate) : null;
   const latestRow = exactLatestIndex >= 0 ? rows[exactLatestIndex] : rows.at(-1) || null;
   const previousRow = exactLatestIndex > 0
     ? rows[exactLatestIndex - 1]
@@ -106,10 +130,18 @@ export function parseYahooChart(json, ticker) {
       ? latestCompletedBeforeMarket
       : null;
   const lastClose = latestRow?.close ?? rows.at(-1)?.close ?? null;
-  const previousClose = previousRow?.close
-    ?? (Number.isFinite(meta.previousClose) ? meta.previousClose : null)
-    ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : lastClose);
-  const current = Number.isFinite(meta.regularMarketPrice) ? meta.regularMarketPrice : lastClose;
+
+  // meta.previousClose is the exchange's previous-session close. It must win over
+  // an older cached/daily row (e.g. Monday when Friday is missing from the series).
+  const previousClose = Number.isFinite(meta.previousClose) ? meta.previousClose
+    : previousRow?.close
+      ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : lastClose);
+
+  const freshestTickWins = latestTick && (!Number.isFinite(metaEpoch) || latestTick.epoch > metaEpoch);
+  const current = freshestTickWins
+    ? latestTick.close
+    : Number.isFinite(meta.regularMarketPrice) ? meta.regularMarketPrice : lastClose;
+
   return {
     ticker: key,
     symbol: `${key}.IS`,
@@ -117,7 +149,7 @@ export function parseYahooChart(json, ticker) {
     current,
     previousClose,
     latestMarketDate,
-    marketTime: meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : null,
+    marketTime: marketEpoch ? new Date(marketEpoch * 1000).toISOString() : null,
     exchangeName: meta.fullExchangeName || meta.exchangeName || 'BIST',
     exchangeTimezoneName: zone,
     history: rows,

@@ -55,5 +55,17 @@ test('add holding flow keeps a stable form reference across await and always ope
 test('home screen exposes app version so installed APK can be verified', async () => {
   const html = await read('public/index.html');
   assert.match(html, /id=["']appVersion["']/);
-  assert.match(html, /v2\.0\.4/);
+  assert.match(html, /v2\.0\.5/);
+});
+
+test('UI shows real market-data timestamp instead of only local refresh completion time', async () => {
+  const appJs = await read('public/app.js');
+  assert.match(appJs, /marketDataTime/);
+  assert.match(appJs, /Piyasa verisi/);
+});
+
+test('UI polls quotes frequently while BIST is open rather than once per minute', async () => {
+  const appJs = await read('public/app.js');
+  assert.match(appJs, /15_000/);
+  assert.match(appJs, /getBistMarketStatus/);
 });

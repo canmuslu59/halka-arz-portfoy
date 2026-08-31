@@ -92,8 +92,8 @@ test('Android debug APK uses a repository-stable signing key for future in-place
   assert.match(gradle, /halkaarz-debug\.keystore/);
   assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
   assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
-  assert.match(gradle, /versionCode 6/);
-  assert.match(gradle, /versionName ['"]2\.0\.4['"]/);
+  assert.match(gradle, /versionCode 7/);
+  assert.match(gradle, /versionName ['"]2\.0\.5['"]/);
 });
 
 test('Android invalidates stale local web assets without relying on generated BuildConfig', async () => {

@@ -44,6 +44,18 @@ function trDate(iso) { if (!iso) return '—'; const d = new Date(`${iso}T12:00:
 function timeAgo(iso) { if (!iso) return '—'; const sec = Math.max(0,(Date.now()-new Date(iso).getTime())/1000); if(sec<60)return'şimdi'; if(sec<3600)return`${Math.floor(sec/60)} dk önce`; return timeFmt.format(new Date(iso)); }
 function todayIstanbul() { return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
 
+function marketDataText(data) {
+  if (!data?.marketDataTime) return 'Piyasa verisi bekleniyor';
+  const stamp = new Date(data.marketDataTime);
+  const status = getBistMarketStatus(new Date());
+  const ageMinutes = Number.isFinite(Number(data.marketDataAgeMs)) ? Math.max(0, Math.floor(Number(data.marketDataAgeMs) / 60000)) : null;
+  if (status.isOpen) {
+    return `Piyasa verisi ${timeFmt.format(stamp)}${ageMinutes == null ? '' : ` · ${ageMinutes} dk önce`}`;
+  }
+  const marketDay = new Intl.DateTimeFormat('tr-TR', { timeZone:'Europe/Istanbul', day:'numeric', month:'short' }).format(stamp);
+  return `Son piyasa verisi ${marketDay} ${timeFmt.format(stamp)}`;
+}
+
 function toast(message) {
   const el = $('#toast');
   el.textContent = message;
@@ -118,7 +130,8 @@ function renderPortfolio(data) {
   setMetric('#invested', money(t.invested));
   setMetric('#activeValue', money(t.activeValue));
   setMetric('#salesProceeds', money(t.salesProceeds));
-  $('#lastUpdated').textContent = timeAgo(data.updatedAt);
+  $('#lastUpdated').textContent = marketDataText(data);
+  $('#lastUpdated').title = 'Fiyat kaynağı gecikmeli olabilir; bu saat gerçek piyasa verisinin zaman damgasıdır.';
   $('#holdingCount').textContent = `${data.holdings.length} hisse`;
 
   const list = $('#holdings');
@@ -534,5 +547,11 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && locat
 renderMarketStatus();
 loadPortfolio();
 setTimeout(() => refreshBackgroundHistory(), 900);
-setInterval(() => { if (!document.hidden) loadPortfolio({ quiet:true }); }, 60_000);
+let closedQuoteTick = 0;
+setInterval(() => {
+  if (document.hidden) return;
+  const market = getBistMarketStatus(new Date());
+  if (market.isOpen) loadPortfolio({ quiet:true });
+  else { closedQuoteTick += 1; if (closedQuoteTick % 4 === 0) loadPortfolio({ quiet:true }); }
+}, 15_000);
 setInterval(renderMarketStatus, 30_000);

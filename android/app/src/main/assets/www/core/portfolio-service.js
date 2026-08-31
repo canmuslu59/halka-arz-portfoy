@@ -10,7 +10,7 @@ import {
   validateSale,
 } from './domain.js';
 
-const QUOTE_TTL_MS = 45_000;
+const QUOTE_TTL_MS = 12_000;
 
 function positiveNumber(value) {
   const n = Number(value);
@@ -136,12 +136,28 @@ export function createPortfolioService({
   }
 
   function portfolioFrom(data, errorsById = new Map()) {
+    const nowDate = now();
+    const today = dateInIstanbul(nowDate);
     const holdings = (data.holdings || []).map(raw => hydrate(raw, errorsById.get(raw.id) || {}));
+    const totals = calculateTotals(holdings);
+    const history = makePortfolioHistory(holdings);
+    const lastHistory = history.at(-1);
+    if (lastHistory?.date === today) {
+      lastHistory.dailyProfit = totals.dailyProfit;
+      lastHistory.dailyPct = totals.dailyPct;
+    }
+    const activeMarketTimes = holdings
+      .filter(holding => Number(holding.currentLots || 0) > 0 && holding.marketTime)
+      .map(holding => new Date(holding.marketTime).getTime())
+      .filter(Number.isFinite);
+    const oldestMarketTimeMs = activeMarketTimes.length ? Math.min(...activeMarketTimes) : null;
     return {
       holdings,
-      totals: calculateTotals(holdings),
-      history: makePortfolioHistory(holdings),
-      updatedAt: now().toISOString(),
+      totals,
+      history,
+      marketDataTime: oldestMarketTimeMs == null ? null : new Date(oldestMarketTimeMs).toISOString(),
+      marketDataAgeMs: oldestMarketTimeMs == null ? null : Math.max(0, nowDate.getTime() - oldestMarketTimeMs),
+      updatedAt: nowDate.toISOString(),
     };
   }
 

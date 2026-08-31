@@ -286,3 +286,38 @@ test('specific company business line overrides generic remote retail sector', as
   const after = await service.getPortfolio({ refresh:false });
   assert.equal(after.holdings[0].sector, 'Gıda');
 });
+
+test('latest portfolio history daily change is aligned with quote previousClose even when cached history missed Friday', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'gap-1', ticker:'CITAS', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ticker:'CITAS', company:'Çitlekçi Mağazacılık Gıda A.Ş.', ipoPrice:73.70, firstTradeDate:'2026-08-18' },
+    quoteSnapshot:{
+      ticker:'CITAS', current:128, previousClose:142.20, latestMarketDate:'2026-08-31', marketTime:'2026-08-31T10:15:00.000Z',
+      history:[{date:'2026-08-27',close:129.30},{date:'2026-08-31',close:128}], fetchedAt:'2026-08-31T10:15:05.000Z',
+    },
+    historySnapshot:{ history:[{date:'2026-08-18',close:81.05},{date:'2026-08-27',close:129.30}], fetchedLocalDate:'2026-08-31' },
+  }] });
+  const service = createPortfolioService({
+    repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(), getSector:async()=>({ticker:'CITAS',sector:'Gıda'}),
+    now:()=>new Date('2026-08-31T10:16:00Z'), uuid:()=> 'unused',
+  });
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.ok(Math.abs(portfolio.totals.dailyProfit + 142) < 0.000001);
+  assert.equal(portfolio.history.at(-1).date, '2026-08-31');
+  assert.ok(Math.abs(portfolio.history.at(-1).dailyProfit + 142) < 0.000001);
+  assert.ok(Math.abs(portfolio.history.at(-1).dailyPct - ((128-142.2)/142.2*100)) < 0.000001);
+});
+
+test('portfolio exposes oldest active quote time so UI can show actual market-data freshness', async () => {
+  const repository = memoryRepository();
+  await repository.save({ holdings:[{
+    id:'freshness-1', ticker:'TEST', initialLots:10, currentLots:10, sales:[],
+    ipoSnapshot:{ ...ipo() },
+    quoteSnapshot:{ ...market(), latestMarketDate:'2026-08-31', marketTime:'2026-08-31T10:05:00.000Z', fetchedAt:'2026-08-31T10:20:00.000Z' },
+  }] });
+  const service = createPortfolioService({ repository, getQuote:async()=>market(), getHistory:async()=>market(), getIpo:async()=>ipo(), getSector:async()=>({ticker:'TEST',sector:null}), now:()=>new Date('2026-08-31T10:20:00Z'), uuid:()=> 'unused' });
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(portfolio.marketDataTime, '2026-08-31T10:05:00.000Z');
+  assert.equal(portfolio.marketDataAgeMs, 15*60*1000);
+});

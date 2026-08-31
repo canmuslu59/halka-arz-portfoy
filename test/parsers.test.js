@@ -96,3 +96,40 @@ test('parseFintablesSector prefers actual sector links and ignores page navigati
     </body></html>`;
   assert.equal(parseFintablesSector(html, 'CITAS').sector, 'Gıda Perakendeciliği');
 });
+
+test('parseYahooChart prefers exchange previousClose when daily series skips the prior trading day', () => {
+  const aug27 = Math.floor(new Date('2026-08-27T15:00:00Z').getTime()/1000);
+  const aug31 = Math.floor(new Date('2026-08-31T10:15:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: {
+      regularMarketPrice:128,
+      previousClose:142.20,
+      chartPreviousClose:129.30,
+      regularMarketTime:aug31,
+      exchangeTimezoneName:'Europe/Istanbul',
+    },
+    timestamp:[aug27, aug31],
+    indicators:{ quote:[{ close:[129.30,128], high:[129.30,145], low:[118.50,128], open:[124,145] }] },
+  }] } };
+  const out = parseYahooChart(json, 'CITAS');
+  assert.equal(out.previousClose, 142.20);
+});
+
+test('parseYahooChart collapses intraday candles into one row per Istanbul trading date and uses freshest tick', () => {
+  const aug28a = Math.floor(new Date('2026-08-28T07:05:00Z').getTime()/1000);
+  const aug28b = Math.floor(new Date('2026-08-28T14:59:00Z').getTime()/1000);
+  const aug31a = Math.floor(new Date('2026-08-31T07:05:00Z').getTime()/1000);
+  const aug31b = Math.floor(new Date('2026-08-31T10:15:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: { regularMarketPrice:128, previousClose:142.20, regularMarketTime:aug31b, exchangeTimezoneName:'Europe/Istanbul' },
+    timestamp:[aug28a, aug28b, aug31a, aug31b],
+    indicators:{ quote:[{
+      close:[133,142.20,145,128], high:[134,142.20,145,145], low:[132.70,132.70,140,128], open:[134.70,133,145,140],
+    }] },
+  }] } };
+  const out = parseYahooChart(json, 'CITAS');
+  assert.deepEqual(out.history.map(row => row.date), ['2026-08-28','2026-08-31']);
+  assert.equal(out.history[0].close, 142.20);
+  assert.equal(out.current, 128);
+  assert.equal(out.marketTime, new Date(aug31b * 1000).toISOString());
+});

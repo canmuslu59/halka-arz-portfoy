@@ -10,7 +10,7 @@ export function createDataSources({ getJson, getText }) {
     const key = cleanTicker(ticker);
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
     const symbol = `${key}.IS`;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=false&events=div%2Csplits`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=5m&includePrePost=false&events=div%2Csplits`;
     return parseYahooChart(await getJson(url), key);
   }
 
