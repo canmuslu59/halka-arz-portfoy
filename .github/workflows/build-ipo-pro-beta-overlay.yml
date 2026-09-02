@@ -1,0 +1,79 @@
+name: Build IPO Pro Beta APK
+
+on:
+  push:
+    branches: [ feature/ipo-pro-beta ]
+    paths:
+      - '.github/workflows/build-ipo-pro-beta-overlay.yml'
+      - '.github/beta-overlay/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-beta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout beta branch
+        uses: actions/checkout@v4
+
+      - name: Apply beta source overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/beta-overlay/part*.txt > "$RUNNER_TEMP/ipo-beta-overlay.b64"
+          base64 -d "$RUNNER_TEMP/ipo-beta-overlay.b64" > "$RUNNER_TEMP/ipo-beta-overlay.tar.xz"
+          tar -xJf "$RUNNER_TEMP/ipo-beta-overlay.tar.xz" -C "$GITHUB_WORKSPACE"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Verify beta JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check public/app.js
+          for file in public/core/*.js; do node --check "$file"; done
+
+      - name: Sync web assets into Android
+        run: npm run android:sync
+
+      - name: Build beta APK
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk halka-arz-portfoyum-beta-v2.2.0-beta1.apk
+
+      - name: Upload beta APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: halka-arz-portfoyum-beta-v2.2.0-beta1
+          path: halka-arz-portfoyum-beta-v2.2.0-beta1.apk
+          if-no-files-found: error
+          retention-days: 30
