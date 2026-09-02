@@ -1,0 +1,160 @@
+name: Build Google Play 2.2.0 Update
+
+on:
+  push:
+    branches: [ feature/ipo-pro-beta ]
+    paths:
+      - '.github/workflows/build-play-update-2.2.0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-play-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+
+      - name: Apply approved beta source overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/beta-overlay/part*.txt > "$RUNNER_TEMP/ipo-beta-overlay.b64"
+          base64 -d "$RUNNER_TEMP/ipo-beta-overlay.b64" > "$RUNNER_TEMP/ipo-beta-overlay.tar.xz"
+          tar -xJf "$RUNNER_TEMP/ipo-beta-overlay.tar.xz" -C "$GITHUB_WORKSPACE"
+
+      - name: Convert beta to Play release 2.2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # User-visible release label.
+          html = Path('public/index.html')
+          h = html.read_text()
+          h = h.replace('v2.2.0-beta1', 'v2.2.0')
+          html.write_text(h)
+
+          # Remove all beta-only trial reset / forced unlock controls.
+          app = Path('public/app.js')
+          s = app.read_text()
+          s = re.sub(
+              r"function betaControls\(access\) \{.*?\n\}\n\nfunction bindBetaControls\(\) \{.*?\n\}\n\n",
+              "function betaControls() { return ''; }\n\nfunction bindBetaControls() {}\n\n",
+              s,
+              flags=re.S,
+          )
+          s = s.replace(
+              "const unlocked = access.status === 'beta_unlocked';\n  const label = unlocked ? 'Beta Pro açık' : access.status === 'trial' ? '7 günlük ücretsiz deneme' : 'Deneme sona erdi';\n  const detail = unlocked ? 'Tüm gelişmiş özellikler beta testi için açık.' : access.status === 'trial'\n    ? `Kalan süre: ${durationText(access.remainingMs)}`\n    : 'Gelişmiş özellikleri kullanmaya devam etmek için Pro gerekecek.';",
+              "const label = access.status === 'trial' ? '7 günlük ücretsiz deneme' : 'Deneme sona erdi';\n  const detail = access.status === 'trial'\n    ? `Kalan süre: ${durationText(access.remainingMs)}`\n    : 'Gelişmiş özellikleri kullanmaya devam etmek için Pro gerekecek.';",
+          )
+          app.write_text(s)
+
+          # Production Pro access: 7-day trial only. No beta bypass is shipped.
+          Path('public/core/pro-access.js').write_text('''export const DEFAULT_TRIAL_MS = 7 * 24 * 60 * 60 * 1000;\nconst START_KEY = 'halka_arz_pro_trial_started_at_v1';\n\nfunction asFiniteTimestamp(value) {\n  const n = Number(value);\n  return Number.isFinite(n) && n > 0 ? n : null;\n}\n\nexport function createProAccess(storage, { now = () => Date.now(), trialMs = DEFAULT_TRIAL_MS } = {}) {\n  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {\n    throw new TypeError('Pro erişimi için storage gerekli.');\n  }\n\n  function getState() {\n    const startedAt = asFiniteTimestamp(storage.getItem(START_KEY));\n    if (!startedAt) return { status:'not_started', hasAccess:false, startedAt:null, remainingMs:trialMs };\n    const remainingMs = Math.max(0, trialMs - Math.max(0, now() - startedAt));\n    if (remainingMs <= 0) return { status:'expired', hasAccess:false, startedAt, remainingMs:0 };\n    return { status:'trial', hasAccess:true, startedAt, remainingMs };\n  }\n\n  function enterAdvanced() {\n    if (!asFiniteTimestamp(storage.getItem(START_KEY))) storage.setItem(START_KEY, String(now()));\n    return getState();\n  }\n\n  return { getState, enterAdvanced };\n}\n''')
+
+          # Production Android identity. Same package as v2.1.0, higher versionCode.
+          Path('android/build.gradle').write_text("""plugins {\n    id 'com.android.application' version '8.10.1' apply false\n}\n""")
+          Path('android/app/build.gradle').write_text("""plugins {\n    id 'com.android.application'\n}\n\nandroid {\n    namespace 'com.innative.halkaarz'\n    compileSdk 36\n\n    defaultConfig {\n        applicationId 'com.innative.halkaarz'\n        minSdk 26\n        targetSdk 36\n        versionCode 9\n        versionName '2.2.0'\n    }\n\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n\n    signingConfigs {\n        release {\n            def releaseKeystorePath = System.getenv('PLAY_UPLOAD_KEYSTORE_PATH')\n            if (releaseKeystorePath) {\n                storeFile file(releaseKeystorePath)\n                storePassword System.getenv('PLAY_UPLOAD_KEYSTORE_PASSWORD')\n                keyAlias System.getenv('PLAY_UPLOAD_KEY_ALIAS')\n                keyPassword System.getenv('PLAY_UPLOAD_KEY_PASSWORD')\n            }\n        }\n    }\n\n    buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            minifyEnabled false\n            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'\n        }\n    }\n}\n""")
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          if manifest.exists():
+              m = manifest.read_text().replace('Halka Arz Portföyüm Beta', 'Halka Arz Portföyüm')
+              manifest.write_text(m)
+          webmanifest = Path('public/manifest.webmanifest')
+          if webmanifest.exists():
+              w = webmanifest.read_text().replace('Halka Arz Portföyüm Beta', 'Halka Arz Portföyüm')
+              webmanifest.write_text(w)
+          PY
+
+      - name: Verify production release contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check public/app.js
+          for file in public/core/*.js; do node --check "$file"; done
+          ! grep -q 'v2.2.0-beta1' public/index.html
+          ! grep -q 'Beta test kontrolleri' public/app.js
+          ! grep -q 'Denemeyi sıfırla' public/app.js
+          ! grep -q 'Pro’yu test için aç' public/app.js
+          ! grep -q 'BETA_UNLOCK_KEY' public/core/pro-access.js
+          grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
+          grep -q 'versionCode 9' android/app/build.gradle
+          grep -q "versionName '2.2.0'" android/app/build.gradle
+          grep -q 'targetSdk 36' android/app/build.gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 16 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Sync release web assets into Android
+        run: npm run android:sync
+
+      - name: Download original v2.1.0 Play upload key
+        uses: actions/download-artifact@v4
+        with:
+          name: google-play-upload-key-backup-v2.1.0
+          path: ${{ runner.temp }}/upload-key-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 33610002111
+
+      - name: Restore and validate Play upload key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/play-key"
+          unzip -q "$RUNNER_TEMP/upload-key-artifact/google-play-upload-key-v2.1.0.zip" -d "$RUNNER_TEMP/play-key"
+          INFO="$RUNNER_TEMP/play-key/play-upload-key-backup/UPLOAD_KEY_BILGILERI.txt"
+          JKS="$RUNNER_TEMP/play-key/play-upload-key-backup/halkaarz-upload.jks"
+          ALIAS=$(grep '^PLAY_UPLOAD_KEY_ALIAS=' "$INFO" | cut -d= -f2-)
+          STOREPASS=$(grep '^PLAY_UPLOAD_KEYSTORE_PASSWORD=' "$INFO" | cut -d= -f2-)
+          KEYPASS=$(grep '^PLAY_UPLOAD_KEY_PASSWORD=' "$INFO" | cut -d= -f2-)
+          keytool -list -keystore "$JKS" -storepass "$STOREPASS" -alias "$ALIAS" >/dev/null
+          echo "PLAY_UPLOAD_KEYSTORE_PATH=$JKS" >> "$GITHUB_ENV"
+          echo "PLAY_UPLOAD_KEYSTORE_PASSWORD=$STOREPASS" >> "$GITHUB_ENV"
+          echo "PLAY_UPLOAD_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
+          echo "PLAY_UPLOAD_KEY_PASSWORD=$KEYPASS" >> "$GITHUB_ENV"
+
+      - name: Build signed Play update AAB
+        run: gradle -p android --no-daemon bundleRelease
+
+      - name: Prepare Play artifact
+        run: cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.2.0.aab
+
+      - name: Upload Google Play update AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-play-aab-v2.2.0
+          path: halka-arz-portfoyum-v2.2.0.aab
+          if-no-files-found: error
+          retention-days: 30
