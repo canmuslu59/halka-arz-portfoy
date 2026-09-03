@@ -96,9 +96,11 @@ test('independent notification test build does not use the production upload key
 
 test('Android background alerts request notification permission and use WorkManager', async () => {
   const xml = await read('android/app/src/main/AndroidManifest.xml');
+  const properties = await read('android/gradle.properties');
   const activity = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/AlertWorker.java');
   assert.match(xml, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(properties, /android\.useAndroidX=true/);
   assert.match(activity, /readAlertSettings/);
   assert.match(activity, /writeAlertSettings/);
   assert.match(activity, /requestNotificationPermission/);
