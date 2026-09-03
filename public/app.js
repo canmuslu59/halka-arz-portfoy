@@ -4,6 +4,10 @@ import { createDataSources } from './core/data-sources.js';
 import { createPortfolioService } from './core/portfolio-service.js';
 import { getBistMarketStatus } from './core/market-calendar.js';
 import { sortHoldings, sectorBreakdown, nearestChartIndex } from './core/analytics.js';
+import { createIpoService } from './core/ipo-service.js';
+import { resolveTheme, nextTheme } from './core/theme.js';
+import { createProAccess } from './core/pro-access.js';
+import { createAlertSettingsStore } from './core/alert-settings.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -17,6 +21,14 @@ const service = createPortfolioService({
   getIpo: sources.getIpo,
   getSector: sources.getSector,
 });
+const ipoService = createIpoService({
+  getCalendar: sources.getIpoCalendar,
+  getDetail: sources.getIpoDetail,
+  getHistory: sources.getHistory,
+  storage: globalThis.localStorage,
+});
+const proAccess = createProAccess(globalThis.localStorage);
+const alertSettingsStore = createAlertSettingsStore();
 
 const state = {
   portfolio: null,
@@ -26,6 +38,15 @@ const state = {
   chartSelectedIndex: null,
   sort: safeGetLocal('holdingSort') || 'dailyProfit',
   historyRefreshStarted: false,
+  view: 'portfolio',
+  calendar: null,
+  calendarLoaded: false,
+  calendarLoading: false,
+  theme: null,
+  proAccess: null,
+  proLoading: false,
+  proSelectedTicker: null,
+  alertSettings: alertSettingsStore.read(),
 };
 
 const fmtTRY = new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -43,6 +64,377 @@ function esc(s='') { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<'
 function trDate(iso) { if (!iso) return '—'; const d = new Date(`${iso}T12:00:00+03:00`); return Number.isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat('tr-TR',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Istanbul'}).format(d); }
 function timeAgo(iso) { if (!iso) return '—'; const sec = Math.max(0,(Date.now()-new Date(iso).getTime())/1000); if(sec<60)return'şimdi'; if(sec<3600)return`${Math.floor(sec/60)} dk önce`; return timeFmt.format(new Date(iso)); }
 function todayIstanbul() { return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
+
+
+const VIEW_META = {
+  portfolio: { title:'Portföyüm' },
+  calendar: { title:'Halka Arz Takvimi' },
+  pro: { title:'Gelişmiş' },
+  settings: { title:'Ayarlar' },
+};
+const IPO_STATUS_LABELS = {
+  active:'Talepte', upcoming:'Yaklaşan', completed:'Tamamlandı', unknown:'Durum bekleniyor',
+};
+
+function applyTheme(theme, { persist = true } = {}) {
+  const resolved = theme === 'light' ? 'light' : 'dark';
+  state.theme = resolved;
+  document.documentElement.dataset.theme = resolved;
+  if (persist) safeSetLocal('themePreference', resolved);
+  const meta = $('meta[name="theme-color"]');
+  if (meta) meta.content = resolved === 'dark' ? '#0b1020' : '#f4f7fb';
+  const toggle = $('#themeToggle');
+  if (toggle) toggle.setAttribute('aria-label', resolved === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç');
+  try { window.AndroidBridge?.setSystemTheme?.(resolved); } catch {}
+  requestAnimationFrame(drawChart);
+}
+
+function initTheme() {
+  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true;
+  applyTheme(resolveTheme(safeGetLocal('themePreference'), prefersDark), { persist:false });
+}
+
+function formatIpoSize(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  if (n >= 1_000_000_000) return `${fmtNum.format(n / 1_000_000_000)} mlr ₺`;
+  if (n >= 1_000_000) return `${fmtNum.format(n / 1_000_000)} mn ₺`;
+  return money(n);
+}
+
+function renderIpoCalendar(data = state.calendar) {
+  const list = $('#calendarList');
+  const status = $('#calendarStatus');
+  if (!list || !status) return;
+  const filter = $('#calendarFilter')?.value || 'all';
+  const all = Array.isArray(data?.items) ? data.items : [];
+  const order = { active:0, upcoming:1, completed:2, unknown:3 };
+  const items = all
+    .filter(item => filter === 'all' || item.status === filter)
+    .slice()
+    .sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  if (data) {
+    const fetched = data.fetchedAt ? timeAgo(new Date(Number(data.fetchedAt)).toISOString()) : '—';
+    status.textContent = data.stale ? `Önbellekten gösteriliyor · ${fetched}` : `Son güncelleme ${fetched}`;
+  }
+  if (!items.length) {
+    list.innerHTML = `<div class="calendar-empty">${all.length ? 'Bu filtrede halka arz bulunmuyor.' : 'Takvim kaynağında gösterilecek halka arz bulunamadı.'}</div>`;
+    return;
+  }
+  list.innerHTML = items.map(item => `
+    <article class="calendar-card">
+      <div class="calendar-card-head">
+        <div class="calendar-card-title"><strong>${esc(item.ticker)}</strong><span>${esc(item.company || 'Şirket bilgisi bekleniyor')}</span></div>
+        <span class="ipo-status ${esc(item.status || 'unknown')}">${IPO_STATUS_LABELS[item.status] || IPO_STATUS_LABELS.unknown}</span>
+      </div>
+      <div class="calendar-card-title">${esc(item.offerDates || 'Talep tarihleri henüz açıklanmadı')}</div>
+      <div class="calendar-card-grid">
+        <div><span>Arz fiyatı</span><strong>${money(item.ipoPrice)}</strong></div>
+        <div><span>Arz büyüklüğü</span><strong>${formatIpoSize(item.ipoSizeTRY)}</strong></div>
+        <div><span>Sektör</span><strong>${esc(item.sector || '—')}</strong></div>
+        <div><span>Dağıtım</span><strong>${esc(item.distributionMethod || '—')}</strong></div>
+      </div>
+      <div class="calendar-card-footer">
+        <small>${item.source ? esc(item.source) : 'Kaynak bekleniyor'}</small>
+        <button type="button" class="secondary-btn compact-btn pro-link-btn" data-pro-ticker="${esc(item.ticker)}">Gelişmiş detay</button>
+      </div>
+    </article>
+  `).join('');
+  $$('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));
+}
+
+async function loadIpoCalendar({ force = false } = {}) {
+  if (state.calendarLoading) return state.calendar;
+  if (state.calendarLoaded && !force) { renderIpoCalendar(); return state.calendar; }
+  state.calendarLoading = true;
+  const list = $('#calendarList');
+  const status = $('#calendarStatus');
+  if (list) list.innerHTML = '<div class="calendar-empty">Halka arz takvimi yükleniyor…</div>';
+  if (status) status.textContent = 'Güncel takvim aranıyor…';
+  try {
+    state.calendar = await ipoService.getCalendar({ force });
+    state.calendarLoaded = true;
+    renderIpoCalendar(state.calendar);
+    if (state.calendar?.warning) toast('Takvim önbellekten gösteriliyor.');
+    return state.calendar;
+  } catch (error) {
+    if (status) status.textContent = 'Takvim yüklenemedi.';
+    if (list) list.innerHTML = `<div class="calendar-empty">${esc(error.message || 'Takvim verisi alınamadı.')}</div>`;
+    toast(error.message || 'Takvim verisi alınamadı.');
+    return null;
+  } finally {
+    state.calendarLoading = false;
+  }
+}
+
+
+function durationText(ms) {
+  const value = Math.max(0, Number(ms) || 0);
+  const days = Math.floor(value / 86_400_000);
+  const hours = Math.floor((value % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((value % 3_600_000) / 60_000);
+  if (days > 0) return `${days} gün ${hours} saat`;
+  if (hours > 0) return `${hours} saat ${minutes} dk`;
+  return `${minutes} dk`;
+}
+
+function proAccessCard(access) {
+  const unlocked = access.status === 'beta_unlocked';
+  const label = unlocked ? 'Beta Pro açık' : access.status === 'trial' ? '7 günlük ücretsiz deneme' : 'Deneme sona erdi';
+  const detail = unlocked ? 'Tüm gelişmiş özellikler beta testi için açık.' : access.status === 'trial'
+    ? `Kalan süre: ${durationText(access.remainingMs)}`
+    : 'Gelişmiş özellikleri kullanmaya devam etmek için Pro gerekecek.';
+  return `
+    <section class="pro-access-card ${access.hasAccess ? 'active' : 'pro-locked'}">
+      <div><span class="eyebrow">PRO ERİŞİM</span><strong>${label}</strong><p>${detail}</p></div>
+      ${access.hasAccess ? '<span class="pro-access-dot">Aktif</span>' : '<button class="primary-btn pro-buy-disabled" type="button" disabled>Pro’ya geç</button>'}
+    </section>
+  `;
+}
+
+function betaControls(access) {
+  return `
+    <section class="beta-controls">
+      <div><strong>Beta test kontrolleri</strong><small>Play sürümünde bu bölüm kaldırılacak. Beta sürümünde ödeme kapalı.</small></div>
+      <div class="beta-control-actions">
+        <button id="proTrialReset" class="secondary-btn compact-btn" type="button">Denemeyi sıfırla</button>
+        <button id="proBetaUnlock" class="secondary-btn compact-btn" type="button">${access.status === 'beta_unlocked' ? 'Beta Pro kilidini kapat' : 'Pro’yu test için aç'}</button>
+      </div>
+    </section>
+  `;
+}
+
+function bindBetaControls() {
+  $('#proTrialReset')?.addEventListener('click', () => {
+    proAccess.resetTrial();
+    toast('Pro deneme süresi sıfırlandı.');
+    renderProView();
+  });
+  $('#proBetaUnlock')?.addEventListener('click', () => {
+    const current = proAccess.getState();
+    proAccess.setBetaUnlocked(current.status !== 'beta_unlocked');
+    toast(current.status === 'beta_unlocked' ? 'Beta Pro kilidi kapatıldı.' : 'Beta Pro açıldı.');
+    renderProView();
+  });
+}
+
+function proCandidates() {
+  const map = new Map();
+  for (const item of state.calendar?.items || []) {
+    if (item?.ticker) map.set(item.ticker, item);
+  }
+  for (const holding of state.portfolio?.holdings || []) {
+    if (!holding?.ticker) continue;
+    map.set(holding.ticker, { ...(map.get(holding.ticker) || {}), ticker:holding.ticker, company:holding.company, sector:holding.sector, ipoPrice:holding.ipoPrice, firstTradeDate:holding.firstTradeDate });
+  }
+  return [...map.values()];
+}
+
+function renderProList() {
+  const root = $('#proContent');
+  const access = state.proAccess || proAccess.getState();
+  if (!access.hasAccess) {
+    root.innerHTML = `${proAccessCard(access)}
+      <section class="pro-locked">
+        <span class="pro-lock-icon">✦</span><h3>Gelişmiş özellikler kilitli</h3>
+        <p>Tavan serisi, şirket/halka arz detayları ve sonuç analizleri Pro alanında yer alır.</p>
+        <p class="form-note">Beta sürümünde ödeme kapalı. Test etmek için aşağıdaki Beta Pro düğmesini kullanabilirsiniz.</p>
+      </section>${betaControls(access)}`;
+    bindBetaControls();
+    return;
+  }
+  const items = proCandidates();
+  root.innerHTML = `${proAccessCard(access)}
+    <section class="pro-browser">
+      <div class="section-head"><div><span class="eyebrow">ARAŞTIR</span><h2>Halka arz detayları</h2></div><span class="muted small">${items.length} kayıt</span></div>
+      <div class="pro-search-row"><input id="proSearch" type="search" placeholder="Hisse kodu veya şirket ara" autocomplete="off"><button id="proSearchButton" class="secondary-btn compact-btn" type="button">Ara</button></div>
+      <div id="proList" class="pro-list"></div>
+    </section>${betaControls(access)}`;
+  bindBetaControls();
+  const paint = () => {
+    const q = ($('#proSearch')?.value || '').trim().toLocaleUpperCase('tr-TR');
+    const filtered = items.filter(item => !q || `${item.ticker} ${item.company || ''}`.toLocaleUpperCase('tr-TR').includes(q));
+    const list = $('#proList');
+    if (!filtered.length) {
+      list.innerHTML = '<div class="calendar-empty">Bu aramada kayıt bulunamadı. Hisse kodunu yazarak doğrudan arayabilirsiniz.</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(item => `
+      <button type="button" class="pro-ipo-card" data-pro-open="${esc(item.ticker)}">
+        <div><strong>${esc(item.ticker)}</strong><span>${esc(item.company || 'Halka arz')}</span></div>
+        <div><span>${esc(item.offerDates || (item.firstTradeDate ? `İlk işlem ${trDate(item.firstTradeDate)}` : 'Detayları görüntüle'))}</span><b>›</b></div>
+      </button>`).join('');
+    $$('[data-pro-open]', list).forEach(button => button.addEventListener('click', () => openProIpoDetail(button.dataset.proOpen)));
+  };
+  $('#proSearch')?.addEventListener('input', paint);
+  $('#proSearchButton')?.addEventListener('click', () => {
+    const ticker = ($('#proSearch')?.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const known = items.find(item => item.ticker === ticker);
+    if (known || ticker.length >= 3) openProIpoDetail(ticker);
+    else toast('Geçerli bir hisse kodu girin.');
+  });
+  paint();
+}
+
+async function ensureProCalendar() {
+  if (state.calendarLoaded) return state.calendar;
+  try {
+    state.calendar = await ipoService.getCalendar();
+    state.calendarLoaded = true;
+    return state.calendar;
+  } catch {
+    return null;
+  }
+}
+
+function renderProView({ selectedTicker = null } = {}) {
+  state.proAccess = proAccess.enterAdvanced();
+  const root = $('#proContent');
+  if (!root) return;
+  root.innerHTML = `${proAccessCard(state.proAccess)}<div class="calendar-empty">Gelişmiş alan hazırlanıyor…</div>`;
+  bindBetaControls();
+  if (!state.proAccess.hasAccess) { renderProList(); return; }
+  state.proLoading = true;
+  ensureProCalendar().finally(() => {
+    state.proLoading = false;
+    if (state.view !== 'pro') return;
+    if (selectedTicker) openProIpoDetail(selectedTicker);
+    else renderProList();
+  });
+}
+
+function valueText(value, formatter = String) {
+  if (value == null || value === '') return '—';
+  try { return formatter(value); } catch { return String(value); }
+}
+
+function renderResultTable(results) {
+  if (!Array.isArray(results) || !results.length) return '<div class="detail-empty">Sonuç tablosu henüz bulunamadı.</div>';
+  return `<div class="result-table"><div class="table-head"><span>Grup</span><span>Yatırımcı</span><span>Lot</span><span>%</span></div>${results.map(row => `<div><strong>${esc(row.group)}</strong><span>${valueText(row.people, fmtNum.format)}</span><span>${valueText(row.lots, fmtNum.format)}</span><span>${valueText(row.pct, fmtNum.format)}</span></div>`).join('')}</div>`;
+}
+
+function renderCeilingRows(detail) {
+  const analysis = detail.ceilingAnalysis || { openingStreak:0, totalCeilingDays:0, rows:[] };
+  const actual = (analysis.rows || []).slice(0, 25);
+  const simulation = (detail.ceilingSimulation || []).slice(0, 10);
+  const actualHtml = actual.length
+    ? `<div class="ceiling-table"><div class="table-head"><span>Gün</span><span>Tavan</span><span>Kapanış</span><span>Durum</span></div>${actual.map(row => `<div><strong>${trDate(row.date)}</strong><span>${money(row.ceiling)}</span><span>${money(row.close)}</span><span class="${row.isCeiling ? 'positive' : 'muted'}">${row.isCeiling ? 'Tavan' : pct(row.dailyPct)}</span></div>`).join('')}</div>`
+    : '<div class="detail-empty">İşlem geçmişi bulunursa tavan serisi otomatik hesaplanır.</div>';
+  const simulationHtml = simulation.length ? `<details class="ceiling-simulation"><summary>Teorik tavan fiyatları</summary><div class="ceiling-table compact"><div class="table-head"><span>#</span><span>Fiyat</span><span>Getiri</span></div>${simulation.map(row => `<div><strong>${row.count}. tavan</strong><span>${money(row.price)}</span><span class="positive">+%${fmtNum.format(row.returnPct)}</span></div>`).join('')}</div></details>` : '';
+  return `<div class="ceiling-summary"><div><span>Açılış tavan serisi</span><strong>${analysis.openingStreak || 0}</strong></div><div><span>Toplam tavan gün</span><strong>${analysis.totalCeilingDays || 0}</strong></div><div><span>Kaynakta bildirilen</span><strong>${detail.ceilingCountReported ?? '—'}</strong></div></div>${actualHtml}${simulationHtml}`;
+}
+
+async function openProIpoDetail(ticker) {
+  const access = proAccess.getState();
+  state.proAccess = access;
+  if (!access.hasAccess) { renderProList(); return; }
+  const key = String(ticker || '').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (!key) return;
+  state.proSelectedTicker = key;
+  const root = $('#proContent');
+  root.innerHTML = `${proAccessCard(access)}<div class="calendar-empty">${esc(key)} gelişmiş bilgileri yükleniyor…</div>${betaControls(access)}`;
+  bindBetaControls();
+  try {
+    const item = proCandidates().find(row => row.ticker === key) || { ticker:key };
+    const detail = await ipoService.getDetail(item);
+    if (state.view !== 'pro' || state.proSelectedTicker !== key) return;
+    const fund = Array.isArray(detail.fundUse) && detail.fundUse.length
+      ? `<ul class="fund-list">${detail.fundUse.map(row => `<li><strong>%${fmtNum.format(row.pct)}</strong><span>${esc(row.purpose)}</span></li>`).join('')}</ul>`
+      : '<div class="detail-empty">Fon kullanım bilgisi bulunamadı.</div>';
+    root.innerHTML = `${proAccessCard(access)}
+      <article class="pro-detail">
+        <button id="proDetailBack" class="secondary-btn compact-btn pro-back" type="button">‹ Gelişmiş liste</button>
+        <div class="pro-detail-head"><div><span class="eyebrow">${esc(detail.ticker)}</span><h2>${esc(detail.company || detail.ticker)}</h2><p>${esc(detail.sector || 'Sektör bilgisi bekleniyor')}</p></div><span class="ipo-status ${esc(detail.status || 'completed')}">${IPO_STATUS_LABELS[detail.status] || 'Halka arz'}</span></div>
+        <section class="pro-detail-section"><h3>Halka arz bilgileri</h3><div class="ipo-detail-grid">
+          <div><span>Talep toplama</span><strong>${esc(detail.offerDates || '—')}</strong></div>
+          <div><span>Halka arz fiyatı</span><strong>${money(detail.ipoPrice)}</strong></div>
+          <div><span>Dağıtım yöntemi</span><strong>${esc(detail.distributionMethod || '—')}</strong></div>
+          <div><span>Arz edilen pay</span><strong>${valueText(detail.ipoLots, v => `${fmtNum.format(v)} lot`)}</strong></div>
+          <div><span>Halka arz büyüklüğü</span><strong>${formatIpoSize(detail.ipoSizeTRY)}</strong></div>
+          <div><span>Katılım endeksi</span><strong>${esc(detail.participationIndex || '—')}</strong></div>
+          <div><span>BIST işlem tarihi</span><strong>${detail.firstTradeDate ? trDate(detail.firstTradeDate) : '—'}</strong></div>
+          <div><span>Pazar</span><strong>${esc(detail.market || '—')}</strong></div>
+          <div><span>Halka açıklık</span><strong>${detail.freeFloatPct == null ? '—' : `%${fmtNum.format(detail.freeFloatPct)}`}</strong></div>
+          <div><span>İskonto</span><strong>${detail.discountPct == null ? '—' : `%${fmtNum.format(detail.discountPct)}`}</strong></div>
+        </div></section>
+        <section class="pro-detail-section"><h3>Şirket hakkında</h3><p class="company-summary">${esc(detail.summary || `${detail.company || detail.ticker} için kaynakta kısa şirket özeti bulunamadı.`)}</p></section>
+        <section class="pro-detail-section"><h3>Konsorsiyum liderleri</h3><p class="company-summary">${Array.isArray(detail.consortiumLeaders) && detail.consortiumLeaders.length ? detail.consortiumLeaders.map(esc).join(' · ') : '—'}</p></section>
+        <section class="pro-detail-section"><h3>Fon kullanım alanı</h3>${fund}</section>
+        <section class="pro-detail-section"><div class="detail-section-head"><h3>Halka arz sonuçları</h3><span>${detail.participantCount ? `${fmtNum.format(detail.participantCount)} katılımcı` : ''}</span></div>${renderResultTable(detail.results)}</section>
+        <section class="pro-detail-section"><div class="detail-section-head"><h3>Tavan serisi</h3><span>BIST fiyat adımına göre</span></div>${renderCeilingRows(detail)}</section>
+        ${detail.warning ? `<div class="warning-box">${esc(detail.warning)}</div>` : ''}
+        <p class="form-note">Kaynak: ${esc(detail.source || 'Açık veri kaynakları')}. Tavan serisi geçmiş kapanış fiyatlarından hesaplanır.</p>
+      </article>${betaControls(access)}`;
+    bindBetaControls();
+    $('#proDetailBack')?.addEventListener('click', () => { state.proSelectedTicker = null; renderProList(); });
+  } catch (error) {
+    root.innerHTML = `${proAccessCard(access)}<div class="warning-box">${esc(error.message || 'Gelişmiş halka arz bilgisi alınamadı.')}</div><button id="proRetry" class="secondary-btn" type="button">Tekrar dene</button>${betaControls(access)}`;
+    bindBetaControls();
+    $('#proRetry')?.addEventListener('click', () => openProIpoDetail(key));
+  }
+}
+
+function renderAlertSettings() {
+  state.alertSettings = alertSettingsStore.read();
+  const settings = state.alertSettings;
+  const enabled = $('#alertEnabled');
+  const threshold = $('#alertThreshold');
+  const status = $('#settingsStatus');
+  if (enabled) enabled.checked = settings.enabled;
+  if (threshold) threshold.value = String(settings.threshold).replace('.', ',');
+  if (!status) return;
+  status.className = 'settings-status';
+  if (!settings.enabled) {
+    status.textContent = 'Kapalı';
+    status.classList.add('off');
+  } else if (!settings.notificationsAllowed) {
+    status.textContent = 'İzin gerekli';
+    status.classList.add('denied');
+  } else {
+    status.textContent = `%${fmtNum.format(settings.threshold)} aktif`;
+  }
+}
+
+function saveAlertForm(form, { firstSetup = false } = {}) {
+  const data = new FormData(form);
+  const enabled = firstSetup ? true : Boolean(data.get('enabled'));
+  const settings = alertSettingsStore.save({ enabled, threshold:data.get('threshold') });
+  state.alertSettings = settings;
+  renderAlertSettings();
+  if (enabled && !settings.notificationsAllowed) alertSettingsStore.requestPermission();
+  return settings;
+}
+
+function showInitialAlertSetup() {
+  state.alertSettings = alertSettingsStore.read();
+  const modal = $('#alertSetupModal');
+  if (modal) modal.hidden = state.alertSettings.configured;
+}
+
+function switchView(view, { push = true, selectedTicker = null } = {}) {
+  const next = VIEW_META[view] ? view : 'portfolio';
+  state.view = next;
+  Object.keys(VIEW_META).forEach(key => {
+    const el = $(`#${key}View`);
+    if (el) el.hidden = key !== next;
+  });
+  $$('.nav-tab').forEach(tab => {
+    const active = tab.dataset.view === next;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-current', active ? 'page' : 'false');
+  });
+  if ($('#screenTitle')) $('#screenTitle').textContent = VIEW_META[next].title;
+  if ($('#addFab')) $('#addFab').hidden = next !== 'portfolio';
+  if ($('#refreshBtn')) $('#refreshBtn').hidden = next !== 'portfolio';
+  if (next === 'calendar') loadIpoCalendar();
+  if (next === 'portfolio') requestAnimationFrame(drawChart);
+  if (next === 'pro' && typeof renderProView === 'function') renderProView({ selectedTicker });
+  if (next === 'settings') renderAlertSettings();
+  if (push) {
+    const hash = next === 'portfolio' ? '' : `#${next}`;
+    window.history.pushState({ appRoot:true, view:next, ...(selectedTicker ? { selectedTicker } : {}) }, '', `${location.pathname}${location.search}${hash}`);
+  }
+}
 
 function marketDataText(data) {
   if (!data?.marketDataTime) return 'Piyasa verisi bekleniyor';
@@ -235,7 +627,7 @@ function openSheet(id, navigation = {}, { push = true } = {}) {
   showSheet(id);
   if (push) {
     const hash = id === '#addSheet' ? '#ekle' : '#detay';
-    window.history.pushState({ appRoot:true, sheet:id, ...navigation }, '', hash);
+    window.history.pushState({ appRoot:true, view:state.view, sheet:id, ...navigation }, '', hash);
   }
 }
 
@@ -245,6 +637,7 @@ function closeSheets({ useHistory = true } = {}) {
 }
 
 function applyNavigationState(nav) {
+  switchView(nav?.view || 'portfolio', { push:false, selectedTicker:nav?.selectedTicker || null });
   if (nav?.sheet === '#addSheet') {
     openAddSheet({ push:false });
     return;
@@ -433,7 +826,7 @@ function drawChart() {
   const y = value => pad.t + (max-value)/(max-min) * plotHeight;
   state.chartGeometry = { x, y, pad, w, h, rect };
 
-  ctx.strokeStyle = 'rgba(255,255,255,.06)';
+  ctx.strokeStyle = state.theme === 'light' ? 'rgba(35,52,78,.10)' : 'rgba(255,255,255,.06)';
   ctx.lineWidth = 1;
   for (let line=0; line<3; line += 1) {
     const yy = pad.t + (line/2)*plotHeight;
@@ -456,7 +849,7 @@ function drawChart() {
   rows.forEach((row,index) => { const xx=x(index), yy=y(row.value); index ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy); });
   ctx.strokeStyle = stroke; ctx.lineWidth = 2.3; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
 
-  ctx.fillStyle='#758198'; ctx.font='10px system-ui';
+  ctx.fillStyle = state.theme === 'light' ? '#66758c' : '#758198'; ctx.font='10px system-ui';
   ctx.textAlign='left'; ctx.fillText(trDate(rows[0].date).replace(/ 20\d{2}/,''),pad.l,h-5);
   ctx.textAlign='right'; ctx.fillText(trDate(rows.at(-1).date).replace(/ 20\d{2}/,''),w-pad.r,h-5);
   ctx.textAlign='left'; ctx.fillText(money(max).replace(',00',''),pad.l,pad.t-5);
@@ -474,10 +867,10 @@ function drawChartSelection(index) {
   const ctx = canvas.getContext('2d');
   const { x, y, pad, h } = geometry;
   const xx = x(index), yy = y(row.value);
-  ctx.strokeStyle='rgba(255,255,255,.30)'; ctx.lineWidth=1;
+  ctx.strokeStyle = state.theme === 'light' ? 'rgba(35,52,78,.28)' : 'rgba(255,255,255,.30)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(xx,pad.t); ctx.lineTo(xx,h-pad.b); ctx.stroke();
-  ctx.beginPath(); ctx.arc(xx,yy,4.5,0,Math.PI*2); ctx.fillStyle='#f8fafc'; ctx.fill();
-  ctx.beginPath(); ctx.arc(xx,yy,7.5,0,Math.PI*2); ctx.strokeStyle='rgba(248,250,252,.22)'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(xx,yy,4.5,0,Math.PI*2); ctx.fillStyle = state.theme === 'light' ? '#17233a' : '#f8fafc'; ctx.fill();
+  ctx.beginPath(); ctx.arc(xx,yy,7.5,0,Math.PI*2); ctx.strokeStyle = state.theme === 'light' ? 'rgba(23,35,58,.18)' : 'rgba(248,250,252,.22)'; ctx.stroke();
 }
 
 function showChartPoint(clientX) {
@@ -526,6 +919,39 @@ $('#holdingSort').addEventListener('change', event => {
   safeSetLocal('holdingSort', state.sort);
   if (state.portfolio) renderPortfolio(state.portfolio);
 });
+const portfolioTab = $('#portfolioTab');
+const calendarTab = $('#calendarTab');
+const proTab = $('#proTab');
+const settingsTab = $('#settingsTab');
+[portfolioTab, calendarTab, proTab, settingsTab].filter(Boolean).forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
+$('#themeToggle').addEventListener('click', () => applyTheme(nextTheme(state.theme)));
+$('#calendarRefreshBtn').addEventListener('click', () => loadIpoCalendar({ force:true }));
+$('#calendarFilter').addEventListener('change', () => renderIpoCalendar());
+$('#alertSetupForm').addEventListener('submit', event => {
+  event.preventDefault();
+  try {
+    saveAlertForm(event.currentTarget, { firstSetup:true });
+    $('#alertSetupModal').hidden = true;
+    toast('Fiyat alarmı etkinleştirildi.');
+  } catch (error) { toast(error.message); }
+});
+$('#alertSettingsForm').addEventListener('submit', event => {
+  event.preventDefault();
+  try {
+    saveAlertForm(event.currentTarget);
+    toast('Bildirim ayarları kaydedildi.');
+  } catch (error) { toast(error.message); }
+});
+$('#testNotificationBtn').addEventListener('click', () => {
+  state.alertSettings = alertSettingsStore.read();
+  if (!state.alertSettings.notificationsAllowed) {
+    alertSettingsStore.requestPermission();
+    toast('İzni verdikten sonra test düğmesine tekrar basın.');
+    return;
+  }
+  const sent = alertSettingsStore.sendTestNotification();
+  toast(sent === false ? 'Bildirim izni kapalı.' : 'Test bildirimi gönderildi.');
+});
 $('#sheetBackdrop').addEventListener('click', () => closeSheets());
 $$('[data-close-sheet]').forEach(button => button.addEventListener('click', () => closeSheets()));
 $('#portfolioChart').addEventListener('pointerdown', event => { event.preventDefault(); showChartPoint(event.clientX); });
@@ -535,21 +961,29 @@ window.addEventListener('popstate', event => applyNavigationState(event.state));
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     renderMarketStatus();
-    loadPortfolio({ quiet:true });
+    if (state.view === 'portfolio') loadPortfolio({ quiet:true });
+    else if (state.view === 'calendar') loadIpoCalendar();
   }
 });
+window.addEventListener('focus', renderAlertSettings);
+window.__notificationPermissionChanged = () => renderAlertSettings();
 
 window.__showBackExitHint = () => toast('Çıkmak için tekrar geri basın.');
 
-if (!window.history.state?.appRoot) window.history.replaceState({ appRoot:true }, '', `${location.pathname}${location.search}`);
+if (!window.history.state?.appRoot) window.history.replaceState({ appRoot:true, view:'portfolio' }, '', `${location.pathname}${location.search}`);
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'app.local') navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
+initTheme();
+applyNavigationState(window.history.state);
 renderMarketStatus();
+renderAlertSettings();
+showInitialAlertSetup();
 loadPortfolio();
 setTimeout(() => refreshBackgroundHistory(), 900);
 let closedQuoteTick = 0;
 setInterval(() => {
   if (document.hidden) return;
+  if (state.view !== 'portfolio') return;
   const market = getBistMarketStatus(new Date());
   if (market.isOpen) loadPortfolio({ quiet:true });
   else { closedQuoteTick += 1; if (closedQuoteTick % 4 === 0) loadPortfolio({ quiet:true }); }

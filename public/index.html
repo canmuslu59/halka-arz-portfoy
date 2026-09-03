@@ -17,13 +17,17 @@
   <header class="topbar">
     <div class="shell topbar-inner">
       <div>
-        <div class="eyebrow">BIST • HALKA ARZ <span id="appVersion" class="app-version">v2.0.5</span></div>
-        <h1>Portföyüm</h1>
+        <div class="eyebrow">BIST • HALKA ARZ <span id="appVersion" class="app-version">v2.2.0-alert-test1</span></div>
+        <h1 id="screenTitle">Portföyüm</h1>
       </div>
       <div class="topbar-actions">
         <div id="marketStatus" class="market-status closed" aria-live="polite">
           <strong>KAPALI</strong><span>Seans bilgisi yükleniyor</span>
         </div>
+        <button id="themeToggle" class="icon-btn theme-toggle" aria-label="Açık temaya geç" title="Tema">
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8 8 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg>
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+        </button>
         <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
         </button>
@@ -32,6 +36,7 @@
   </header>
 
   <main class="shell main">
+    <section id="portfolioView" class="app-view">
     <section class="hero-card" aria-labelledby="portfolioValueLabel">
       <div class="hero-topline">
         <span id="portfolioValueLabel" class="muted">Toplam portföy büyüklüğü</span>
@@ -131,7 +136,81 @@
         <p>Yalnızca BIST kodunu ve lot sayısını girin. Halka arz fiyatı, tarih ve güncel fiyat otomatik bulunur.</p>
       </div>
     </section>
+    </section>
+
+    <section id="calendarView" class="app-view" hidden>
+      <section class="view-hero">
+        <div>
+          <span class="eyebrow">ÜCRETSİZ</span>
+          <h2>Halka Arz Takvimi</h2>
+          <p>Yaklaşan, talepte olan ve son tamamlanan halka arzları tek ekranda takip edin.</p>
+        </div>
+        <button id="calendarRefreshBtn" class="secondary-btn compact-btn" type="button">Yenile</button>
+      </section>
+      <div class="calendar-toolbar">
+        <span id="calendarStatus" class="muted small">Takvim henüz yüklenmedi.</span>
+        <select id="calendarFilter" class="select" aria-label="Halka arz durumunu filtrele">
+          <option value="all">Tümü</option>
+          <option value="active">Talepte</option>
+          <option value="upcoming">Yaklaşan</option>
+          <option value="completed">Tamamlanan</option>
+        </select>
+      </div>
+      <div id="calendarList" class="calendar-grid">
+        <div class="calendar-empty">Takvim bu sekmeye ilk girişte otomatik yüklenir.</div>
+      </div>
+    </section>
+
+    <section id="proView" class="app-view" hidden>
+      <section class="view-hero pro-hero">
+        <div>
+          <span class="eyebrow">GELİŞMİŞ</span>
+          <h2>Halka Arz Pro</h2>
+          <p>Tavan serisi, halka arz sonuçları ve şirket/arz detaylarını ayrı bir çalışma alanında inceleyin.</p>
+        </div>
+        <span class="pro-badge">7 gün ücretsiz</span>
+      </section>
+      <div id="proContent" class="pro-content">
+        <div class="calendar-empty">Gelişmiş özellikler hazırlanıyor…</div>
+      </div>
+    </section>
+
+    <section id="settingsView" class="app-view" hidden>
+      <section class="view-hero settings-hero">
+        <div>
+          <span class="eyebrow">BİLDİRİMLER</span>
+          <h2>Fiyat alarmı ayarları</h2>
+          <p>Portföyünüzdeki her hisseyi önceki kapanışa göre izler ve belirlediğiniz günlük artış ya da azalış yüzdesine ulaştığında bildirir.</p>
+        </div>
+        <span id="settingsStatus" class="settings-status">Kontrol ediliyor</span>
+      </section>
+
+      <section class="settings-card">
+        <form id="alertSettingsForm" class="settings-form">
+          <label class="toggle-row">
+            <span><strong>Fiyat alarmları</strong><small>Arka planda düzenli olarak kontrol edilir.</small></span>
+            <input id="alertEnabled" name="enabled" type="checkbox" checked />
+          </label>
+          <label class="threshold-field">
+            <span>Bildirim eşiği</span>
+            <div><b>%</b><input id="alertThreshold" name="threshold" type="text" inputmode="decimal" value="3" aria-label="Bildirim yüzdesi" /></div>
+          </label>
+          <p class="settings-note">Örnek: %3 seçildiğinde bir hisse gün içinde +%3 veya -%3 seviyesine ilk kez ulaştığında bildirim gelir. Aynı yönde kaldığı sürece tekrar bildirim gönderilmez.</p>
+          <button class="primary-btn" type="submit">Ayarları kaydet</button>
+        </form>
+        <div class="settings-divider"></div>
+        <button id="testNotificationBtn" class="secondary-btn" type="button">Test bildirimi gönder</button>
+        <p class="settings-note">Android arka plan kontrollerinin zamanı pil kullanımına göre birkaç dakika değişebilir.</p>
+      </section>
+    </section>
   </main>
+
+  <nav id="bottomNav" class="bottom-nav" aria-label="Ana menü">
+    <button id="portfolioTab" class="nav-tab active" data-view="portfolio" type="button"><span>▦</span><b>Portföy</b></button>
+    <button id="calendarTab" class="nav-tab" data-view="calendar" type="button"><span>◫</span><b>Takvim</b></button>
+    <button id="proTab" class="nav-tab" data-view="pro" type="button"><span>✦</span><b>Gelişmiş</b></button>
+    <button id="settingsTab" class="nav-tab" data-view="settings" type="button"><span>⚙</span><b>Ayarlar</b></button>
+  </nav>
 
   <button id="addFab" class="fab" aria-label="Hisse ekle">
     <span>+</span><b>Hisse ekle</b>
@@ -173,6 +252,19 @@
     </div>
     <div id="detailContent"></div>
   </section>
+
+  <div id="alertSetupModal" class="setup-overlay" hidden>
+    <section class="setup-card" role="dialog" aria-modal="true" aria-labelledby="alertSetupTitle">
+      <div class="setup-icon">↗</div>
+      <span class="eyebrow">İLK AYAR</span>
+      <h2 id="alertSetupTitle">Hangi değişimde haber verelim?</h2>
+      <p>Portföyünüzdeki hisseler önceki kapanışa göre izlenecek. Belirlediğiniz oranda artışta veya azalışta telefonunuza bildirim gelecek.</p>
+      <form id="alertSetupForm" class="setup-form">
+        <label><span>Günlük değişim yüzdesi</span><div><b>%</b><input name="threshold" type="text" inputmode="decimal" value="3" required /></div></label>
+        <button class="primary-btn" type="submit">Bildirimi etkinleştir</button>
+      </form>
+    </section>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

@@ -6,6 +6,7 @@ export function numTR(value) {
   if (!s) return null;
   if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
   else if (s.includes(',')) s = s.replace(',', '.');
+  else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(s.replace(/[^0-9.-]/g, ''))) s = s.replace(/\./g, '');
   const n = Number(s.replace(/[^0-9.-]/g, ''));
   return Number.isFinite(n) ? n : null;
 }
@@ -156,6 +157,52 @@ export function parseYahooChart(json, ticker) {
   };
 }
 
+
+function splitConsortium(text = '') {
+  return String(text)
+    .split(/\s*,\s*|\s*;\s*/)
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
+function extractTickerFromCompanyCell(text = '') {
+  const matches = String(text).match(/\b[A-Z0-9]{3,8}\b/g) || [];
+  return cleanTicker(matches.at(-1) || '');
+}
+
+function sectionHtml(raw, heading) {
+  const escaped = String(heading).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(raw || '').match(new RegExp(`<h[1-6]\\b[^>]*>[^<]*${escaped}[^<]*<\\/h[1-6]>([\\s\\S]*?)(?=<h[1-6]\\b|$)`, 'i'));
+  return match?.[1] || '';
+}
+
+export function parseAhlatciCalendar(html) {
+  const raw = String(html || '');
+  const rows = raw.match(/<tr\b[\s\S]*?<\/tr>/gi) || [];
+  const out = [];
+  for (const row of rows) {
+    const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(match => textFromHtml(match[1]));
+    if (cells.length < 4) continue;
+    const ticker = extractTickerFromCompanyCell(cells[0]);
+    if (!ticker) continue;
+    const hrefMatch = row.match(/href=["']([^"']*\/halka-arz\/[^"']+)["']/i);
+    const priceMatch = (cells[2] || '').match(/([0-9.]+(?:,[0-9]+)?)\s*₺/);
+    const sizeMatch = (cells[4] || '').match(/([0-9.]+(?:,[0-9]+)?)\s*₺/);
+    out.push({
+      ticker,
+      company: (cells[0] || '').replace(new RegExp(`\\s*${ticker}\\s*$`, 'i'), '').trim() || null,
+      sector: cells[1] || null,
+      ipoPrice: priceMatch ? numTR(priceMatch[1]) : null,
+      offerDates: cells[3] || null,
+      ipoSizeTRY: sizeMatch ? numTR(sizeMatch[1]) : null,
+      consortiumLeaders: splitConsortium(cells[5] || ''),
+      detailUrl: hrefMatch ? new URL(hrefMatch[1], 'https://www.ahlatciyatirim.com.tr').href : null,
+      source: 'Ahlatcı Yatırım',
+    });
+  }
+  return out;
+}
+
 export function parseAhlatciList(html, ticker) {
   const key = cleanTicker(ticker);
   const rows = String(html || '').match(/<tr\b[\s\S]*?<\/tr>/gi) || [];
@@ -179,20 +226,97 @@ export function parseAhlatciList(html, ticker) {
 }
 
 export function parseAhlatciDetail(html, base = {}) {
-  const text = textFromHtml(html);
-  const heading = String(html || '').match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  const raw = String(html || '');
+  const text = textFromHtml(raw);
+  const heading = raw.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
   const company = heading ? textFromHtml(heading[1]) : base.company || null;
+
   let ipoPrice = base.ipoPrice ?? null;
-  let firstTradeDate = null;
+  let firstTradeDate = base.firstTradeDate || null;
   let offerDates = base.offerDates || null;
   const priceMatch = text.match(/Halka Arz Fiyatı\s*([0-9.]+,[0-9]+)\s*₺/i)
     || text.match(/fiyat\s*([0-9.]+,[0-9]+)\s*₺\s*olarak/i);
   if (priceMatch) ipoPrice = numTR(priceMatch[1]);
   const tradeMatch = text.match(/İlk İşlem(?: Tarihi)?:?\s*(\d{1,2}\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\s+20\d{2})/i);
   if (tradeMatch) firstTradeDate = isoFromTurkishDate(tradeMatch[1]);
-  const offerMatch = text.match(/Talep Tarihleri\s*([^₺]{3,45}?20\d{2})/i);
+  const offerMatch = text.match(/Talep Tarihleri\s*(.+?20\d{2})(?=\s+İlk İşlem Tarihi|\s+Halka Arz Büyüklüğü|$)/i);
   if (offerMatch) offerDates = offerMatch[1].trim();
-  return { ...base, company, ipoPrice, firstTradeDate, offerDates, source: 'Ahlatcı Yatırım' };
+
+  const sector = text.match(/Sektör\s+(.+?)(?=\s+Halka Arz Fiyatı)/i)?.[1]?.trim() || base.sector || null;
+  const ipoLots = numTR(text.match(/Halka Arz Büyüklüğü\s*\(Lot\)\s*([0-9.]+(?:,[0-9]+)?)\s*Lot/i)?.[1]) ?? base.ipoLots ?? null;
+  const ipoSizeTRY = numTR(text.match(/Halka Arz Büyüklüğü\s*\(TL\)\s*([0-9.]+(?:,[0-9]+)?)\s*₺/i)?.[1])
+    ?? base.ipoSizeTRY ?? null;
+  const discountPct = numTR(text.match(/İskonto Oranı\s*%\s*([0-9.,]+)/i)?.[1]) ?? base.discountPct ?? null;
+  const freeFloatPct = numTR(text.match(/Halka Açıklık Oranı\s*%\s*([0-9.,]+)/i)?.[1]) ?? base.freeFloatPct ?? null;
+  const distributionMethodMatch = text.match(/\b(Eşit|Oransal)\s+Dağıtım\b/i);
+  const distributionMethod = distributionMethodMatch
+    ? `${distributionMethodMatch[1][0].toLocaleUpperCase('tr-TR')}${distributionMethodMatch[1].slice(1).toLocaleLowerCase('tr-TR')} Dağıtım`
+    : base.distributionMethod || null;
+  const market = text.match(/\b(Yıldız Pazar|Ana Pazar|Alt Pazar|Yakın İzleme Pazarı|Piyasa Öncesi İşlem Platformu)\b/i)?.[1] || base.market || null;
+
+  let participationIndex = base.participationIndex || null;
+  if (/Katılım Endeksi[\s\S]{0,260}uygun değildir/i.test(text)) participationIndex = 'Uygun Değil';
+  else if (/Katılım Endeksi[\s\S]{0,300}(?:uygun olarak değerlendirilmektedir|uygundur|uygun bulunmuştur)/i.test(text)) participationIndex = 'Uygun';
+
+  const consortiumText = textFromHtml(sectionHtml(raw, 'Konsorsiyum Liderleri'));
+  const consortiumLeaders = consortiumText ? splitConsortium(consortiumText) : (base.consortiumLeaders || []);
+
+  const fundText = textFromHtml(sectionHtml(raw, 'Fonun Kullanım Yerleri'));
+  const fundUse = [];
+  if (fundText) {
+    const matches = [...fundText.matchAll(/%\s*([0-9.,]+)\s+(.+?)(?=\s+%\s*[0-9]|$)/g)];
+    for (const match of matches) {
+      const pct = numTR(match[1]);
+      const purpose = match[2].trim();
+      if (pct != null && purpose) fundUse.push({ pct, purpose });
+    }
+  }
+
+  const resultsHtml = sectionHtml(raw, 'Halka Arz Sonuçları');
+  const results = [];
+  for (const row of resultsHtml.match(/<tr\b[\s\S]*?<\/tr>/gi) || []) {
+    const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map(match => textFromHtml(match[1]));
+    if (cells.length < 4) continue;
+    const group = cells[0]?.trim();
+    if (!group) continue;
+    results.push({
+      group,
+      people: numTR(cells[1]),
+      lots: numTR(cells[2]),
+      pct: numTR(cells[3]),
+    });
+  }
+  const totalResult = results.find(row => /^Toplam$/i.test(row.group)) || null;
+  const participantCount = totalResult?.people ?? numTR(text.match(/toplam\s+([0-9.]+)\s+yatırımcı\s+katıl/i)?.[1]) ?? base.participantCount ?? null;
+  const distributedLots = totalResult?.lots ?? numTR(text.match(/([0-9.]+)\s+lot\s+dağıtıl/i)?.[1]) ?? base.distributedLots ?? ipoLots;
+  const ceilingCountReported = numTR(text.match(/(?:ilk işlem günlerinde\s+hisse\s+)?(\d+)\s+kez\s+tavan\s+yap/i)?.[1]) ?? base.ceilingCountReported ?? null;
+
+  const introMatch = raw.match(/<h1\b[^>]*>[\s\S]*?<\/h1>\s*<p\b[^>]*>([\s\S]*?)<\/p>/i);
+  const summary = introMatch ? textFromHtml(introMatch[1]) : base.summary || null;
+
+  return {
+    ...base,
+    company,
+    sector,
+    ipoPrice,
+    firstTradeDate,
+    offerDates,
+    ipoLots,
+    ipoSizeTRY,
+    discountPct,
+    freeFloatPct,
+    distributionMethod,
+    market,
+    participationIndex,
+    consortiumLeaders,
+    fundUse,
+    results,
+    participantCount,
+    distributedLots,
+    ceilingCountReported,
+    summary,
+    source:'Ahlatcı Yatırım',
+  };
 }
 
 

@@ -22,12 +22,13 @@ test('MainActivity exposes storage and HTTPS bridge methods', async () => {
   assert.match(java, /https:\/\/app\.local\/index\.html/);
 });
 
-test('Android Gradle config uses requested app id and SDK levels', async () => {
+test('notification test APK uses an independent package and Android 16 SDK', async () => {
   const gradle = await read('android/app/build.gradle');
-  assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
+  assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz\.alerttest['"]/);
   assert.match(gradle, /minSdk 26/);
-  assert.match(gradle, /targetSdk 35/);
-  assert.match(gradle, /compileSdk 35/);
+  assert.match(gradle, /targetSdk 36/);
+  assert.match(gradle, /compileSdk 36/);
+  assert.match(gradle, /androidx\.work:work-runtime/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
@@ -85,15 +86,25 @@ test('Android root back requires a second press within two seconds', async () =>
   assert.match(java, /webView\.canGoBack\(\)/);
 });
 
-test('Android debug APK uses a repository-stable signing key for future in-place updates', async () => {
+test('independent notification test build does not use the production upload key', async () => {
   const gradle = await read('android/app/build.gradle');
-  await fs.access('android/app/halkaarz-debug.keystore');
-  assert.match(gradle, /signingConfigs\s*\{/);
-  assert.match(gradle, /halkaarz-debug\.keystore/);
-  assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
-  assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
-  assert.match(gradle, /versionCode 7/);
-  assert.match(gradle, /versionName ['"]2\.0\.5['"]/);
+  assert.doesNotMatch(gradle, /PLAY_UPLOAD/);
+  assert.doesNotMatch(gradle, /halkaarz-upload/);
+  assert.match(gradle, /versionCode 22011/);
+  assert.match(gradle, /versionName ['"]2\.2\.0-alert-test1['"]/);
+});
+
+test('Android background alerts request notification permission and use WorkManager', async () => {
+  const xml = await read('android/app/src/main/AndroidManifest.xml');
+  const activity = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/AlertWorker.java');
+  assert.match(xml, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(activity, /readAlertSettings/);
+  assert.match(activity, /writeAlertSettings/);
+  assert.match(activity, /requestNotificationPermission/);
+  assert.match(worker, /previousClose/);
+  assert.match(worker, /AlertPolicy\.classify/);
+  assert.match(worker, /Europe\/Istanbul/);
 });
 
 test('Android invalidates stale local web assets without relying on generated BuildConfig', async () => {

@@ -55,7 +55,7 @@ test('add holding flow keeps a stable form reference across await and always ope
 test('home screen exposes app version so installed APK can be verified', async () => {
   const html = await read('public/index.html');
   assert.match(html, /id=["']appVersion["']/);
-  assert.match(html, /v2\.0\.5/);
+  assert.match(html, /v2\.2\.0-alert-test1/);
 });
 
 test('UI shows real market-data timestamp instead of only local refresh completion time', async () => {
@@ -68,4 +68,16 @@ test('UI polls quotes frequently while BIST is open rather than once per minute'
   const appJs = await read('public/app.js');
   assert.match(appJs, /15_000/);
   assert.match(appJs, /getBistMarketStatus/);
+});
+
+test('first launch setup and settings screen expose daily percentage alerts', async () => {
+  const html = await read('public/index.html');
+  const app = await read('public/app.js');
+  for (const id of ['settingsView','settingsTab','alertSetupModal','alertSetupForm','alertSettingsForm','testNotificationBtn']) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+  assert.match(html, /önceki kapanışa göre/i);
+  assert.match(app, /createAlertSettingsStore/);
+  assert.match(app, /showInitialAlertSetup/);
+  assert.match(app, /sendTestNotification/);
 });

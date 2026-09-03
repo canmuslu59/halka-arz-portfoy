@@ -1,5 +1,6 @@
 package com.innative.halkaarz;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -8,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
 import android.webkit.WebResourceRequest;
@@ -15,6 +17,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.View;
 
 import org.json.JSONObject;
 
@@ -36,6 +39,7 @@ public class MainActivity extends Activity {
     private static final String ASSET_VERSION_KEY = "web_asset_version";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
     private static final long DOUBLE_BACK_MS = 2000L;
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 4103;
 
     private final ExecutorService networkExecutor = Executors.newFixedThreadPool(4);
     private WebView webView;
@@ -59,6 +63,22 @@ public class MainActivity extends Activity {
         }
         setContentView(webView);
         webView.loadUrl(START_URL);
+        AlertScheduler.refresh(this, false);
+    }
+
+    private void applySystemTheme(String theme) {
+        final boolean light = "light".equalsIgnoreCase(theme);
+        runOnUiThread(() -> {
+            int color = Color.parseColor(light ? "#F4F7FB" : "#070B15");
+            getWindow().setStatusBarColor(color);
+            getWindow().setNavigationBarColor(color);
+            View decor = getWindow().getDecorView();
+            int flags = decor.getSystemUiVisibility();
+            int lightFlags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            flags = light ? (flags | lightFlags) : (flags & ~lightFlags);
+            decor.setSystemUiVisibility(flags);
+            if (webView != null) webView.setBackgroundColor(color);
+        });
     }
 
     private int getAppVersionCode() {
@@ -75,6 +95,18 @@ public class MainActivity extends Activity {
         networkExecutor.shutdownNow();
         if (webView != null) webView.destroy();
         super.onDestroy();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            AlertPreferences.resetStates(this);
+            AlertScheduler.refresh(this, true);
+            if (webView != null) {
+                webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+            }
+        }
     }
 
     private void configureWebView(WebView view) {
@@ -211,6 +243,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void setSystemTheme(String theme) {
+            applySystemTheme(theme);
+        }
+
+        @JavascriptInterface
         public String readPortfolio() {
             String primary = prefs.getString(PORTFOLIO_KEY, "");
             if (isValidJsonObject(primary)) return primary;
@@ -226,6 +263,37 @@ public class MainActivity extends Activity {
             if (isValidJsonObject(current)) editor.putString(BACKUP_KEY, current);
             editor.putString(PORTFOLIO_KEY, json);
             editor.commit();
+            AlertScheduler.refresh(MainActivity.this, true);
+        }
+
+        @JavascriptInterface
+        public String readAlertSettings() {
+            return AlertPreferences.readForWeb(MainActivity.this).toString();
+        }
+
+        @JavascriptInterface
+        public boolean writeAlertSettings(String json) {
+            boolean saved = AlertPreferences.saveFromWeb(MainActivity.this, json);
+            if (saved) AlertScheduler.refresh(MainActivity.this, true);
+            return saved;
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                AlertScheduler.refresh(MainActivity.this, true);
+                return;
+            }
+            runOnUiThread(() -> requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_REQUEST));
+        }
+
+        @JavascriptInterface
+        public boolean sendTestNotification() {
+            if (!NotificationHelper.canNotify(MainActivity.this)) return false;
+            NotificationHelper.showTest(MainActivity.this);
+            return true;
         }
 
         @JavascriptInterface

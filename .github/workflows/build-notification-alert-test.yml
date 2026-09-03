@@ -1,0 +1,74 @@
+name: Build Notification Alert Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ feature/notification-alert-test ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Run web and contract tests
+        run: npm test
+
+      - name: Run Android unit tests
+        run: gradle -p android --no-daemon testDebugUnitTest
+
+      - name: Sync web assets into Android
+        run: npm run android:sync
+
+      - name: Build test APK
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Verify independent APK identity and permissions
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging android/app/build/outputs/apk/debug/app-debug.apk | tee apk-badging.txt
+          grep -F "package: name='com.innative.halkaarz.alerttest' versionCode='22011' versionName='2.2.0-alert-test1'" apk-badging.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions android/app/build/outputs/apk/debug/app-debug.apk | tee apk-permissions.txt
+          grep -F "android.permission.POST_NOTIFICATIONS" apk-permissions.txt
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk halka-arz-bildirim-test-v2.2.0-alert-test1.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: halka-arz-bildirim-test-v2.2.0-alert-test1
+          path: halka-arz-bildirim-test-v2.2.0-alert-test1.apk
+          if-no-files-found: error
+          retention-days: 30
