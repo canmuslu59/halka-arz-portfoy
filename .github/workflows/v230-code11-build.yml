@@ -23,12 +23,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .ci/reconstructed
+          mkdir -p .ci/reconstructed exact-source
           cat .ci/source.part* > .ci/reconstructed/source.b64
-          base64 --decode .ci/reconstructed/source.b64 > .ci/reconstructed/source.zip
-          mkdir -p exact-source
-          unzip -q .ci/reconstructed/source.zip -d exact-source
-          echo "source_sha256=$(sha256sum .ci/reconstructed/source.zip | awk '{print $1}')"
+          base64 --decode .ci/reconstructed/source.b64 > .ci/reconstructed/source.tar.xz
+          test "$(sha256sum .ci/reconstructed/source.tar.xz | awk '{print $1}')" = "db34c2b55f4735849ff56542dd98f78eb0aa18b9d6d7556e01006cc40dc49720"
+          tar -xJf .ci/reconstructed/source.tar.xz -C exact-source
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
