@@ -1,0 +1,92 @@
+name: Reconstruct v2.3.0 source
+
+on:
+  push:
+    branches:
+      - feature/v2.3.0-alerts-settings
+    paths:
+      - '.github/workflows/reconstruct-v230-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v2.3.0-alerts-settings
+          fetch-depth: 0
+
+      - name: Reconstruct archive and extract source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .build/reconstruct tmp-v230 v230-source
+          cat \
+            .build/source.part00 \
+            .build/source.part01 \
+            .build/source.tail00 \
+            .build/source.tail01 \
+            .build/source.tail02 \
+            > .build/reconstruct/source.b64
+
+          base64 --decode .build/reconstruct/source.b64 > .build/reconstruct/source.bin
+          {
+            echo "base64_bytes=$(wc -c < .build/reconstruct/source.b64)"
+            echo "binary_bytes=$(wc -c < .build/reconstruct/source.bin)"
+            echo "binary_type=$(file -b .build/reconstruct/source.bin)"
+            echo "binary_sha256=$(sha256sum .build/reconstruct/source.bin | awk '{print $1}')"
+          } > .build/reconstruct-report.txt
+
+          # The stored payload starts with H4sI (gzip). Unpack one gzip layer first.
+          gzip -dc .build/reconstruct/source.bin > .build/reconstruct/source.raw
+          echo "raw_type=$(file -b .build/reconstruct/source.raw)" >> .build/reconstruct-report.txt
+          echo "raw_bytes=$(wc -c < .build/reconstruct/source.raw)" >> .build/reconstruct-report.txt
+          echo "raw_sha256=$(sha256sum .build/reconstruct/source.raw | awk '{print $1}')" >> .build/reconstruct-report.txt
+
+          if unzip -t .build/reconstruct/source.raw >/dev/null 2>&1; then
+            echo "container=zip" >> .build/reconstruct-report.txt
+            unzip -q .build/reconstruct/source.raw -d tmp-v230
+          elif tar -tf .build/reconstruct/source.raw >/dev/null 2>&1; then
+            echo "container=tar" >> .build/reconstruct-report.txt
+            tar -xf .build/reconstruct/source.raw -C tmp-v230
+          else
+            echo "Unsupported inner archive: $(file -b .build/reconstruct/source.raw)" >&2
+            exit 1
+          fi
+
+          rm -rf v230-source
+          mkdir -p v230-source
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='.gradle/' \
+            --exclude='**/build/' \
+            --exclude='*.apk' \
+            --exclude='*.aab' \
+            --exclude='*.jks' \
+            --exclude='*.keystore' \
+            tmp-v230/ v230-source/
+
+          echo "tracked_source_files=$(find v230-source -type f | wc -l)" >> .build/reconstruct-report.txt
+          echo "top_level:" >> .build/reconstruct-report.txt
+          find v230-source -maxdepth 2 -mindepth 1 -printf '%P\n' | sort | head -100 >> .build/reconstruct-report.txt
+
+      - name: Commit reconstructed source for review
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .build/reconstruct-report.txt v230-source
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "build: reconstruct v2.3.0 source for verification"
+            git push origin HEAD:feature/v2.3.0-alerts-settings
+          fi
