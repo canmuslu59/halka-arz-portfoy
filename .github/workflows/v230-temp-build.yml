@@ -28,12 +28,27 @@ jobs:
           cat .ci/android.part000 .ci/android.part001 .ci/android.part002 .ci/android.part003 .ci/android.part004 .ci/android.part005 .ci/android.part006 .ci/android.part007 > .ci/reconstructed/android.b64
           base64 --decode .ci/reconstructed/android.b64 > .ci/reconstructed/android.tar.xz
           actual="$(sha256sum .ci/reconstructed/android.tar.xz | awk '{print $1}')"
-          echo "Verified source SHA256: $actual"
+          echo "Verified base payload SHA256: $actual"
           test "$actual" = "ac522f12db863f536390c82265be62cb9121ecc611c8af66700d4d0686d21ee8"
           tar -xJf .ci/reconstructed/android.tar.xz -C exact-source
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('exact-source/android/build.gradle')
+          s = root.read_text()
+          s = s.replace("id 'com.android.application' version '8.7.3' apply false", "id 'com.android.application' version '8.10.1' apply false")
+          root.write_text(s)
+          app = Path('exact-source/android/app/build.gradle')
+          s = app.read_text()
+          s = s.replace("implementation 'androidx.core:core:1.19.0'", "implementation 'androidx.core:core:1.15.0'")
+          s = s.replace("    implementation platform('com.google.firebase:firebase-bom:34.18.0')\n    implementation 'com.google.firebase:firebase-messaging'", "    implementation 'com.google.firebase:firebase-messaging:24.1.1'")
+          app.write_text(s)
+          PY
           grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
           grep -q "versionCode 12" exact-source/android/app/build.gradle
           grep -q "versionName '2.3.0'" exact-source/android/app/build.gradle
+          grep -q "version '8.10.1'" exact-source/android/build.gradle
+          grep -q "androidx.core:core:1.15.0" exact-source/android/app/build.gradle
+          grep -q "firebase-messaging:24.1.1" exact-source/android/app/build.gradle
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
