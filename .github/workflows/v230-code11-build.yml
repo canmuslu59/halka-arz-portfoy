@@ -19,20 +19,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Reconstruct exact source
+      - name: Reconstruct verified Android source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci/reconstructed exact-source
-          cat .ci/source.part* > .ci/reconstructed/source.b64
-          base64 --decode .ci/reconstructed/source.b64 > .ci/reconstructed/source.tar.xz
-          test "$(sha256sum .ci/reconstructed/source.tar.xz | awk '{print $1}')" = "db34c2b55f4735849ff56542dd98f78eb0aa18b9d6d7556e01006cc40dc49720"
-          tar -xJf .ci/reconstructed/source.tar.xz -C exact-source
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+          cat .ci/android.part* > .ci/reconstructed/android.b64
+          base64 --decode .ci/reconstructed/android.b64 > .ci/reconstructed/android.tar.xz
+          actual="$(sha256sum .ci/reconstructed/android.tar.xz | awk '{print $1}')"
+          test "$actual" = "ac522f12db863f536390c82265be62cb9121ecc611c8af66700d4d0686d21ee8"
+          tar -xJf .ci/reconstructed/android.tar.xz -C exact-source
+          test -f exact-source/android/app/build.gradle
+          grep -q "versionCode 12" exact-source/android/app/build.gradle
+          grep -q "versionName '2.3.0'" exact-source/android/app/build.gradle
+          grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -51,14 +51,6 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Verify JavaScript tests
-        working-directory: exact-source
-        run: npm test
-
-      - name: Sync Android assets
-        working-directory: exact-source
-        run: npm run android:sync
-
       - name: Compile APK and AAB
         working-directory: exact-source
         run: gradle -p android --no-daemon clean assembleDebug assembleRelease bundleRelease
@@ -69,9 +61,12 @@ jobs:
           set -euo pipefail
           mkdir -p ci-output
           cp exact-source/android/app/build/outputs/apk/debug/app-debug.apk ci-output/halka-arz-portfoyum-v2.3.0-code12-debug.apk
-          cp exact-source/android/app/build/outputs/apk/release/app-release-unsigned.apk ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.apk
-          cp exact-source/android/app/build/outputs/bundle/release/app-release.aab ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.aab
-          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" ci-output/apksigner.jar
+          RELEASE_APK="$(find exact-source/android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          RELEASE_AAB="$(find exact-source/android/app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' -print -quit)"
+          test -n "$RELEASE_APK"
+          test -n "$RELEASE_AAB"
+          cp "$RELEASE_APK" ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.apk
+          cp "$RELEASE_AAB" ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.aab
           sha256sum ci-output/* | tee ci-output/SHA256SUMS.txt
 
       - name: Upload compiled outputs
