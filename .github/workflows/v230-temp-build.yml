@@ -42,6 +42,10 @@ jobs:
           s = s.replace("implementation 'androidx.core:core:1.19.0'", "implementation 'androidx.core:core:1.15.0'")
           s = s.replace("    implementation platform('com.google.firebase:firebase-bom:34.18.0')\n    implementation 'com.google.firebase:firebase-messaging'", "    implementation 'com.google.firebase:firebase-messaging:24.1.1'")
           app.write_text(s)
+          main = Path('exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
+          s = main.read_text()
+          s = s.replace('WindowCompat.enableEdgeToEdge(this);', 'WindowCompat.setDecorFitsSystemWindows(getWindow(), false);')
+          main.write_text(s)
           PY
           grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
           grep -q "versionCode 12" exact-source/android/app/build.gradle
@@ -49,6 +53,8 @@ jobs:
           grep -q "version '8.10.1'" exact-source/android/build.gradle
           grep -q "androidx.core:core:1.15.0" exact-source/android/app/build.gradle
           grep -q "firebase-messaging:24.1.1" exact-source/android/app/build.gradle
+          grep -q "WindowCompat.setDecorFitsSystemWindows(getWindow(), false);" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          ! grep -q "WindowCompat.enableEdgeToEdge" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
