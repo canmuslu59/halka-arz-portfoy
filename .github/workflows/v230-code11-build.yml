@@ -1,0 +1,84 @@
+name: Build v2.3.0 from exact code11 source
+
+on:
+  push:
+    branches:
+      - feature/v2.3.0-real-code11
+    paths:
+      - '.ci/READY'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconstruct exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/reconstructed
+          cat .ci/source.part* > .ci/reconstructed/source.b64
+          base64 --decode .ci/reconstructed/source.b64 > .ci/reconstructed/source.zip
+          mkdir -p exact-source
+          unzip -q .ci/reconstructed/source.zip -d exact-source
+          echo "source_sha256=$(sha256sum .ci/reconstructed/source.zip | awk '{print $1}')"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Verify JavaScript tests
+        working-directory: exact-source
+        run: npm test
+
+      - name: Sync Android assets
+        working-directory: exact-source
+        run: npm run android:sync
+
+      - name: Compile APK and AAB
+        working-directory: exact-source
+        run: gradle -p android --no-daemon clean assembleDebug assembleRelease bundleRelease
+
+      - name: Collect build outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-output
+          cp exact-source/android/app/build/outputs/apk/debug/app-debug.apk ci-output/halka-arz-portfoyum-v2.3.0-code12-debug.apk
+          cp exact-source/android/app/build/outputs/apk/release/app-release-unsigned.apk ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.apk
+          cp exact-source/android/app/build/outputs/bundle/release/app-release.aab ci-output/halka-arz-portfoyum-v2.3.0-code12-unsigned.aab
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" ci-output/apksigner.jar
+          sha256sum ci-output/* | tee ci-output/SHA256SUMS.txt
+
+      - name: Upload compiled outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: v230-code12-compiled
+          path: ci-output/
+          if-no-files-found: error
+          retention-days: 14
