@@ -57,7 +57,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode delta/.ci/v231.patch.gz.b64 | gzip -dc > work/v231.patch
+          for n in 000 001 002; do test -f "delta/.ci/v231patch.part${n}"; done
+          cat delta/.ci/v231patch.part000 delta/.ci/v231patch.part001 delta/.ci/v231patch.part002 > work/v231.patch.gz.b64
+          actual_b64="$(sha256sum work/v231.patch.gz.b64 | awk '{print $1}')"
+          echo "Delta base64 SHA256: $actual_b64"
+          test "$actual_b64" = "c9938828e6b35ffe4572e0fefa9f7038b5c9c331e89ed1a256f71acdd57ba9fe"
+          base64 --decode work/v231.patch.gz.b64 > work/v231.patch.gz
+          actual_gz="$(sha256sum work/v231.patch.gz | awk '{print $1}')"
+          echo "Delta gzip SHA256: $actual_gz"
+          test "$actual_gz" = "575a89bbb4fe9b7d91a329c1b255194ccb599ede08129d01a0a6a4ad5ce68a1f"
+          gzip -dc work/v231.patch.gz > work/v231.patch
+          actual_patch="$(sha256sum work/v231.patch | awk '{print $1}')"
+          echo "Delta patch SHA256: $actual_patch"
+          test "$actual_patch" = "f8ae058f562aeb4f3aeb634dd55fcce6098349e014084917cf87bbc5c62a1a14"
           cd exact-source
           git apply --check ../work/v231.patch
           git apply ../work/v231.patch
