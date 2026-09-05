@@ -20,13 +20,13 @@ jobs:
           ref: feature/v2.3.0-real-code11
           path: base
 
-      - name: Checkout tested v2.3.1 delta
+      - name: Checkout verified v2.3.1 transform
         uses: actions/checkout@v4
         with:
           ref: feature/v2.3.1-code13
           path: delta
 
-      - name: Reconstruct exact code12 base
+      - name: Reconstruct exact code12 source
         shell: bash
         run: |
           set -euo pipefail
@@ -51,35 +51,28 @@ jobs:
           PY
           grep -q "versionCode 12" exact-source/android/app/build.gradle
           grep -q "versionName '2.3.0'" exact-source/android/app/build.gradle
-          grep -q "WindowCompat.setDecorFitsSystemWindows(getWindow(), false)" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
 
-      - name: Apply tested v2.3.1 code13 delta
+      - name: Transform to tested code13 source
         shell: bash
         run: |
           set -euo pipefail
-          for n in 000 001 002; do test -f "delta/.ci/v231patch.part${n}"; done
-          cat delta/.ci/v231patch.part000 delta/.ci/v231patch.part001 delta/.ci/v231patch.part002 > work/v231.patch.gz.b64
-          actual_b64="$(sha256sum work/v231.patch.gz.b64 | awk '{print $1}')"
-          echo "Delta base64 SHA256: $actual_b64"
-          test "$actual_b64" = "c9938828e6b35ffe4572e0fefa9f7038b5c9c331e89ed1a256f71acdd57ba9fe"
-          base64 --decode work/v231.patch.gz.b64 > work/v231.patch.gz
-          actual_gz="$(sha256sum work/v231.patch.gz | awk '{print $1}')"
-          echo "Delta gzip SHA256: $actual_gz"
-          test "$actual_gz" = "575a89bbb4fe9b7d91a329c1b255194ccb599ede08129d01a0a6a4ad5ce68a1f"
-          gzip -dc work/v231.patch.gz > work/v231.patch
-          actual_patch="$(sha256sum work/v231.patch | awk '{print $1}')"
-          echo "Delta patch SHA256: $actual_patch"
-          test "$actual_patch" = "f8ae058f562aeb4f3aeb634dd55fcce6098349e014084917cf87bbc5c62a1a14"
-          cd exact-source
-          git apply --check ../work/v231.patch
-          git apply ../work/v231.patch
-          grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
-          grep -q "versionCode 13" android/app/build.gradle
-          grep -q "versionName '2.3.1'" android/app/build.gradle
-          grep -q "httpGetAsync" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          grep -q -- "--android-safe-bottom" android/app/src/main/assets/www/styles.css
-          grep -q 'id="themeToggle"' android/app/src/main/assets/www/index.html
-          ! grep -q 'id="themeSetting"' android/app/src/main/assets/www/index.html
+          python delta/.ci/v231-transform.py exact-source
+          printf '%s  %s\n' \
+            429d2dc7d81c48cd051c02b3bb3419d749964232d0eb7f64665007d1dd6b4f5a exact-source/android/app/build.gradle \
+            22a0b75012ab7555a6674b3a9fff1f2ed6ccb82859afae6dfd2684b92084d91b exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java \
+            08a69d375c7bfe5227d1ea10fb0635d93841af594ba3034dee29b8bbd77c618f exact-source/android/app/src/main/assets/www/app.js \
+            fe67a7771180450f50eaa49fe0ad6097aab9d29369dd29427b9fae29f5fb4ae0 exact-source/android/app/src/main/assets/www/index.html \
+            0fe2b090661c160798181dae0de96d5f3342ae29c53f08a73f4bfee241a03bf6 exact-source/android/app/src/main/assets/www/styles.css \
+            > work/TARGET_SHA256SUMS.txt
+          sha256sum -c work/TARGET_SHA256SUMS.txt
+          grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
+          grep -q "versionCode 13" exact-source/android/app/build.gradle
+          grep -q "versionName '2.3.1'" exact-source/android/app/build.gradle
+          grep -q "httpGetAsync" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          ! grep -q "public String httpGet" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q -- "--android-safe-bottom" exact-source/android/app/src/main/assets/www/styles.css
+          grep -q 'id="themeToggle"' exact-source/android/app/src/main/assets/www/index.html
+          ! grep -q 'id="themeSetting"' exact-source/android/app/src/main/assets/www/index.html
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
