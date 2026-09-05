@@ -1,0 +1,337 @@
+name: Temporary v2.3.1 verified build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/v231-temp-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout verified v2.3 base payload
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v2.3.0-real-code11
+
+      - name: Reconstruct and patch v2.3.1 Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/reconstructed exact-source
+          for n in 000 001 002 003 004 005 006 007; do test -f ".ci/android.part${n}"; done
+          cat .ci/android.part000 .ci/android.part001 .ci/android.part002 .ci/android.part003 .ci/android.part004 .ci/android.part005 .ci/android.part006 .ci/android.part007 > .ci/reconstructed/android.b64
+          base64 --decode .ci/reconstructed/android.b64 > .ci/reconstructed/android.tar.xz
+          actual="$(sha256sum .ci/reconstructed/android.tar.xz | awk '{print $1}')"
+          test "$actual" = "ac522f12db863f536390c82265be62cb9121ecc611c8af66700d4d0686d21ee8"
+          tar -xJf .ci/reconstructed/android.tar.xz -C exact-source
+          python - <<'PY'
+          from pathlib import Path
+
+          def edit(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'pattern missing: {path}: {old[:80]!r}')
+              p.write_text(s.replace(old, new))
+
+          # Build compatibility + v2.3.1 version.
+          edit('exact-source/android/build.gradle', "id 'com.android.application' version '8.7.3' apply false", "id 'com.android.application' version '8.10.1' apply false")
+          appg = Path('exact-source/android/app/build.gradle')
+          s = appg.read_text()
+          s = s.replace("versionCode 12", "versionCode 13").replace("versionName '2.3.0'", "versionName '2.3.1'")
+          s = s.replace("implementation 'androidx.core:core:1.19.0'", "implementation 'androidx.core:core:1.15.0'")
+          s = s.replace("    implementation platform('com.google.firebase:firebase-bom:34.18.0')\n    implementation 'com.google.firebase:firebase-messaging'", "    implementation 'com.google.firebase:firebase-messaging:24.1.1'")
+          appg.write_text(s)
+
+          # Native: compatible edge-to-edge, real Android insets -> CSS, async HTTP bridge.
+          main = Path('exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
+          s = main.read_text()
+          s = s.replace('WindowCompat.enableEdgeToEdge(this);', 'WindowCompat.setDecorFitsSystemWindows(getWindow(), false);')
+          s = s.replace('import java.net.URL;\n', 'import java.net.URL;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n')
+          s = s.replace('    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;\n', '    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;\n    private static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();\n')
+          s = s.replace('    private JSONObject pendingPushRoute;\n', '    private JSONObject pendingPushRoute;\n    private int safeTopCssPx;\n    private int safeBottomCssPx;\n    private int safeLeftCssPx;\n    private int safeRightCssPx;\n')
+          old = '''    private void applyInsets(WebView view) {
+              ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
+                  Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+                  target.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                  return insets;
+              });
+          }
+          '''
+          new = '''    private void applyInsets(WebView view) {
+              ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
+                  Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+                  float density = Math.max(1f, getResources().getDisplayMetrics().density);
+                  safeTopCssPx = Math.round(bars.top / density);
+                  safeBottomCssPx = Math.round(bars.bottom / density);
+                  safeLeftCssPx = Math.round(bars.left / density);
+                  safeRightCssPx = Math.round(bars.right / density);
+                  deliverSafeInsets();
+                  return insets;
+              });
+              ViewCompat.requestApplyInsets(view);
+          }
+
+          private void deliverSafeInsets() {
+              if (webView == null) return;
+              String script = "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
+                      + "document.documentElement.style.setProperty('--android-safe-bottom','" + safeBottomCssPx + "px');"
+                      + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
+                      + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');";
+              webView.post(() -> webView.evaluateJavascript(script, null));
+          }
+          '''
+          if old not in s:
+              raise SystemExit('applyInsets base pattern missing')
+          s = s.replace(old, new)
+          s = s.replace('''            public void onPageFinished(WebView webView, String url) {
+                          super.onPageFinished(webView, url);
+                          deliverPendingPushRoute();
+                      }
+          ''','''            public void onPageFinished(WebView webView, String url) {
+                          super.onPageFinished(webView, url);
+                          deliverSafeInsets();
+                          deliverPendingPushRoute();
+                      }
+          ''')
+          start = s.index('        @JavascriptInterface\n        public String httpGet(String urlText) {')
+          end = s.index('\n    }\n\n    private static class LocalAssetClient', start)
+          async_bridge = '''        @JavascriptInterface
+                  public void httpGetAsync(String urlText, String requestId) {
+                      final String safeRequestId = requestId == null ? "" : requestId;
+                      try {
+                          NETWORK_EXECUTOR.execute(() -> {
+                              String envelope = performHttpGet(urlText);
+                              if (webView == null) return;
+                              String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
+                                      + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(envelope) + ");";
+                              webView.post(() -> webView.evaluateJavascript(callback, null));
+                          });
+                      } catch (Exception error) {
+                          if (webView == null) return;
+                          String message = error.getMessage() == null ? "Ağ isteği başlatılamadı." : error.getMessage();
+                          String callback = "window.__nativeHttpReject && window.__nativeHttpReject("
+                                  + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(message) + ");";
+                          webView.post(() -> webView.evaluateJavascript(callback, null));
+                      }
+                  }
+          '''
+          s = s[:start] + async_bridge + s[end:]
+          marker = '    private static class LocalAssetClient extends WebViewClient {\n'
+          helper = '''    private static String performHttpGet(String urlText) {
+              JSONObject envelope = new JSONObject();
+              HttpURLConnection connection = null;
+              try {
+                  URL url = new URL(urlText);
+                  if (!"https".equalsIgnoreCase(url.getProtocol())) throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
+                  connection = (HttpURLConnection) url.openConnection();
+                  connection.setConnectTimeout(12000);
+                  connection.setReadTimeout(12000);
+                  connection.setRequestMethod("GET");
+                  connection.setInstanceFollowRedirects(true);
+                  connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
+                  connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
+                  connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
+                  int status = connection.getResponseCode();
+                  InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
+                  String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
+                  if (status < 200 || status >= 300) {
+                      envelope.put("ok", false); envelope.put("status", status); envelope.put("error", "HTTP " + status);
+                  } else {
+                      envelope.put("ok", true); envelope.put("status", status); envelope.put("body", body);
+                  }
+              } catch (Exception error) {
+                  try {
+                      envelope.put("ok", false); envelope.put("status", 0);
+                      envelope.put("error", error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
+                  } catch (Exception ignored) { return "{\\\"ok\\\":false,\\\"status\\\":0,\\\"error\\\":\\\"Ağ isteği başarısız.\\\"}"; }
+              } finally {
+                  if (connection != null) connection.disconnect();
+              }
+              return envelope.toString();
+          }
+
+          '''
+          s = s.replace(marker, helper + marker)
+          main.write_text(s)
+
+          # Web assets embedded in APK.
+          web = Path('exact-source/android/app/src/main/assets/www')
+          index = web / 'index.html'
+          s = index.read_text()
+          refresh = '''        <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
+          '''
+          theme = '''        <button id="themeToggle" class="icon-btn theme-toggle" aria-label="Açık temaya geç" title="Tema">
+                    <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8 8 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg>
+                    <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+                  </button>
+          '''
+          s = s.replace(refresh, theme + refresh)
+          theme_card = '''        <article class="settings-card">
+                    <div><span class="eyebrow">GÖRÜNÜM</span><h2>Tema</h2></div>
+                    <label class="setting-select-label" for="themeSetting">Uygulama görünümü</label>
+                    <select id="themeSetting" class="select settings-select">
+                      <option value="dark">Koyu</option>
+                      <option value="light">Açık</option>
+                    </select>
+                  </article>
+
+          '''
+          s = s.replace(theme_card, '')
+          s = s.replace('v2.3.0 • Build 12', 'v2.3.1 • Build 13')
+          index.write_text(s)
+
+          app = web / 'app.js'
+          s = app.read_text()
+          s = s.replace("import { resolveTheme } from './core/theme.js';", "import { resolveTheme, nextTheme } from './core/theme.js';")
+          s = s.replace("  const themeSetting = $('#themeSetting');\n  if (themeSetting) themeSetting.value = resolved;", "  const toggle = $('#themeToggle');\n  if (toggle) toggle.setAttribute('aria-label', resolved === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç');")
+          s = s.replace("  if ($('#themeSetting')) $('#themeSetting').value = state.theme || 'dark';\n", '')
+          old_load = '''async function loadPortfolio({ quiet = false, force = false } = {}) {
+            const btn = $('#refreshBtn');
+            if (!quiet) btn.classList.add('spinning');
+            try {
+              const cached = await service.getPortfolio({ refresh:false });
+              state.portfolio = cached;
+              renderPortfolio(cached);
+
+              const fresh = await service.getPortfolio({ refresh:true, force });
+              state.portfolio = fresh;
+              renderPortfolio(fresh);
+              syncPushConfiguration();
+              return fresh;
+            } catch (error) {
+              toast(error.message);
+              return state.portfolio;
+            } finally {
+              btn.classList.remove('spinning');
+            }
+          }
+          '''
+          new_load = '''let portfolioRefreshPromise = null;
+          async function loadPortfolio({ quiet = false, force = false } = {}) {
+            if (portfolioRefreshPromise) return portfolioRefreshPromise;
+            const btn = $('#refreshBtn');
+            const run = (async () => {
+              if (!quiet) btn?.classList.add('spinning');
+              try {
+                const cached = await service.getPortfolio({ refresh:false });
+                state.portfolio = cached;
+                renderPortfolio(cached);
+
+                const fresh = await service.getPortfolio({ refresh:true, force });
+                state.portfolio = fresh;
+                renderPortfolio(fresh);
+                syncPushConfiguration();
+                return fresh;
+              } catch (error) {
+                toast(error.message);
+                return state.portfolio;
+              } finally {
+                if (!quiet) btn?.classList.remove('spinning');
+              }
+            })();
+            portfolioRefreshPromise = run;
+            try {
+              return await run;
+            } finally {
+              if (portfolioRefreshPromise === run) portfolioRefreshPromise = null;
+            }
+          }
+          '''
+          if old_load not in s:
+              raise SystemExit('loadPortfolio base pattern missing')
+          s = s.replace(old_load, new_load)
+          s = s.replace("$('#themeSetting')?.addEventListener('change', event => applyTheme(event.target.value));", "$('#themeToggle')?.addEventListener('click', () => applyTheme(nextTheme(state.theme)));")
+          old_click = '''$('#refreshBtn').addEventListener('click', async () => {
+            await loadPortfolio({ force:true });
+            await refreshBackgroundHistory({ force:true, announce:true });
+          });
+          '''
+          new_click = '''$('#refreshBtn').addEventListener('click', async () => {
+            const btn = $('#refreshBtn');
+            if (btn.disabled) return;
+            btn.disabled = true;
+            btn.classList.add('spinning');
+            try {
+              await loadPortfolio({ quiet:true, force:true });
+              await refreshBackgroundHistory({ force:true, announce:true });
+            } finally {
+              btn.classList.remove('spinning');
+              btn.disabled = false;
+            }
+          });
+          '''
+          if old_click not in s:
+              raise SystemExit('refresh click base pattern missing')
+          s = s.replace(old_click, new_click)
+          app.write_text(s)
+
+          css = web / 'styles.css'
+          s = css.read_text()
+          s = s.replace('  --radius: 24px;\n', '  --radius: 24px;\n  --android-safe-top: 0px;\n  --android-safe-bottom: 0px;\n  --android-safe-left: 0px;\n  --android-safe-right: 0px;\n')
+          s = s.replace('.shell{width:min(100% - 28px, 980px);margin-inline:auto}', '.shell{width:min(100% - 28px, 980px);margin-inline:auto;padding-left:var(--android-safe-left,0px);padding-right:var(--android-safe-right,0px)}')
+          s = s.replace('.topbar{position:sticky;top:0;z-index:20;padding-top:max(14px,env(safe-area-inset-top));', '.topbar{position:sticky;top:0;z-index:20;padding-top:max(14px,env(safe-area-inset-top),var(--android-safe-top,0px));')
+          s = s.replace('.bottom-nav{position:fixed;z-index:42;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 22px),560px);', '.bottom-nav{position:fixed;z-index:42;left:50%;bottom:max(10px,env(safe-area-inset-bottom),calc(var(--android-safe-bottom,0px) + 10px));transform:translateX(-50%);width:min(calc(100% - 22px - var(--android-safe-left,0px) - var(--android-safe-right,0px)),560px);')
+          s = s.replace('.nav-tab{border:0;border-radius:16px;', '.nav-tab{min-width:0;border:0;border-radius:16px;')
+          s = s.replace('.main{padding-bottom:154px}.fab{bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px))}.toast{bottom:96px}', '.main{padding-bottom:calc(154px + var(--android-safe-bottom,0px))}.fab{bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px),calc(var(--android-safe-bottom,0px) + 82px))}.toast{bottom:calc(96px + var(--android-safe-bottom,0px))}')
+          if '.theme-toggle .theme-icon-moon{display:none}' not in s:
+              s = s.replace('html[data-theme="light"]{', '.theme-toggle .theme-icon-moon{display:none}.theme-toggle .theme-icon-sun{display:block}\n\nhtml[data-theme="light"]{', 1)
+          s = s.replace('@media(max-width:365px){.market-status', '@media(max-width:365px){.nav-tab{padding-inline:2px}.nav-tab b{font-size:9px}.nav-tab span{font-size:16px}.market-status')
+          css.write_text(s)
+          PY
+          grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
+          grep -q "versionCode 13" exact-source/android/app/build.gradle
+          grep -q "versionName '2.3.1'" exact-source/android/app/build.gradle
+          grep -q "httpGetAsync" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q -- "--android-safe-bottom" exact-source/android/app/src/main/assets/www/styles.css
+          grep -q 'id="themeToggle"' exact-source/android/app/src/main/assets/www/index.html
+          ! grep -q 'id="themeSetting"' exact-source/android/app/src/main/assets/www/index.html
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Compile APK and AAB
+        working-directory: exact-source
+        run: gradle -p android --no-daemon clean assembleDebug assembleRelease bundleRelease
+
+      - name: Collect outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-output
+          cp exact-source/android/app/build/outputs/apk/debug/app-debug.apk ci-output/halka-arz-portfoyum-v2.3.1-code13-debug.apk
+          RELEASE_APK="$(find exact-source/android/app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          RELEASE_AAB="$(find exact-source/android/app/build/outputs/bundle/release -maxdepth 1 -name '*.aab' -print -quit)"
+          test -n "$RELEASE_APK"
+          test -n "$RELEASE_AAB"
+          cp "$RELEASE_APK" ci-output/halka-arz-portfoyum-v2.3.1-code13-unsigned.apk
+          cp "$RELEASE_AAB" ci-output/halka-arz-portfoyum-v2.3.1-code13-unsigned.aab
+          sha256sum ci-output/* | tee ci-output/SHA256SUMS.txt
+
+      - name: Upload compiled outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: v231-code13-compiled
+          path: ci-output/
+          if-no-files-found: error
+          retention-days: 14
