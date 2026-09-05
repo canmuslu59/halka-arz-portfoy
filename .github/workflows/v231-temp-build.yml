@@ -19,7 +19,7 @@ jobs:
         with:
           ref: feature/v2.3.0-real-code11
 
-      - name: Reconstruct and patch v2.3.1 Android source
+      - name: Reconstruct exact code12 base
         shell: bash
         run: |
           set -euo pipefail
@@ -28,270 +28,44 @@ jobs:
           cat .ci/android.part000 .ci/android.part001 .ci/android.part002 .ci/android.part003 .ci/android.part004 .ci/android.part005 .ci/android.part006 .ci/android.part007 > .ci/reconstructed/android.b64
           base64 --decode .ci/reconstructed/android.b64 > .ci/reconstructed/android.tar.xz
           actual="$(sha256sum .ci/reconstructed/android.tar.xz | awk '{print $1}')"
+          echo "Base payload SHA256: $actual"
           test "$actual" = "ac522f12db863f536390c82265be62cb9121ecc611c8af66700d4d0686d21ee8"
           tar -xJf .ci/reconstructed/android.tar.xz -C exact-source
           python - <<'PY'
           from pathlib import Path
-
-          def edit(path, old, new):
-              p = Path(path)
-              s = p.read_text()
-              if old not in s:
-                  raise SystemExit(f'pattern missing: {path}: {old[:80]!r}')
-              p.write_text(s.replace(old, new))
-
-          # Build compatibility + v2.3.1 version.
-          edit('exact-source/android/build.gradle', "id 'com.android.application' version '8.7.3' apply false", "id 'com.android.application' version '8.10.1' apply false")
-          appg = Path('exact-source/android/app/build.gradle')
-          s = appg.read_text()
-          s = s.replace("versionCode 12", "versionCode 13").replace("versionName '2.3.0'", "versionName '2.3.1'")
-          s = s.replace("implementation 'androidx.core:core:1.19.0'", "implementation 'androidx.core:core:1.15.0'")
+          root = Path('exact-source/android/build.gradle')
+          s = root.read_text().replace("id 'com.android.application' version '8.7.3' apply false", "id 'com.android.application' version '8.10.1' apply false")
+          root.write_text(s)
+          app = Path('exact-source/android/app/build.gradle')
+          s = app.read_text().replace("implementation 'androidx.core:core:1.19.0'", "implementation 'androidx.core:core:1.15.0'")
           s = s.replace("    implementation platform('com.google.firebase:firebase-bom:34.18.0')\n    implementation 'com.google.firebase:firebase-messaging'", "    implementation 'com.google.firebase:firebase-messaging:24.1.1'")
-          appg.write_text(s)
-
-          # Native: compatible edge-to-edge, real Android insets -> CSS, async HTTP bridge.
-          main = Path('exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
-          s = main.read_text()
-          s = s.replace('WindowCompat.enableEdgeToEdge(this);', 'WindowCompat.setDecorFitsSystemWindows(getWindow(), false);')
-          s = s.replace('import java.net.URL;\n', 'import java.net.URL;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n')
-          s = s.replace('    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;\n', '    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;\n    private static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();\n')
-          s = s.replace('    private JSONObject pendingPushRoute;\n', '    private JSONObject pendingPushRoute;\n    private int safeTopCssPx;\n    private int safeBottomCssPx;\n    private int safeLeftCssPx;\n    private int safeRightCssPx;\n')
-          old = '''    private void applyInsets(WebView view) {
-              ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
-                  Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-                  target.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-                  return insets;
-              });
-          }
-          '''
-          new = '''    private void applyInsets(WebView view) {
-              ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
-                  Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-                  float density = Math.max(1f, getResources().getDisplayMetrics().density);
-                  safeTopCssPx = Math.round(bars.top / density);
-                  safeBottomCssPx = Math.round(bars.bottom / density);
-                  safeLeftCssPx = Math.round(bars.left / density);
-                  safeRightCssPx = Math.round(bars.right / density);
-                  deliverSafeInsets();
-                  return insets;
-              });
-              ViewCompat.requestApplyInsets(view);
-          }
-
-          private void deliverSafeInsets() {
-              if (webView == null) return;
-              String script = "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
-                      + "document.documentElement.style.setProperty('--android-safe-bottom','" + safeBottomCssPx + "px');"
-                      + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
-                      + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');";
-              webView.post(() -> webView.evaluateJavascript(script, null));
-          }
-          '''
-          if old not in s:
-              raise SystemExit('applyInsets base pattern missing')
-          s = s.replace(old, new)
-          s = s.replace('''            public void onPageFinished(WebView webView, String url) {
-                          super.onPageFinished(webView, url);
-                          deliverPendingPushRoute();
-                      }
-          ''','''            public void onPageFinished(WebView webView, String url) {
-                          super.onPageFinished(webView, url);
-                          deliverSafeInsets();
-                          deliverPendingPushRoute();
-                      }
-          ''')
-          start = s.index('        @JavascriptInterface\n        public String httpGet(String urlText) {')
-          end = s.index('\n    }\n\n    private static class LocalAssetClient', start)
-          async_bridge = '''        @JavascriptInterface
-                  public void httpGetAsync(String urlText, String requestId) {
-                      final String safeRequestId = requestId == null ? "" : requestId;
-                      try {
-                          NETWORK_EXECUTOR.execute(() -> {
-                              String envelope = performHttpGet(urlText);
-                              if (webView == null) return;
-                              String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
-                                      + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(envelope) + ");";
-                              webView.post(() -> webView.evaluateJavascript(callback, null));
-                          });
-                      } catch (Exception error) {
-                          if (webView == null) return;
-                          String message = error.getMessage() == null ? "Ağ isteği başlatılamadı." : error.getMessage();
-                          String callback = "window.__nativeHttpReject && window.__nativeHttpReject("
-                                  + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(message) + ");";
-                          webView.post(() -> webView.evaluateJavascript(callback, null));
-                      }
-                  }
-          '''
-          s = s[:start] + async_bridge + s[end:]
-          marker = '    private static class LocalAssetClient extends WebViewClient {\n'
-          helper = '''    private static String performHttpGet(String urlText) {
-              JSONObject envelope = new JSONObject();
-              HttpURLConnection connection = null;
-              try {
-                  URL url = new URL(urlText);
-                  if (!"https".equalsIgnoreCase(url.getProtocol())) throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
-                  connection = (HttpURLConnection) url.openConnection();
-                  connection.setConnectTimeout(12000);
-                  connection.setReadTimeout(12000);
-                  connection.setRequestMethod("GET");
-                  connection.setInstanceFollowRedirects(true);
-                  connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
-                  connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
-                  connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
-                  int status = connection.getResponseCode();
-                  InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
-                  String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
-                  if (status < 200 || status >= 300) {
-                      envelope.put("ok", false); envelope.put("status", status); envelope.put("error", "HTTP " + status);
-                  } else {
-                      envelope.put("ok", true); envelope.put("status", status); envelope.put("body", body);
-                  }
-              } catch (Exception error) {
-                  try {
-                      envelope.put("ok", false); envelope.put("status", 0);
-                      envelope.put("error", error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
-                  } catch (Exception ignored) { return "{\\\"ok\\\":false,\\\"status\\\":0,\\\"error\\\":\\\"Ağ isteği başarısız.\\\"}"; }
-              } finally {
-                  if (connection != null) connection.disconnect();
-              }
-              return envelope.toString();
-          }
-
-          '''
-          s = s.replace(marker, helper + marker)
-          main.write_text(s)
-
-          # Web assets embedded in APK.
-          web = Path('exact-source/android/app/src/main/assets/www')
-          index = web / 'index.html'
-          s = index.read_text()
-          refresh = '''        <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
-          '''
-          theme = '''        <button id="themeToggle" class="icon-btn theme-toggle" aria-label="Açık temaya geç" title="Tema">
-                    <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8 8 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg>
-                    <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
-                  </button>
-          '''
-          s = s.replace(refresh, theme + refresh)
-          theme_card = '''        <article class="settings-card">
-                    <div><span class="eyebrow">GÖRÜNÜM</span><h2>Tema</h2></div>
-                    <label class="setting-select-label" for="themeSetting">Uygulama görünümü</label>
-                    <select id="themeSetting" class="select settings-select">
-                      <option value="dark">Koyu</option>
-                      <option value="light">Açık</option>
-                    </select>
-                  </article>
-
-          '''
-          s = s.replace(theme_card, '')
-          s = s.replace('v2.3.0 • Build 12', 'v2.3.1 • Build 13')
-          index.write_text(s)
-
-          app = web / 'app.js'
-          s = app.read_text()
-          s = s.replace("import { resolveTheme } from './core/theme.js';", "import { resolveTheme, nextTheme } from './core/theme.js';")
-          s = s.replace("  const themeSetting = $('#themeSetting');\n  if (themeSetting) themeSetting.value = resolved;", "  const toggle = $('#themeToggle');\n  if (toggle) toggle.setAttribute('aria-label', resolved === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç');")
-          s = s.replace("  if ($('#themeSetting')) $('#themeSetting').value = state.theme || 'dark';\n", '')
-          old_load = '''async function loadPortfolio({ quiet = false, force = false } = {}) {
-            const btn = $('#refreshBtn');
-            if (!quiet) btn.classList.add('spinning');
-            try {
-              const cached = await service.getPortfolio({ refresh:false });
-              state.portfolio = cached;
-              renderPortfolio(cached);
-
-              const fresh = await service.getPortfolio({ refresh:true, force });
-              state.portfolio = fresh;
-              renderPortfolio(fresh);
-              syncPushConfiguration();
-              return fresh;
-            } catch (error) {
-              toast(error.message);
-              return state.portfolio;
-            } finally {
-              btn.classList.remove('spinning');
-            }
-          }
-          '''
-          new_load = '''let portfolioRefreshPromise = null;
-          async function loadPortfolio({ quiet = false, force = false } = {}) {
-            if (portfolioRefreshPromise) return portfolioRefreshPromise;
-            const btn = $('#refreshBtn');
-            const run = (async () => {
-              if (!quiet) btn?.classList.add('spinning');
-              try {
-                const cached = await service.getPortfolio({ refresh:false });
-                state.portfolio = cached;
-                renderPortfolio(cached);
-
-                const fresh = await service.getPortfolio({ refresh:true, force });
-                state.portfolio = fresh;
-                renderPortfolio(fresh);
-                syncPushConfiguration();
-                return fresh;
-              } catch (error) {
-                toast(error.message);
-                return state.portfolio;
-              } finally {
-                if (!quiet) btn?.classList.remove('spinning');
-              }
-            })();
-            portfolioRefreshPromise = run;
-            try {
-              return await run;
-            } finally {
-              if (portfolioRefreshPromise === run) portfolioRefreshPromise = null;
-            }
-          }
-          '''
-          if old_load not in s:
-              raise SystemExit('loadPortfolio base pattern missing')
-          s = s.replace(old_load, new_load)
-          s = s.replace("$('#themeSetting')?.addEventListener('change', event => applyTheme(event.target.value));", "$('#themeToggle')?.addEventListener('click', () => applyTheme(nextTheme(state.theme)));")
-          old_click = '''$('#refreshBtn').addEventListener('click', async () => {
-            await loadPortfolio({ force:true });
-            await refreshBackgroundHistory({ force:true, announce:true });
-          });
-          '''
-          new_click = '''$('#refreshBtn').addEventListener('click', async () => {
-            const btn = $('#refreshBtn');
-            if (btn.disabled) return;
-            btn.disabled = true;
-            btn.classList.add('spinning');
-            try {
-              await loadPortfolio({ quiet:true, force:true });
-              await refreshBackgroundHistory({ force:true, announce:true });
-            } finally {
-              btn.classList.remove('spinning');
-              btn.disabled = false;
-            }
-          });
-          '''
-          if old_click not in s:
-              raise SystemExit('refresh click base pattern missing')
-          s = s.replace(old_click, new_click)
           app.write_text(s)
-
-          css = web / 'styles.css'
-          s = css.read_text()
-          s = s.replace('  --radius: 24px;\n', '  --radius: 24px;\n  --android-safe-top: 0px;\n  --android-safe-bottom: 0px;\n  --android-safe-left: 0px;\n  --android-safe-right: 0px;\n')
-          s = s.replace('.shell{width:min(100% - 28px, 980px);margin-inline:auto}', '.shell{width:min(100% - 28px, 980px);margin-inline:auto;padding-left:var(--android-safe-left,0px);padding-right:var(--android-safe-right,0px)}')
-          s = s.replace('.topbar{position:sticky;top:0;z-index:20;padding-top:max(14px,env(safe-area-inset-top));', '.topbar{position:sticky;top:0;z-index:20;padding-top:max(14px,env(safe-area-inset-top),var(--android-safe-top,0px));')
-          s = s.replace('.bottom-nav{position:fixed;z-index:42;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(100% - 22px),560px);', '.bottom-nav{position:fixed;z-index:42;left:50%;bottom:max(10px,env(safe-area-inset-bottom),calc(var(--android-safe-bottom,0px) + 10px));transform:translateX(-50%);width:min(calc(100% - 22px - var(--android-safe-left,0px) - var(--android-safe-right,0px)),560px);')
-          s = s.replace('.nav-tab{border:0;border-radius:16px;', '.nav-tab{min-width:0;border:0;border-radius:16px;')
-          s = s.replace('.main{padding-bottom:154px}.fab{bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px))}.toast{bottom:96px}', '.main{padding-bottom:calc(154px + var(--android-safe-bottom,0px))}.fab{bottom:max(88px,calc(env(safe-area-inset-bottom) + 82px),calc(var(--android-safe-bottom,0px) + 82px))}.toast{bottom:calc(96px + var(--android-safe-bottom,0px))}')
-          if '.theme-toggle .theme-icon-moon{display:none}' not in s:
-              s = s.replace('html[data-theme="light"]{', '.theme-toggle .theme-icon-moon{display:none}.theme-toggle .theme-icon-sun{display:block}\n\nhtml[data-theme="light"]{', 1)
-          s = s.replace('@media(max-width:365px){.market-status', '@media(max-width:365px){.nav-tab{padding-inline:2px}.nav-tab b{font-size:9px}.nav-tab span{font-size:16px}.market-status')
-          css.write_text(s)
+          main = Path('exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
+          s = main.read_text().replace('WindowCompat.enableEdgeToEdge(this);', 'WindowCompat.setDecorFitsSystemWindows(getWindow(), false);')
+          main.write_text(s)
           PY
-          grep -q "applicationId 'com.innative.halkaarz'" exact-source/android/app/build.gradle
-          grep -q "versionCode 13" exact-source/android/app/build.gradle
-          grep -q "versionName '2.3.1'" exact-source/android/app/build.gradle
-          grep -q "httpGetAsync" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          grep -q -- "--android-safe-bottom" exact-source/android/app/src/main/assets/www/styles.css
-          grep -q 'id="themeToggle"' exact-source/android/app/src/main/assets/www/index.html
-          ! grep -q 'id="themeSetting"' exact-source/android/app/src/main/assets/www/index.html
+          grep -q "versionCode 12" exact-source/android/app/build.gradle
+          grep -q "versionName '2.3.0'" exact-source/android/app/build.gradle
+          grep -q "WindowCompat.setDecorFitsSystemWindows(getWindow(), false)" exact-source/android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+
+      - name: Apply tested v2.3.1 code13 delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/v231.patch.gz.b64 <<'PATCH64'
+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
+PATCH64
+          base64 --decode /tmp/v231.patch.gz.b64 | gzip -dc > /tmp/v231.patch
+          cd exact-source
+          git apply --check /tmp/v231.patch
+          git apply /tmp/v231.patch
+          grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
+          grep -q "versionCode 13" android/app/build.gradle
+          grep -q "versionName '2.3.1'" android/app/build.gradle
+          grep -q "httpGetAsync" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q -- "--android-safe-bottom" android/app/src/main/assets/www/styles.css
+          grep -q 'id="themeToggle"' android/app/src/main/assets/www/index.html
+          ! grep -q 'id="themeSetting"' android/app/src/main/assets/www/index.html
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
