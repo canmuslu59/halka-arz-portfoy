@@ -8,6 +8,7 @@ def rw(rel, fn):
     p = root / rel
     p.write_text(fn(p.read_text()))
 
+# v2.3.3 / code15 + current stable AndroidX pins.
 def gradle(s):
     s = s.replace('versionCode 14', 'versionCode 15').replace("versionName '2.3.2'", "versionName '2.3.3'")
     needle = "    implementation 'androidx.core:core:1.15.0'\n"
@@ -55,14 +56,16 @@ html[data-theme="light"] .hero-card,html[data-theme="light"] .chart-card,html[da
   box-shadow:inset 0 2px 0 rgba(255,255,255,.82),inset 0 -2px 0 rgba(72,112,184,.08),0 16px 44px rgba(41,57,83,.15);
 }
 '''
-
 def styles(s):
     return s if '/* v2.3.3 floating dock + thicker glass edges */' in s else s + css
 rw('android/app/src/main/assets/www/styles.css', styles)
 
+# Replace the old vector launcher icon with the approved rendered mark.
 old_icon = root / 'android/app/src/main/res/drawable/ic_launcher.xml'
 if old_icon.exists():
     old_icon.unlink()
 out_dir = root / 'android/app/src/main/res/drawable-nodpi'
 out_dir.mkdir(parents=True, exist_ok=True)
-shutil.copyfile(icon_source, out_dir / 'ic_launcher.png')
+for old in (out_dir / 'ic_launcher.png', out_dir / 'ic_launcher.webp'):
+    if old.exists(): old.unlink()
+shutil.copyfile(icon_source, out_dir / 'ic_launcher.webp')
