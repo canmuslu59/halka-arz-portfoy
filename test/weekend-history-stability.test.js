@@ -139,3 +139,30 @@ test('rolling quote still backfills a missing previous trading day without repla
   assert.equal(friday.dailyProfit, 300);
   assert.equal(portfolio.totals.dailyProfit, 50);
 });
+
+test('exchange previousClose backfills a missing prior session more accurately than the last 5m candle', async () => {
+  let nowValue = new Date('2026-09-08T12:00:00+03:00');
+  const officialMissingMonday = officialThroughFriday;
+  let quoteValue = {
+    ticker:'TEST', current:108, previousClose:107, latestMarketDate:'2026-09-08', marketTime:'2026-09-08T12:00:00+03:00',
+    history:[
+      {date:'2026-09-04',close:99.1},
+      {date:'2026-09-07',close:106.5},
+      {date:'2026-09-08',close:108},
+    ],
+  };
+  const repository = repositoryWith({ holdings:[holding({
+    quote:{ ticker:'TEST', current:100, previousClose:70, latestMarketDate:'2026-09-04', history:[{date:'2026-09-04',close:100}] },
+    history:officialMissingMonday,
+  })] });
+  const service = createService({ repository, now:()=>nowValue, quote:()=>quoteValue, dailyHistory:()=>officialMissingMonday });
+
+  await service.getPortfolio({ refresh:true, force:true });
+  const portfolio = await service.getPortfolio({ refresh:false });
+  const monday = portfolio.history.find(row=>row.date === '2026-09-07');
+
+  assert.equal(monday.value, 1070);
+  assert.equal(monday.profit, 570);
+  assert.equal(monday.dailyProfit, 70);
+  assert.equal(portfolio.totals.dailyProfit, 10);
+});
