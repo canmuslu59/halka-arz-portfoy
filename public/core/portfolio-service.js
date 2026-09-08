@@ -26,11 +26,21 @@ function snapshotAge(nowDate, snapshot) {
   return Number.isFinite(stamp) ? nowDate.getTime() - stamp : Infinity;
 }
 
-function mergeHistoryRows(baseRows = [], recentRows = []) {
+function mergeHistoryRows(baseRows = [], recentRows = [], latestMarketDate = null) {
   const byDate = new Map();
-  for (const row of [...baseRows, ...recentRows]) {
+  for (const row of baseRows) {
     if (!row?.date || !Number.isFinite(Number(row.close))) continue;
     byDate.set(row.date, { ...row, close:Number(row.close) });
+  }
+  for (const row of recentRows) {
+    if (!row?.date || !Number.isFinite(Number(row.close))) continue;
+    // Daily history is the source of truth for completed sessions. The rolling
+    // intraday quote may backfill a missing session, but may only replace the
+    // currently active/latest market date. This prevents Monday quote refreshes
+    // from rewriting an already-finalized Friday close and historical P/L.
+    if (row.date === latestMarketDate || !byDate.has(row.date)) {
+      byDate.set(row.date, { ...row, close:Number(row.close) });
+    }
   }
   return [...byDate.values()].sort((a,b) => a.date.localeCompare(b.date));
 }
@@ -103,7 +113,10 @@ export function createPortfolioService({
       : Array.isArray(legacyMarket.history)
         ? legacyMarket.history
         : [];
-    const history = mergeHistoryRows(baseHistory, Array.isArray(quote.history) ? quote.history : []);
+    const quoteHistory = Array.isArray(quote.history) ? quote.history : [];
+    const quoteLatestMarketDate = quote.latestMarketDate || quoteHistory.at(-1)?.date || null;
+    const history = mergeHistoryRows(baseHistory, quoteHistory, quoteLatestMarketDate);
+    const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;
     const today = dateInIstanbul(now());
     const inferredSector = inferSectorFromCompany(ipo.company, raw.ticker);
     const chosenSector = chooseSector({
@@ -123,7 +136,7 @@ export function createPortfolioService({
       sectorSource: chosenSector.source,
       currentPrice: Number.isFinite(Number(quote.current)) ? Number(quote.current) : null,
       previousClose: Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null,
-      latestMarketDate: quote.latestMarketDate || quote.history?.at?.(-1)?.date || history.at(-1)?.date || null,
+      latestMarketDate,
       marketTime: quote.marketTime || null,
       history,
       errors: {
