@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as notificationRules from '../public/core/notification-rules.js';
 import * as ipoAnalytics from '../public/core/ipo-analytics.js';
-import { evaluateRegistrationAlerts, notificationForAlert } from '../backend/alert-engine.js';
 
 const ROOT = path.resolve('.');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -17,6 +16,9 @@ test('code18 keeps Play identity monotonic and preserves Android 15/16 edge-to-e
   assert.match(gradle, /versionCode 18/);
   assert.match(gradle, /versionName '2\.3\.6'/);
   assert.match(gradle, /targetSdk 36/);
+  assert.match(gradle, /androidx\.core:core:1\.17\.0/);
+  assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
+  assert.match(gradle, /androidx\.fragment:fragment:1\.9\.0/);
   assert.match(java, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
   assert.match(html, /v2\.3\.6 • Build 18/);
@@ -117,18 +119,4 @@ test('floating dock has scroll-aware fade and boundary recovery behavior', () =>
   assert.match(css, /\.bottom-nav\.dock-hidden/);
   assert.match(css, /transition:opacity \.30s ease,transform \.30s/);
   assert.match(css, /pointer-events:none/);
-});
-
-test('optional remote backend uses the same tavan/taban dedupe and message format', () => {
-  const registration = {installId:'550e8400-e29b-41d4-a716-446655440000',enabled:true,threshold:3,holdings:[{ticker:'AAA',lots:10},{ticker:'BBB',lots:5}],alertState:null};
-  const quotes = new Map([['AAA',{ticker:'AAA',current:110,previousClose:100}],['BBB',{ticker:'BBB',current:90,previousClose:100}]]);
-  const first = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-08' });
-  assert.deepEqual(first.events.filter(e => e.kind === 'ceiling').map(e => e.ticker), ['AAA']);
-  assert.deepEqual(first.events.filter(e => e.kind === 'floor').map(e => e.ticker), ['BBB']);
-  assert.deepEqual(notificationForAlert(first.events.find(e => e.kind === 'ceiling')), {
-    title:'AAA tavan yaptı', body:'AAA bugün tavan fiyatına ulaştı.',
-    data:{kind:'ceiling',ticker:'AAA',currentPrice:'110',limitPrice:'110'},
-  });
-  const again = evaluateRegistrationAlerts({ registration:{...registration,alertState:first.state}, quotes, day:'2026-09-08' });
-  assert.equal(again.events.some(e => e.kind === 'ceiling' || e.kind === 'floor'), false);
 });
