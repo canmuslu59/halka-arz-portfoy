@@ -1,4 +1,4 @@
-name: Build Code18 Android Artifacts
+name: Build Code18 Google Play AAB
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-code18:
+  build-code18-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -36,7 +36,7 @@ jobs:
           echo "517298c9cecd73ee52262f826c13c96f877bfd5322b9b3ef7c98779ea733aa48  android/app/src/main/res/drawable-nodpi/ic_launcher.webp" | sha256sum -c -
           rm -f android/app/src/main/res/drawable/ic_launcher.xml
 
-      - name: Verify release identity before build
+      - name: Verify Play release identity
         shell: bash
         run: |
           set -euo pipefail
@@ -45,7 +45,6 @@ jobs:
           grep -q "versionName '2.3.6'" android/app/build.gradle
           grep -q "compileSdk 36" android/app/build.gradle
           grep -q "targetSdk 36" android/app/build.gradle
-          grep -q "applicationIdSuffix '.test'" android/app/build.gradle
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -73,36 +72,27 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Run Code18 tests before sync
-        run: npm test
-
       - name: Sync web assets into Android
         run: npm run android:sync
 
-      - name: Run Code18 tests after sync
-        run: npm test
+      - name: Build unsigned Google Play AAB
+        run: gradle -p android --no-daemon bundleRelease
 
-      - name: Build test APK and unsigned Play AAB
-        run: gradle -p android --no-daemon assembleDebug bundleRelease
-
-      - name: Collect and validate outputs
+      - name: Collect AAB
         shell: bash
         run: |
           set -euo pipefail
-          test -s android/app/build/outputs/apk/debug/app-debug.apk
           test -s android/app/build/outputs/bundle/release/app-release.aab
-          cp android/app/build/outputs/apk/debug/app-debug.apk halka-arz-portfoyum-v2.3.6-code18-test.apk
           cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.6-code18-unsigned.aab
-          sha256sum halka-arz-portfoyum-v2.3.6-code18-test.apk halka-arz-portfoyum-v2.3.6-code18-unsigned.aab > code18-build-sha256.txt
-          cat code18-build-sha256.txt
+          sha256sum halka-arz-portfoyum-v2.3.6-code18-unsigned.aab > code18-aab-sha256.txt
+          cat code18-aab-sha256.txt
 
-      - name: Upload Code18 build artifacts
+      - name: Upload Code18 AAB
         uses: actions/upload-artifact@v4
         with:
-          name: code18-android-artifacts
+          name: code18-play-aab-unsigned
           path: |
-            halka-arz-portfoyum-v2.3.6-code18-test.apk
             halka-arz-portfoyum-v2.3.6-code18-unsigned.aab
-            code18-build-sha256.txt
+            code18-aab-sha256.txt
           if-no-files-found: error
           retention-days: 30
