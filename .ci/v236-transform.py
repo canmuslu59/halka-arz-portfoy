@@ -198,8 +198,7 @@ if 'evaluateLocalAlerts(fresh);' not in s:
         anchor = '    renderPortfolio(fresh);\n'
     if anchor not in s:
         raise SystemExit('fresh render anchor missing')
-    indent = anchor[:len(anchor)-len(anchor.lstrip())]
-    s = s.replace(anchor, anchor + indent + 'evaluateLocalAlerts(fresh);\n', 1)
+    s = s.replace(anchor, anchor + anchor[:len(anchor)-len(anchor.lstrip())] + 'evaluateLocalAlerts(fresh);\n', 1)
 
 old_callback = 'window.__notificationPermissionChanged = () => renderSettings();'
 new_callback = 'window.__notificationPermissionChanged = () => { renderSettings(); loadPortfolio({ quiet:true, force:true }); };'
@@ -300,36 +299,4 @@ s = p.read_text()
 s = s.replace('private static final String CHANNEL_MARKET = "market_moves";', 'private static final String CHANNEL_MARKET = "market_moves_v2";', 1)
 s = s.replace('new NotificationChannel(CHANNEL_MARKET, "Borsa hareketleri", NotificationManager.IMPORTANCE_DEFAULT)', 'new NotificationChannel(CHANNEL_MARKET, "Borsa hareketleri", NotificationManager.IMPORTANCE_HIGH)', 1)
 s = s.replace('.setPriority(NotificationCompat.PRIORITY_DEFAULT);', '.setPriority(NotificationCompat.PRIORITY_HIGH);', 1)
-p.write_text(s)
-
-# Optional remote backend uses the same rules when it is eventually configured.
-p = root / 'backend/alert-engine.js'
-s = p.read_text()
-old = "import { evaluateDailyAlerts } from '../public/core/notification-rules.js';"
-new = "import { evaluateDailyAlerts, notificationPayloadForEvent } from '../public/core/notification-rules.js';"
-if new not in s:
-    if old not in s:
-        raise SystemExit('backend import anchor missing')
-    s = s.replace(old, new, 1)
-old = '    holdings.push({ ticker, dailyPct });'
-new = '    holdings.push({ ticker, dailyPct, currentPrice:current, previousClose, dailySessionActive:true });'
-if new not in s:
-    if old not in s:
-        raise SystemExit('backend holding anchor missing')
-    s = s.replace(old, new, 1)
-start = s.find('export function notificationForAlert(event = {}) {')
-if start < 0:
-    raise SystemExit('notificationForAlert anchor missing')
-# This helper is the final export in alert-engine.js in the approved source.
-if 'notificationPayloadForEvent(event)' not in s[start:]:
-    s = s[:start] + """export function notificationForAlert(event = {}) {
-  const payload = notificationPayloadForEvent(event);
-  const data = { kind:payload.kind, ticker:payload.ticker || '' };
-  if (event.level != null) data.level = String(event.level);
-  if (event.dailyPct != null) data.dailyPct = String(event.dailyPct);
-  if (event.currentPrice != null) data.currentPrice = String(event.currentPrice);
-  if (event.limitPrice != null) data.limitPrice = String(event.limitPrice);
-  return { title:payload.title, body:payload.body, data };
-}
-"""
 p.write_text(s)
