@@ -26,21 +26,44 @@ function snapshotAge(nowDate, snapshot) {
   return Number.isFinite(stamp) ? nowDate.getTime() - stamp : Infinity;
 }
 
-function mergeHistoryRows(baseRows = [], recentRows = [], latestMarketDate = null) {
+function mergeHistoryRows(
+  baseRows = [],
+  recentRows = [],
+  { latestMarketDate = null, today = null, previousClose = null } = {},
+) {
   const byDate = new Map();
   for (const row of baseRows) {
     if (!row?.date || !Number.isFinite(Number(row.close))) continue;
     byDate.set(row.date, { ...row, close:Number(row.close) });
   }
-  for (const row of recentRows) {
-    if (!row?.date || !Number.isFinite(Number(row.close))) continue;
-    // Daily history is the source of truth for completed sessions. The rolling
-    // intraday quote may backfill a missing session, but may only replace the
-    // currently active/latest market date. This prevents Monday quote refreshes
-    // from rewriting an already-finalized Friday close and historical P/L.
-    if (row.date === latestMarketDate || !byDate.has(row.date)) {
-      byDate.set(row.date, { ...row, close:Number(row.close) });
+
+  const validRecentRows = recentRows
+    .filter(row => row?.date && Number.isFinite(Number(row.close)))
+    .map(row => ({ ...row, close:Number(row.close) }));
+  const priorRecentDate = latestMarketDate
+    ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort().at(-1) || null
+    : null;
+  const exchangePreviousClose = Number.isFinite(Number(previousClose)) ? Number(previousClose) : null;
+
+  for (const row of validRecentRows) {
+    const hasDailyRow = byDate.has(row.date);
+    const isCurrentLiveSession = row.date === latestMarketDate && latestMarketDate === today;
+
+    // Finalized daily rows are immutable. The 5-minute feed may only replace the
+    // live session for today's market date, or backfill a date missing entirely
+    // from the daily feed. This keeps Friday stable throughout the weekend and
+    // prevents Monday refreshes from revising Friday retrospectively.
+    if (hasDailyRow && !isCurrentLiveSession) continue;
+
+    let close = row.close;
+    // Yahoo's daily feed can temporarily omit the immediately previous session.
+    // In that case its quote metadata previousClose is the exchange-session close
+    // and is more accurate than the final 5-minute candle (which can miss the
+    // closing auction). Use it only when the daily row is actually absent.
+    if (!hasDailyRow && row.date === priorRecentDate && exchangePreviousClose != null) {
+      close = exchangePreviousClose;
     }
+    byDate.set(row.date, { ...row, close });
   }
   return [...byDate.values()].sort((a,b) => a.date.localeCompare(b.date));
 }
@@ -115,9 +138,14 @@ export function createPortfolioService({
         : [];
     const quoteHistory = Array.isArray(quote.history) ? quote.history : [];
     const quoteLatestMarketDate = quote.latestMarketDate || quoteHistory.at(-1)?.date || null;
-    const history = mergeHistoryRows(baseHistory, quoteHistory, quoteLatestMarketDate);
-    const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;
     const today = dateInIstanbul(now());
+    const quotePreviousClose = Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null;
+    const history = mergeHistoryRows(baseHistory, quoteHistory, {
+      latestMarketDate: quoteLatestMarketDate,
+      today,
+      previousClose: quotePreviousClose,
+    });
+    const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;
     const inferredSector = inferSectorFromCompany(ipo.company, raw.ticker);
     const chosenSector = chooseSector({
       manual: raw.sectorOverride,
@@ -135,7 +163,7 @@ export function createPortfolioService({
       sector: chosenSector.sector,
       sectorSource: chosenSector.source,
       currentPrice: Number.isFinite(Number(quote.current)) ? Number(quote.current) : null,
-      previousClose: Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null,
+      previousClose: quotePreviousClose,
       latestMarketDate,
       marketTime: quote.marketTime || null,
       history,
