@@ -1,0 +1,134 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as notificationRules from '../public/core/notification-rules.js';
+import * as ipoAnalytics from '../public/core/ipo-analytics.js';
+import { evaluateRegistrationAlerts, notificationForAlert } from '../backend/alert-engine.js';
+
+const ROOT = path.resolve('.');
+const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const { evaluateDailyAlerts } = notificationRules;
+
+test('code18 keeps Play identity monotonic and preserves Android 15/16 edge-to-edge', () => {
+  const gradle = read('android/app/build.gradle');
+  const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  const html = read('android/app/src/main/assets/www/index.html');
+  assert.match(gradle, /versionCode 18/);
+  assert.match(gradle, /versionName '2\.3\.6'/);
+  assert.match(gradle, /targetSdk 36/);
+  assert.match(java, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
+  assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
+  assert.match(html, /v2\.3\.6 • Build 18/);
+});
+
+test('BIST daily upper/lower limits use valid price-step rounding', () => {
+  assert.equal(ipoAnalytics.ceilingPrice(100), 110);
+  assert.equal(typeof ipoAnalytics.floorPrice, 'function');
+  assert.equal(ipoAnalytics.floorPrice(100), 90);
+  assert.equal(ipoAnalytics.ceilingPrice(23.17), 25.48);
+  assert.equal(ipoAnalytics.floorPrice(23.17), 20.86);
+});
+
+test('1 percent threshold emits exactly the newly reached stock and portfolio levels', () => {
+  const first = evaluateDailyAlerts({
+    day:'2026-09-08', threshold:1, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:1.08,currentPrice:101.08,previousClose:100,dailySessionActive:true}],
+    portfolioPct:1.04,
+  });
+  assert.deepEqual(first.events.filter(e => e.kind === 'stock').map(e => e.level), [1]);
+  assert.deepEqual(first.events.filter(e => e.kind === 'portfolio').map(e => e.level), [1]);
+  const again = evaluateDailyAlerts({
+    day:'2026-09-08', threshold:1, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:1.4,currentPrice:101.4,previousClose:100,dailySessionActive:true}],
+    portfolioPct:1.2, previousState:first.state,
+  });
+  assert.equal(again.events.filter(e => e.kind === 'stock' || e.kind === 'portfolio').length, 0);
+});
+
+test('tavan and taban are each notified only once per ticker per Istanbul day', () => {
+  const first = evaluateDailyAlerts({
+    day:'2026-09-08', threshold:3, enabled:true,
+    holdings:[{ticker:'TEST',dailyPct:10,currentPrice:110,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0,
+  });
+  assert.equal(first.events.filter(e => e.kind === 'ceiling').length, 1);
+  const duplicate = evaluateDailyAlerts({
+    day:'2026-09-08', threshold:3, enabled:true,
+    holdings:[{ticker:'TEST',dailyPct:10,currentPrice:110,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0, previousState:first.state,
+  });
+  assert.equal(duplicate.events.filter(e => e.kind === 'ceiling').length, 0);
+  const floor = evaluateDailyAlerts({
+    day:'2026-09-08', threshold:3, enabled:true,
+    holdings:[{ticker:'TEST',dailyPct:-10,currentPrice:90,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0, previousState:duplicate.state,
+  });
+  assert.equal(floor.events.filter(e => e.kind === 'floor').length, 1);
+  const nextDay = evaluateDailyAlerts({
+    day:'2026-09-09', threshold:3, enabled:true,
+    holdings:[{ticker:'TEST',dailyPct:10,currentPrice:110,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0, previousState:floor.state,
+  });
+  assert.equal(nextDay.events.filter(e => e.kind === 'ceiling').length, 1);
+});
+
+test('closed/non-current sessions do not create false tavan or taban alerts', () => {
+  const result = evaluateDailyAlerts({
+    day:'2026-09-12', threshold:1, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:0,currentPrice:110,previousClose:100,dailySessionActive:false}],
+    portfolioPct:0,
+  });
+  assert.equal(result.events.some(e => e.kind === 'ceiling' || e.kind === 'floor'), false);
+});
+
+test('native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock', () => {
+  const app = read('android/app/src/main/assets/www/app.js');
+  const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  assert.match(app, /evaluateLocalAlerts\(fresh\)/);
+  assert.match(app, /localAlertStateV1/);
+  assert.match(app, /showLocalNotification/);
+  const start = app.indexOf('function evaluateLocalAlerts');
+  const end = app.indexOf('function pushPayload', start);
+  const body = app.slice(start, end);
+  assert.ok(body.indexOf('readNativeNotificationPermission') < body.indexOf('safeSetLocal(LOCAL_ALERT_STATE_KEY'));
+  assert.match(app, /\['stock','ceiling','floor'\]\.includes\(kind\)/);
+  assert.match(app, /__notificationPermissionChanged\s*=\s*\(\)\s*=>\s*\{[^}]*renderSettings\(\);[^}]*loadPortfolio\(\{\s*quiet:true,\s*force:true\s*\}\)/s);
+  assert.match(java, /public void showLocalNotification\(String json\)/);
+  assert.match(java, /NotificationHelper\.show/);
+});
+
+test('market notification channel is new and high importance for update installs', () => {
+  const helper = read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+  assert.match(helper, /CHANNEL_MARKET\s*=\s*"market_moves_v2"/);
+  assert.match(helper, /NotificationManager\.IMPORTANCE_HIGH/);
+  assert.match(helper, /NotificationCompat\.PRIORITY_HIGH/);
+});
+
+test('floating dock has scroll-aware fade and boundary recovery behavior', () => {
+  const app = read('android/app/src/main/assets/www/app.js');
+  const css = read('android/app/src/main/assets/www/styles.css');
+  assert.match(app, /function updateDockVisibility/);
+  assert.match(app, /const atTop = scrollY <= 8/);
+  assert.match(app, /const atBottom = maxY - scrollY <= 8/);
+  assert.match(app, /movingDown/);
+  assert.match(app, /movingUp/);
+  assert.match(app, /dock-hidden/);
+  assert.match(css, /\.bottom-nav\.dock-hidden/);
+  assert.match(css, /transition:opacity \.30s ease,transform \.30s/);
+  assert.match(css, /pointer-events:none/);
+});
+
+test('optional remote backend uses the same tavan/taban dedupe and message format', () => {
+  const registration = {installId:'550e8400-e29b-41d4-a716-446655440000',enabled:true,threshold:3,holdings:[{ticker:'AAA',lots:10},{ticker:'BBB',lots:5}],alertState:null};
+  const quotes = new Map([['AAA',{ticker:'AAA',current:110,previousClose:100}],['BBB',{ticker:'BBB',current:90,previousClose:100}]]);
+  const first = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-08' });
+  assert.deepEqual(first.events.filter(e => e.kind === 'ceiling').map(e => e.ticker), ['AAA']);
+  assert.deepEqual(first.events.filter(e => e.kind === 'floor').map(e => e.ticker), ['BBB']);
+  assert.deepEqual(notificationForAlert(first.events.find(e => e.kind === 'ceiling')), {
+    title:'AAA tavan yaptı', body:'AAA bugün tavan fiyatına ulaştı.',
+    data:{kind:'ceiling',ticker:'AAA',currentPrice:'110',limitPrice:'110'},
+  });
+  const again = evaluateRegistrationAlerts({ registration:{...registration,alertState:first.state}, quotes, day:'2026-09-08' });
+  assert.equal(again.events.some(e => e.kind === 'ceiling' || e.kind === 'floor'), false);
+});
