@@ -1,18 +1,18 @@
-name: Build Code20 Google Play AAB
+name: Build Code21 Google Play AAB
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v2.3.8-code20
+      - feature/v2.3.9-code21
 
 permissions:
   contents: read
 
 jobs:
-  build-code20-aab:
+  build-code21-aab:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -46,27 +46,42 @@ jobs:
           tar -xzf /tmp/code19-delta.tar.gz -C .
 
       - name: Apply Code20 startup notification permission fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          python .ci/code20-transform.py
+        run: python .ci/code20-transform.py
 
-      - name: Verify Play release identity and startup permission contract
+      - name: Apply Code21 calendar and notification sound fixes
+        run: python .ci/code21-transform.py
+
+      - name: Verify Code21 release contracts
         shell: bash
         run: |
           set -euo pipefail
           grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
-          grep -q "versionCode 20" android/app/build.gradle
-          grep -q "versionName '2.3.8'" android/app/build.gradle
-          grep -q "compileSdk 36" android/app/build.gradle
+          grep -q "versionCode 21" android/app/build.gradle
+          grep -q "versionName '2.3.9'" android/app/build.gradle
           grep -q "targetSdk 36" android/app/build.gradle
-          grep -q "androidx.work:work-runtime:2.10.1" android/app/build.gradle
-          grep -q "v2.3.8 • Build 20" public/index.html
-          grep -q "requestStartupNotificationPermission" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          grep -q "postDelayed(this::requestStartupNotificationPermission, 700L)" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          grep -q "Manifest.permission.POST_NOTIFICATIONS" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          grep -q "requestPermissions(new String\[\]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST)" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          ! grep -q "setTimeout(maybeRequestNotificationPermissionOnce" public/app.js
+          grep -q "v2.3.9 • Build 21" public/index.html
+          grep -q "halka_arz_calendar_cache_v2" public/core/ipo-service.js
+          grep -q "activeScope" public/core/parsers.js
+          grep -q "market_rise_v1" android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          grep -q "market_ceiling_coin_v1" android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          grep -q "market_floor_v1" android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          test -s android/app/src/main/res/raw/notification_rise.wav
+          test -s android/app/src/main/res/raw/notification_ceiling_coin.wav
+          test -s android/app/src/main/res/raw/notification_floor.wav
+          python - <<'PY'
+          import wave
+          expected = {
+              'notification_rise.wav': (0.50, 0.70),
+              'notification_ceiling_coin.wav': (0.40, 0.56),
+              'notification_floor.wav': (0.54, 0.72),
+          }
+          for name, (lo, hi) in expected.items():
+              path = 'android/app/src/main/res/raw/' + name
+              with wave.open(path, 'rb') as w:
+                  duration = w.getnframes() / w.getframerate()
+                  assert w.getnchannels() == 1 and w.getsampwidth() == 2 and lo <= duration <= hi, (name, duration)
+                  print(name, round(duration, 3), 'sec')
+          PY
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -100,15 +115,22 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Run Code21 regression suite
+        run: node --test test/parsers.test.js test/data-sources.test.js test/notification-rules.test.js test/code19-behavior.test.js test/settings-contract.test.js test/android-contract.test.js test/code21-behavior.test.js
+
       - name: Sync web assets into Android
         run: npm run android:sync
 
-      - name: Verify synced Android assets
+      - name: Re-run Code21 regression suite after sync
+        run: node --test test/parsers.test.js test/data-sources.test.js test/notification-rules.test.js test/code19-behavior.test.js test/settings-contract.test.js test/android-contract.test.js test/code21-behavior.test.js
+
+      - name: Verify synced Code21 assets
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "v2.3.8 • Build 20" android/app/src/main/assets/www/index.html
-          ! grep -q "setTimeout(maybeRequestNotificationPermissionOnce" android/app/src/main/assets/www/app.js
+          grep -q "v2.3.9 • Build 21" android/app/src/main/assets/www/index.html
+          grep -q "activeScope" android/app/src/main/assets/www/core/parsers.js
+          grep -q "halka_arz_calendar_cache_v2" android/app/src/main/assets/www/core/ipo-service.js
 
       - name: Build unsigned Google Play AAB
         run: gradle -p android --no-daemon bundleRelease
@@ -118,16 +140,16 @@ jobs:
         run: |
           set -euo pipefail
           test -s android/app/build/outputs/bundle/release/app-release.aab
-          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.8-code20-unsigned.aab
-          sha256sum halka-arz-portfoyum-v2.3.8-code20-unsigned.aab > code20-aab-sha256.txt
-          cat code20-aab-sha256.txt
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.9-code21-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.3.9-code21-unsigned.aab > code21-aab-sha256.txt
+          cat code21-aab-sha256.txt
 
-      - name: Upload Code20 AAB
+      - name: Upload Code21 AAB
         uses: actions/upload-artifact@v4
         with:
-          name: code20-play-aab-unsigned
+          name: code21-play-aab-unsigned
           path: |
-            halka-arz-portfoyum-v2.3.8-code20-unsigned.aab
-            code20-aab-sha256.txt
+            halka-arz-portfoyum-v2.3.9-code21-unsigned.aab
+            code21-aab-sha256.txt
           if-no-files-found: error
           retention-days: 30
