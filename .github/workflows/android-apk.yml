@@ -1,18 +1,18 @@
-name: Build Code18 Google Play AAB
+name: Build Code19 Google Play AAB
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v2.3.6-code18
+      - feature/v2.3.7-code19
 
 permissions:
   contents: read
 
 jobs:
-  build-code18-aab:
+  build-code19-aab:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -36,15 +36,26 @@ jobs:
           echo "517298c9cecd73ee52262f826c13c96f877bfd5322b9b3ef7c98779ea733aa48  android/app/src/main/res/drawable-nodpi/ic_launcher.webp" | sha256sum -c -
           rm -f android/app/src/main/res/drawable/ic_launcher.xml
 
+      - name: Apply verified Code19 delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ci/code19-delta/part* > /tmp/code19-delta.b64
+          base64 -d /tmp/code19-delta.b64 > /tmp/code19-delta.tar.gz
+          echo "56ac37a08fdb112a4a39689f5e10e3e7468dc4bf8d4999b3e52f39dcfb38cf27  /tmp/code19-delta.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/code19-delta.tar.gz -C .
+
       - name: Verify Play release identity
         shell: bash
         run: |
           set -euo pipefail
           grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
-          grep -q "versionCode 18" android/app/build.gradle
-          grep -q "versionName '2.3.6'" android/app/build.gradle
+          grep -q "versionCode 19" android/app/build.gradle
+          grep -q "versionName '2.3.7'" android/app/build.gradle
           grep -q "compileSdk 36" android/app/build.gradle
           grep -q "targetSdk 36" android/app/build.gradle
+          grep -q "androidx.work:work-runtime:2.10.1" android/app/build.gradle
+          grep -q "v2.3.7 • Build 19" public/index.html
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -72,8 +83,14 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Run Code19 tests before sync
+        run: npm test
+
       - name: Sync web assets into Android
         run: npm run android:sync
+
+      - name: Run Code19 tests after sync
+        run: npm test
 
       - name: Build unsigned Google Play AAB
         run: gradle -p android --no-daemon bundleRelease
@@ -83,16 +100,16 @@ jobs:
         run: |
           set -euo pipefail
           test -s android/app/build/outputs/bundle/release/app-release.aab
-          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.6-code18-unsigned.aab
-          sha256sum halka-arz-portfoyum-v2.3.6-code18-unsigned.aab > code18-aab-sha256.txt
-          cat code18-aab-sha256.txt
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.7-code19-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.3.7-code19-unsigned.aab > code19-aab-sha256.txt
+          cat code19-aab-sha256.txt
 
-      - name: Upload Code18 AAB
+      - name: Upload Code19 AAB
         uses: actions/upload-artifact@v4
         with:
-          name: code18-play-aab-unsigned
+          name: code19-play-aab-unsigned
           path: |
-            halka-arz-portfoyum-v2.3.6-code18-unsigned.aab
-            code18-aab-sha256.txt
+            halka-arz-portfoyum-v2.3.7-code19-unsigned.aab
+            code19-aab-sha256.txt
           if-no-files-found: error
           retention-days: 30
