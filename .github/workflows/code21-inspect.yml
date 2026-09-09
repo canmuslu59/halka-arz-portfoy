@@ -32,16 +32,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/code21-inspect
-          cp public/core/parsers.js /tmp/code21-inspect/
-          cp public/core/data-sources.js /tmp/code21-inspect/
-          cp public/core/notification-rules.js /tmp/code21-inspect/
-          cp android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java /tmp/code21-inspect/
-          cp android/app/src/main/java/com/innative/halkaarz/BackgroundMarketWorker.java /tmp/code21-inspect/
-          cp android/app/src/main/java/com/innative/halkaarz/MainActivity.java /tmp/code21-inspect/
+          mkdir -p /tmp/code21-inspect/java /tmp/code21-inspect/core /tmp/code21-inspect/test
+          cp public/core/parsers.js public/core/data-sources.js public/core/notification-rules.js /tmp/code21-inspect/core/
+          cp android/app/src/main/java/com/innative/halkaarz/*.java /tmp/code21-inspect/java/
           cp android/app/build.gradle /tmp/code21-inspect/app-build.gradle
-          cp test/parser.test.js /tmp/code21-inspect/ 2>/dev/null || true
-          cp test/code19-behavior.test.js /tmp/code21-inspect/ 2>/dev/null || true
+          cp test/*.test.js /tmp/code21-inspect/test/ 2>/dev/null || true
+          find /tmp/code21-inspect -type f -maxdepth 3 -print | sort
 
       - uses: actions/upload-artifact@v4
         with:
