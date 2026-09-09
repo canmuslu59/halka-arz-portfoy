@@ -1,16 +1,16 @@
-name: Build Code19 Google Play AAB
+name: Build Code20 Google Play AAB
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v2.3.7-code19
+      - feature/v2.3.8-code20
 
 permissions:
   contents: read
 
 jobs:
-  build-code19-aab:
+  build-code20-aab:
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -45,17 +45,26 @@ jobs:
           echo "56ac37a08fdb112a4a39689f5e10e3e7468dc4bf8d4999b3e52f39dcfb38cf27  /tmp/code19-delta.tar.gz" | sha256sum -c -
           tar -xzf /tmp/code19-delta.tar.gz -C .
 
-      - name: Verify Play release identity
+      - name: Apply Code20 startup notification permission fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .ci/code20-transform.py
+
+      - name: Verify Play release identity and startup permission contract
         shell: bash
         run: |
           set -euo pipefail
           grep -q "applicationId 'com.innative.halkaarz'" android/app/build.gradle
-          grep -q "versionCode 19" android/app/build.gradle
-          grep -q "versionName '2.3.7'" android/app/build.gradle
+          grep -q "versionCode 20" android/app/build.gradle
+          grep -q "versionName '2.3.8'" android/app/build.gradle
           grep -q "compileSdk 36" android/app/build.gradle
           grep -q "targetSdk 36" android/app/build.gradle
           grep -q "androidx.work:work-runtime:2.10.1" android/app/build.gradle
-          grep -q "v2.3.7 • Build 19" public/index.html
+          grep -q "v2.3.8 • Build 20" public/index.html
+          grep -q "requestStartupNotificationPermission" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q "postDelayed(this::requestStartupNotificationPermission, 700L)" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          ! grep -q "setTimeout(maybeRequestNotificationPermissionOnce" public/app.js
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -89,8 +98,14 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Run Code20 focused regression contracts
+        run: node --test test/code19-behavior.test.js test/android-contract.test.js test/settings-contract.test.js
+
       - name: Sync web assets into Android
         run: npm run android:sync
+
+      - name: Re-run Code20 focused contracts after sync
+        run: node --test test/code19-behavior.test.js test/android-contract.test.js test/settings-contract.test.js
 
       - name: Build unsigned Google Play AAB
         run: gradle -p android --no-daemon bundleRelease
@@ -100,16 +115,16 @@ jobs:
         run: |
           set -euo pipefail
           test -s android/app/build/outputs/bundle/release/app-release.aab
-          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.7-code19-unsigned.aab
-          sha256sum halka-arz-portfoyum-v2.3.7-code19-unsigned.aab > code19-aab-sha256.txt
-          cat code19-aab-sha256.txt
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.3.8-code20-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.3.8-code20-unsigned.aab > code20-aab-sha256.txt
+          cat code20-aab-sha256.txt
 
-      - name: Upload Code19 AAB
+      - name: Upload Code20 AAB
         uses: actions/upload-artifact@v4
         with:
-          name: code19-play-aab-unsigned
+          name: code20-play-aab-unsigned
           path: |
-            halka-arz-portfoyum-v2.3.7-code19-unsigned.aab
-            code19-aab-sha256.txt
+            halka-arz-portfoyum-v2.3.8-code20-unsigned.aab
+            code20-aab-sha256.txt
           if-no-files-found: error
           retention-days: 30
