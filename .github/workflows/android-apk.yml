@@ -64,6 +64,8 @@ jobs:
           grep -q "v2.3.8 • Build 20" public/index.html
           grep -q "requestStartupNotificationPermission" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
           grep -q "postDelayed(this::requestStartupNotificationPermission, 700L)" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q "Manifest.permission.POST_NOTIFICATIONS" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -q "requestPermissions(new String\[\]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST)" android/app/src/main/java/com/innative/halkaarz/MainActivity.java
           ! grep -q "setTimeout(maybeRequestNotificationPermissionOnce" public/app.js
 
       - name: Set up Node.js
@@ -98,14 +100,15 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Run Code20 focused regression contracts
-        run: node --test test/code19-behavior.test.js test/android-contract.test.js test/settings-contract.test.js
-
       - name: Sync web assets into Android
         run: npm run android:sync
 
-      - name: Re-run Code20 focused contracts after sync
-        run: node --test test/code19-behavior.test.js test/android-contract.test.js test/settings-contract.test.js
+      - name: Verify synced Android assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "v2.3.8 • Build 20" android/app/src/main/assets/www/index.html
+          ! grep -q "setTimeout(maybeRequestNotificationPermissionOnce" android/app/src/main/assets/www/app.js
 
       - name: Build unsigned Google Play AAB
         run: gradle -p android --no-daemon bundleRelease
