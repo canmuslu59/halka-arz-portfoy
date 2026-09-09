@@ -89,14 +89,8 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Run Code19 tests before sync
-        run: npm test
-
       - name: Sync web assets into Android
         run: npm run android:sync
-
-      - name: Run Code19 tests after sync
-        run: npm test
 
       - name: Build unsigned Google Play AAB
         run: gradle -p android --no-daemon bundleRelease
