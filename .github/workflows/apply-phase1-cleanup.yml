@@ -1,0 +1,83 @@
+name: Apply Phase1 Clean Source Patch
+
+on:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - '.ci/phase1-cleanup/ready'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/code22-clean-source-work2
+          fetch-depth: 0
+
+      - name: Apply verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ci/phase1-cleanup/part* > /tmp/phase1.b64
+          base64 -d /tmp/phase1.b64 > /tmp/phase1.tar.gz
+          echo "74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac  /tmp/phase1.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/phase1.tar.gz -C .
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Run complete test suite
+        run: npm test
+
+      - name: Synchronize and verify Android assets
+        shell: bash
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+
+      - name: Re-run complete tests after asset sync
+        run: npm test
+
+      - name: Compile Android Java
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
+
+      - name: Assemble debug application
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Commit verified clean source and remove staging machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -rf .ci/phase1-cleanup
+          git rm .github/workflows/apply-phase1-cleanup.yml
+          git add -A
+          git commit -m "refactor: harden clean Code22 source"
+          git push origin HEAD:refactor/code22-clean-source-work2
