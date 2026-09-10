@@ -72,7 +72,7 @@ test('IPO calendar cache uses the current schema alongside the release identity'
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
   assert.match(service, /halka_arz_calendar_cache_v2/);
-  assert.match(gradle, /versionCode 22/);
-  assert.match(gradle, /versionName ['"]2\.4\.0['"]/);
-  assert.match(html, /v2\.4\.0\s*•\s*Build 22/);
+  assert.match(gradle, /versionCode 23/);
+  assert.match(gradle, /versionName ['"]2\.4\.1['"]/);
+  assert.match(html, /v2\.4\.1\s*•\s*Build 23/);
 });
