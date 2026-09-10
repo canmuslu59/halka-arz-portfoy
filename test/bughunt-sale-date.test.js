@@ -45,3 +45,28 @@ test('sale cannot be recorded before the known first trading date', async () => 
   assert.equal(portfolio.holdings[0].currentLots, 10);
   assert.equal(portfolio.holdings[0].sales.length, 0);
 });
+
+test('changing first trading date invalidates same-day history cache', async () => {
+  const repository = memoryRepository();
+  const historyStarts = [];
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => quote(),
+    getHistory: async (_ticker, startDate) => {
+      historyStarts.push(startDate);
+      return quote();
+    },
+    getIpo: async () => ipo(),
+    getSector: async () => ({ ticker:'TEST', sector:'Test' }),
+    now: () => new Date('2026-08-28T10:00:00.000Z'),
+    uuid: (() => { let i = 0; return () => `id-${++i}`; })(),
+  });
+
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  assert.deepEqual(historyStarts, ['2026-08-20']);
+
+  await service.updateHolding(holding.id, { firstTradeDateOverride:'2026-08-21' });
+  await service.refreshHistory();
+
+  assert.deepEqual(historyStarts, ['2026-08-20', '2026-08-21']);
+});
