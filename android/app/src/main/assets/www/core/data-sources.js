@@ -76,14 +76,43 @@ export function createDataSources({ getJson, getText }) {
   }
 
   async function getIpoCalendar() {
-    try {
-      const html = await getText('https://gedik.com/halka-arz-takvimi');
-      return parseGedikCalendar(html);
-    } catch {
-      // Fall back to the previous brokerage only when the current source is unavailable.
+    const [gedikResult, ahlatciResult] = await Promise.allSettled([
+      getText('https://gedik.com/halka-arz-takvimi').then(parseGedikCalendar),
+      getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1').then(parseAhlatciCalendar),
+    ]);
+
+    if (gedikResult.status === 'rejected' && ahlatciResult.status === 'rejected') {
+      throw new Error('Halka arz takvim kaynaklarına ulaşılamadı.');
     }
-    const html = await getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1');
-    return parseAhlatciCalendar(html);
+
+    const gedikItems = gedikResult.status === 'fulfilled' ? gedikResult.value : [];
+    const ahlatciItems = ahlatciResult.status === 'fulfilled' ? ahlatciResult.value : [];
+    const byTicker = new Map();
+
+    for (const item of ahlatciItems) {
+      const ticker = cleanTicker(item?.ticker);
+      if (!ticker) continue;
+      byTicker.set(ticker, {
+        ...item,
+        ticker,
+        sources: ['Ahlatcı Yatırım'],
+      });
+    }
+
+    for (const item of gedikItems) {
+      const ticker = cleanTicker(item?.ticker);
+      if (!ticker) continue;
+      const fallback = byTicker.get(ticker);
+      byTicker.set(ticker, {
+        ...(fallback || {}),
+        ...Object.fromEntries(Object.entries(item || {}).filter(([, value]) => value != null && value !== '' && (!Array.isArray(value) || value.length))),
+        ticker,
+        source: item.source || fallback?.source || null,
+        sources: fallback ? ['Gedik Yatırım', 'Ahlatcı Yatırım'] : ['Gedik Yatırım'],
+      });
+    }
+
+    return [...byTicker.values()];
   }
 
   async function getIpoDetail(itemOrTicker) {
