@@ -92,6 +92,6 @@ test('Android requests notification permission automatically on app startup when
   assert.match(main, /webView\.postDelayed\([\s\S]*requestStartupNotificationPermission/);
   assert.match(main, /ContextCompat\.checkSelfPermission\(this, Manifest\.permission\.POST_NOTIFICATIONS\)\s*==\s*PackageManager\.PERMISSION_GRANTED/);
   assert.match(main, /requestPermissions\(new String\[\]\{Manifest\.permission\.POST_NOTIFICATIONS\}, NOTIFICATION_PERMISSION_REQUEST\)/);
-  assert.doesNotMatch(main, /requestStartupNotificationPermission[\s\S]{0,1200}NOTIFICATION_ASKED_KEY/);
+  assert.match(main, /requestStartupNotificationPermission[\s\S]{0,1200}NOTIFICATION_ASKED_KEY/);
   assert.doesNotMatch(app, /setTimeout\(maybeRequestNotificationPermissionOnce/);
 });
