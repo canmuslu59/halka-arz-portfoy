@@ -1,4 +1,4 @@
-name: Apply IPO Outage Cache Fix
+name: Cleanup Obsolete Phase1 Staging
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,24 +19,60 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Patch IPO outage cache handling with exact guards
-        run: python .ci/apply-ipo-outage-cache.py
+      - name: Verify cleanup targets are not referenced by retained workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            apply-ipo-outage-cache.py \
+            apply-lifecycle.py \
+            apply-refresh-coordinator.py \
+            apply-server-http-hardening.py \
+            apply-server-persistence.py \
+            apply-worker-retry.py; do
+            refs="$(grep -RIl --exclude='apply-navigation-refactor.yml' --exclude='apply-phase1-cleanup.yml' "$name" .github/workflows || true)"
+            if [ -n "$refs" ]; then
+              echo "Retained workflow still references $name:"
+              echo "$refs"
+              exit 1
+            fi
+          done
+          refs="$(grep -RIl --exclude='apply-phase1-cleanup.yml' 'phase1-cleanup' .github/workflows || true)"
+          if [ -n "$refs" ]; then
+            echo "Retained workflow still references .ci/phase1-cleanup:"
+            echo "$refs"
+            exit 1
+          fi
+      - name: Remove obsolete staging and one-shot applicators
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -rf \
+            .ci/phase1-cleanup \
+            .ci/apply-ipo-outage-cache.py \
+            .ci/apply-lifecycle.py \
+            .ci/apply-refresh-coordinator.py \
+            .ci/apply-server-http-hardening.py \
+            .ci/apply-server-persistence.py \
+            .ci/apply-worker-retry.py \
+            .github/workflows/apply-phase1-cleanup.yml \
+            .github/workflows/apply-navigation-refactor.yml
       - run: npm ci
-      - name: Server syntax check
-        run: node --check server.js
-      - name: IPO outage cache contract
-        run: node --test test/server-ipo-cache.test.js
-      - name: Server HTTP security regression
-        run: node --test test/server-security.test.js
-      - name: Server persistence regression
-        run: node --test test/server-persistence.test.js
       - name: Full regression suite
         run: npm test
-      - name: Commit verified IPO outage cache fix
+      - name: Verify Android assets remain exact
+        shell: bash
         run: |
+          set -euo pipefail
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+      - name: Commit verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add server.js
-          git diff --cached --check
-          git commit -m "fix: avoid caching transient IPO source outages"
+          git commit -am "chore: remove obsolete Phase1 staging machinery"
           git push
