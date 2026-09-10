@@ -1,4 +1,4 @@
-name: Apply Android Lifecycle Hardening
+name: Apply Background Worker Retry Hardening
 
 on:
   push:
@@ -19,22 +19,32 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Patch MainActivity lifecycle with exact guards
-        run: python .ci/apply-lifecycle.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Patch worker retry and IPO-only scheduling with exact guards
+        run: python .ci/apply-worker-retry.py
       - run: npm ci
-      - name: Android lifecycle contract
-        run: node --test test/android-lifecycle-hardening.test.js
-      - name: Android bridge contract
-        run: node --test test/android-contract.test.js
-      - name: Navigation contract
-        run: node --test test/navigation-contract.test.js
+      - name: Worker retry source contract
+        run: node --test test/android-worker-retry-policy.test.js
+      - name: Worker retry behavioral policy
+        run: |
+          rm -rf /tmp/background-retry-policy-test
+          mkdir -p /tmp/background-retry-policy-test
+          javac -d /tmp/background-retry-policy-test android/app/src/main/java/com/innative/halkaarz/BackgroundRetryPolicy.java .ci/BackgroundRetryPolicyHarness.java
+          java -cp /tmp/background-retry-policy-test com.innative.halkaarz.BackgroundRetryPolicyHarness
+      - name: Push config no-op regression
+        run: node --test test/android-push-config-noop.test.js
+      - name: Native notification regression
+        run: node --test test/android-notification-hardening.test.js
       - name: Full regression suite
         run: npm test
-      - name: Commit verified lifecycle hardening
+      - name: Commit verified worker hardening
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          git add android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java
           git diff --cached --check
-          git commit -m "fix: bind native network work to Activity lifecycle"
+          git commit -m "fix: classify background retries and preserve IPO-only alerts"
           git push
