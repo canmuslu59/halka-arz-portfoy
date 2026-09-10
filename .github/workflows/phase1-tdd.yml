@@ -5,6 +5,7 @@ on:
     branches:
       - refactor/code22-clean-source-work2
     paths:
+      - 'README.md'
       - 'test/android-contract.test.js'
       - 'test/android-build-hardening.test.js'
       - 'test/android-network-policy.test.js'
