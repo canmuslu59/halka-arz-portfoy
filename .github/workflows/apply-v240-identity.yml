@@ -1,0 +1,62 @@
+name: Apply v2.4.0 Release Identity
+
+on:
+  push:
+    branches:
+      - release/v2.4.0-code22
+    paths:
+      - .github/workflows/apply-v240-identity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle = Path('android/app/build.gradle')
+          text = gradle.read_text()
+          if text.count('versionCode 21') != 1 or text.count("versionName '2.3.9'") != 1:
+              raise SystemExit('unexpected current Android release identity')
+          text = text.replace('versionCode 21', 'versionCode 22', 1)
+          text = text.replace("versionName '2.3.9'", "versionName '2.4.0'", 1)
+          gradle.write_text(text)
+
+          index = Path('public/index.html')
+          html = index.read_text()
+          old = 'v2.3.9 • Build 21'
+          if html.count(old) != 1:
+              raise SystemExit('unexpected current visible release identity')
+          index.write_text(html.replace(old, 'v2.4.0 • Build 22', 1))
+          PY
+      - name: Verify new identity contract
+        run: node --test test/release-identity.test.js
+      - name: Sync Android assets
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --check
+      - name: Commit release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/build.gradle public/index.html android/app/src/main/assets/www/index.html
+          git commit -m 'release: advance to v2.4.0 code22'
+          git push origin HEAD:release/v2.4.0-code22
