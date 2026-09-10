@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { createDataSources } from '../public/core/data-sources.js';
 import { parseGedikCalendar } from '../public/core/gedik-calendar.js';
 
 const read = path => fs.readFile(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -28,6 +29,24 @@ test('fresh brokerage calendar parser extracts the active NETGL September offer'
   assert.equal(netgl?.ipoPrice, 25.52);
   assert.equal(netgl?.source, 'Gedik Yatırım');
   assert.equal(netgl?.status, 'active');
+});
+
+test('UI calendar treats a successful empty current source as authoritative', async () => {
+  const calls = [];
+  const sources = createDataSources({
+    getJson: async () => ({}),
+    getText: async url => {
+      calls.push(url);
+      if (url === 'https://gedik.com/halka-arz-takvimi') {
+        return '<html><body><h1>Halka Arz Takvimi</h1><p>Aktif halka arz bulunmuyor.</p></body></html>';
+      }
+      throw new Error(`Fallback must not be requested after a successful current-source response: ${url}`);
+    },
+  });
+
+  const rows = await sources.getIpoCalendar();
+  assert.deepEqual(rows, []);
+  assert.deepEqual(calls, ['https://gedik.com/halka-arz-takvimi']);
 });
 
 test('UI calendar prefers the current brokerage source and Android native HTTP allows it', async () => {
