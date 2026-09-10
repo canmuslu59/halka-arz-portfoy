@@ -3,12 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { createPortfolioStore } from './backend/portfolio-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 const APP_PIN = String(process.env.APP_PIN || '').trim();
-const DATA_FILE = path.join(__dirname, 'data', 'portfolio.json');
+const DATA_FILE = process.env.PORTFOLIO_DATA_FILE ? path.resolve(process.env.PORTFOLIO_DATA_FILE) : path.join(__dirname, 'data', 'portfolio.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const marketCache = new Map();
@@ -40,23 +41,9 @@ function isoFromTurkishDate(text) {
   const month = months[m[2].toLocaleLowerCase('tr-TR')];
   return month ? `${m[3]}-${String(month).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}` : null;
 }
-async function readPortfolio() {
-  try {
-  const raw = await fs.readFile(DATA_FILE, 'utf8');
-  const data = JSON.parse(raw);
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Portföy veri dosyası bozuk.');
-  if (!Array.isArray(data.holdings)) data.holdings = [];
-  return data;
-} catch (error) {
-  if (error?.code === 'ENOENT') return { holdings: [] };
-  if (error instanceof SyntaxError) throw new Error('Portföy veri dosyası bozuk.');
-  throw error;
-}
-}
-async function writePortfolio(data) {
-  await fs.mkdir(path.dirname(DATA_FILE),{recursive:true});
-  const tmp=DATA_FILE+'.tmp'; await fs.writeFile(tmp,JSON.stringify(data,null,2)); await fs.rename(tmp,DATA_FILE);
-}
+const portfolioStore = createPortfolioStore({ filePath: DATA_FILE });
+const readPortfolio = portfolioStore.read;
+const mutatePortfolio = portfolioStore.mutate;
 async function fetchText(url, timeoutMs=12000) {
   const c=new AbortController(); const t=setTimeout(()=>c.abort(),timeoutMs);
   try { const r=await fetch(url,{signal:c.signal,headers:{'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36','accept-language':'tr-TR,tr;q=0.9,en;q=0.8'}}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
@@ -181,18 +168,54 @@ const server=http.createServer(async(req,res)=>{
     }
     if(url.pathname==='/api/portfolio'&&method==='GET')return json(res,200,await portfolioResponse());
     if(url.pathname==='/api/holdings'&&method==='POST'){
-      const body=await readBody(req),ticker=cleanTicker(body.ticker),lots=Number(body.lots);if(!ticker||!Number.isInteger(lots)||lots<=0)return json(res,400,{error:'Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.'});const data=await readPortfolio();if(data.holdings.some(h=>cleanTicker(h.ticker)===ticker))return json(res,409,{error:`${ticker} zaten portföyde.`});
-      const lookup=await Promise.allSettled([fetchMarket(ticker),fetchIpo(ticker)]);if(lookup[0].status!=='fulfilled')return json(res,404,{error:`${ticker} için BIST fiyat verisi bulunamadı. Kod doğru mu?`});const ipo=lookup[1].status==='fulfilled'?lookup[1].value:null;
-      const h={id:crypto.randomUUID(),ticker,initialLots:lots,currentLots:lots,addedAt:new Date().toISOString(),ipoPriceOverride:Number(body.ipoPriceOverride)>0?Number(body.ipoPriceOverride):null,firstTradeDateOverride:body.firstTradeDateOverride||null,sales:[]};data.holdings.push(h);await writePortfolio(data);return json(res,201,{holding:await hydrateHolding(h),autoIpoFound:Boolean(ipo?.ipoPrice)});
+      const body=await readBody(req),ticker=cleanTicker(body.ticker),lots=Number(body.lots);
+      if(!ticker||!Number.isInteger(lots)||lots<=0)return json(res,400,{error:'Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.'});
+      const lookup=await Promise.allSettled([fetchMarket(ticker),fetchIpo(ticker)]);
+      if(lookup[0].status!=='fulfilled')return json(res,404,{error:`${ticker} için BIST fiyat verisi bulunamadı. Kod doğru mu?`});
+      const ipo=lookup[1].status==='fulfilled'?lookup[1].value:null;
+      const h=await mutatePortfolio(data=>{
+        if(data.holdings.some(item=>cleanTicker(item.ticker)===ticker))throw new HttpError(409,`${ticker} zaten portföyde.`);
+        const holding={id:crypto.randomUUID(),ticker,initialLots:lots,currentLots:lots,addedAt:new Date().toISOString(),ipoPriceOverride:Number(body.ipoPriceOverride)>0?Number(body.ipoPriceOverride):null,firstTradeDateOverride:body.firstTradeDateOverride||null,sales:[]};
+        data.holdings.push(holding);
+        return holding;
+      });
+      return json(res,201,{holding:await hydrateHolding(h),autoIpoFound:Boolean(ipo?.ipoPrice)});
     }
     if((m=url.pathname.match(/^\/api\/holdings\/([^/]+)$/))&&method==='PATCH'){
-      const body=await readBody(req),data=await readPortfolio(),idx=data.holdings.findIndex(h=>h.id===m[1]);if(idx<0)return json(res,404,{error:'Kayıt bulunamadı.'});const h=data.holdings[idx];if(body.ipoPriceOverride===null||Number(body.ipoPriceOverride)>0)h.ipoPriceOverride=body.ipoPriceOverride===null?null:Number(body.ipoPriceOverride);if(typeof body.firstTradeDateOverride==='string'||body.firstTradeDateOverride===null)h.firstTradeDateOverride=body.firstTradeDateOverride;if(Number.isInteger(Number(body.currentLots))&&Number(body.currentLots)>=0)h.currentLots=Number(body.currentLots);data.holdings[idx]=h;await writePortfolio(data);return json(res,200,{holding:await hydrateHolding(h)});
+      const body=await readBody(req);
+      const h=await mutatePortfolio(data=>{
+        const idx=data.holdings.findIndex(item=>item.id===m[1]);
+        if(idx<0)throw new HttpError(404,'Kayıt bulunamadı.');
+        const holding=data.holdings[idx];
+        if(body.ipoPriceOverride===null||Number(body.ipoPriceOverride)>0)holding.ipoPriceOverride=body.ipoPriceOverride===null?null:Number(body.ipoPriceOverride);
+        if(typeof body.firstTradeDateOverride==='string'||body.firstTradeDateOverride===null)holding.firstTradeDateOverride=body.firstTradeDateOverride;
+        if(Number.isInteger(Number(body.currentLots))&&Number(body.currentLots)>=0)holding.currentLots=Number(body.currentLots);
+        data.holdings[idx]=holding;
+        return holding;
+      });
+      return json(res,200,{holding:await hydrateHolding(h)});
     }
     if((m=url.pathname.match(/^\/api\/holdings\/([^/]+)\/sales$/))&&method==='POST'){
-      const body=await readBody(req),lots=Number(body.lots),price=Number(body.price),date=String(body.date||new Date().toISOString().slice(0,10));if(!Number.isInteger(lots)||lots<=0||!Number.isFinite(price)||price<=0)return json(res,400,{error:'Satış lotu ve fiyatı geçerli olmalı.'});const data=await readPortfolio(),h=data.holdings.find(x=>x.id===m[1]);if(!h)return json(res,404,{error:'Kayıt bulunamadı.'});if(lots>Number(h.currentLots||0))return json(res,400,{error:'Satış lotu mevcut lottan fazla olamaz.'});h.sales||=[];h.sales.push({id:crypto.randomUUID(),lots,price,date,createdAt:new Date().toISOString()});h.currentLots=Number(h.currentLots)-lots;await writePortfolio(data);return json(res,200,{holding:await hydrateHolding(h)});
+      const body=await readBody(req),lots=Number(body.lots),price=Number(body.price),date=String(body.date||new Date().toISOString().slice(0,10));
+      if(!Number.isInteger(lots)||lots<=0||!Number.isFinite(price)||price<=0)return json(res,400,{error:'Satış lotu ve fiyatı geçerli olmalı.'});
+      const h=await mutatePortfolio(data=>{
+        const holding=data.holdings.find(item=>item.id===m[1]);
+        if(!holding)throw new HttpError(404,'Kayıt bulunamadı.');
+        if(lots>Number(holding.currentLots||0))throw new HttpError(400,'Satış lotu mevcut lottan fazla olamaz.');
+        holding.sales||=[];
+        holding.sales.push({id:crypto.randomUUID(),lots,price,date,createdAt:new Date().toISOString()});
+        holding.currentLots=Number(holding.currentLots)-lots;
+        return holding;
+      });
+      return json(res,200,{holding:await hydrateHolding(h)});
     }
     if((m=url.pathname.match(/^\/api\/holdings\/([^/]+)$/))&&method==='DELETE'){
-      const data=await readPortfolio(),before=data.holdings.length;data.holdings=data.holdings.filter(h=>h.id!==m[1]);if(data.holdings.length===before)return json(res,404,{error:'Kayıt bulunamadı.'});await writePortfolio(data);return json(res,200,{ok:true});
+      await mutatePortfolio(data=>{
+        const before=data.holdings.length;
+        data.holdings=data.holdings.filter(item=>item.id!==m[1]);
+        if(data.holdings.length===before)throw new HttpError(404,'Kayıt bulunamadı.');
+      });
+      return json(res,200,{ok:true});
     }
     if(url.pathname.startsWith('/api/'))return json(res,404,{error:'API yolu bulunamadı.'});
     if(await serveStatic(req,res,url))return; res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});res.end('Bulunamadı');
