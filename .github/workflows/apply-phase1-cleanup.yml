@@ -33,35 +33,44 @@ jobs:
           root = Path('.ci/phase1-cleanup')
           target = '74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac'
           parts = sorted(p for p in root.iterdir() if p.is_file() and p.name.startswith('part'))
+          normalized = {p.name: ''.join(p.read_text(encoding='ascii').split()) for p in parts}
+          decoded = {}
           print('staged parts:', ', '.join(f'{p.name}({p.stat().st_size})' for p in parts))
 
-          normalized = {}
           for p in parts:
-              raw = ''.join(p.read_text(encoding='ascii').split())
-              normalized[p.name] = raw
               try:
-                  base64.b64decode(raw, validate=True)
-                  print(f'{p.name}: standalone base64 syntax OK')
+                  decoded[p.name] = base64.b64decode(normalized[p.name], validate=True)
+                  print(f'{p.name}: standalone decode OK -> {len(decoded[p.name])} bytes')
               except Exception as exc:
-                  print(f'{p.name}: standalone base64 syntax invalid: {exc}')
+                  print(f'{p.name}: standalone decode invalid: {exc}')
 
           attempts = 0
           for size in range(1, len(parts) + 1):
               for seq in itertools.permutations(parts, size):
                   attempts += 1
+
+                  # Mode A: files are slices of one base64 text stream.
                   text = ''.join(normalized[p.name] for p in seq)
                   try:
                       payload = base64.b64decode(text, validate=True)
                   except Exception:
-                      continue
-                  digest = hashlib.sha256(payload).hexdigest()
-                  if digest == target:
+                      payload = None
+                  if payload is not None and hashlib.sha256(payload).hexdigest() == target:
                       Path('/tmp/phase1.tar.gz').write_bytes(payload)
+                      print('verified mode: joined-base64')
                       print('verified staging sequence:', ' + '.join(p.name for p in seq))
-                      print('verified sha256:', digest)
                       raise SystemExit(0)
 
-          raise SystemExit(f'No staged part permutation matched expected SHA-256 after {attempts} attempts')
+                  # Mode B: each file is an independently base64-encoded binary chunk.
+                  if all(p.name in decoded for p in seq):
+                      payload = b''.join(decoded[p.name] for p in seq)
+                      if hashlib.sha256(payload).hexdigest() == target:
+                          Path('/tmp/phase1.tar.gz').write_bytes(payload)
+                          print('verified mode: decode-each-then-concatenate')
+                          print('verified staging sequence:', ' + '.join(p.name for p in seq))
+                          raise SystemExit(0)
+
+          raise SystemExit(f'No staged reconstruction matched expected SHA-256 after {attempts} ordered subsets in both modes')
           PY
           echo "74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac  /tmp/phase1.tar.gz" | sha256sum -c -
           tar -tzf /tmp/phase1.tar.gz >/tmp/phase1-files.txt
