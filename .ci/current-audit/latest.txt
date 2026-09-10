@@ -1,5 +1,5 @@
-EVENT_SHA=da8522db27d05c2ad620ee608f02fa314e109118
-CHECKED_OUT_HEAD=da8522db27d05c2ad620ee608f02fa314e109118
+EVENT_SHA=f7aa0b47231e293e1c8165da10d8368d20ce97e8
+CHECKED_OUT_HEAD=f7aa0b47231e293e1c8165da10d8368d20ce97e8
 tests1=success
 assets=success
 tests2=success
@@ -11,118 +11,118 @@ assemble=success
 # suites 0
 # pass 172
 # fail 0
-# duration_ms 3480.437411
+# duration_ms 3390.760573
 
 === npm test #1 tail ===
-  duration_ms: 2.348055
+  duration_ms: 2.120253
   type: 'test'
   ...
 # Subtest: add holding flow keeps a stable form reference across await and always opens blank
 ok 155 - add holding flow keeps a stable form reference across await and always opens blank
   ---
-  duration_ms: 1.685672
+  duration_ms: 1.850779
   type: 'test'
   ...
 # Subtest: home screen exposes app version so installed APK can be verified
 ok 156 - home screen exposes app version so installed APK can be verified
   ---
-  duration_ms: 1.208271
+  duration_ms: 1.029567
   type: 'test'
   ...
 # Subtest: UI shows real market-data timestamp instead of only local refresh completion time
 ok 157 - UI shows real market-data timestamp instead of only local refresh completion time
   ---
-  duration_ms: 3.459447
+  duration_ms: 3.027727
   type: 'test'
   ...
 # Subtest: UI polls quotes frequently while BIST is open rather than once per minute
 ok 158 - UI polls quotes frequently while BIST is open rather than once per minute
   ---
-  duration_ms: 1.627503
+  duration_ms: 1.547142
   type: 'test'
   ...
 # Subtest: historical edge-to-edge regression follows the current published Play identity
 ok 159 - historical edge-to-edge regression follows the current published Play identity
   ---
-  duration_ms: 2.134849
+  duration_ms: 2.112929
   type: 'test'
   ...
 # Subtest: BIST daily upper/lower limits use valid price-step rounding
 ok 160 - BIST daily upper/lower limits use valid price-step rounding
   ---
-  duration_ms: 0.286063
+  duration_ms: 0.284111
   type: 'test'
   ...
 # Subtest: 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
 ok 161 - 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
   ---
-  duration_ms: 1.202321
+  duration_ms: 1.280513
   type: 'test'
   ...
 # Subtest: tavan and taban are each notified only once per ticker per Istanbul day
 ok 162 - tavan and taban are each notified only once per ticker per Istanbul day
   ---
-  duration_ms: 0.550085
+  duration_ms: 0.5025
   type: 'test'
   ...
 # Subtest: closed/non-current sessions do not create false tavan or taban alerts
 ok 163 - closed/non-current sessions do not create false tavan or taban alerts
   ---
-  duration_ms: 0.196727
+  duration_ms: 0.191588
   type: 'test'
   ...
 # Subtest: native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
 ok 164 - native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
   ---
-  duration_ms: 0.658998
+  duration_ms: 0.659522
   type: 'test'
   ...
 # Subtest: market notification channel is new and high importance for update installs
 ok 165 - market notification channel is new and high importance for update installs
   ---
-  duration_ms: 0.306241
+  duration_ms: 0.299991
   type: 'test'
   ...
 # Subtest: floating dock has scroll-aware fade and boundary recovery behavior
 ok 166 - floating dock has scroll-aware fade and boundary recovery behavior
   ---
-  duration_ms: 1.257103
+  duration_ms: 1.283198
   type: 'test'
   ...
 # Subtest: Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
 ok 167 - Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
   ---
-  duration_ms: 20.391883
+  duration_ms: 18.876581
   type: 'test'
   ...
 # Subtest: Monday live quote cannot rewrite finalized Friday close or Friday P/L
 ok 168 - Monday live quote cannot rewrite finalized Friday close or Friday P/L
   ---
-  duration_ms: 20.437769
+  duration_ms: 20.003256
   type: 'test'
   ...
 # Subtest: repeated Monday quote refreshes keep Friday history byte-for-byte stable
 ok 169 - repeated Monday quote refreshes keep Friday history byte-for-byte stable
   ---
-  duration_ms: 2.785972
+  duration_ms: 2.678386
   type: 'test'
   ...
 # Subtest: next trading day official daily history wins over rolling quote revisions for Monday and Friday
 ok 170 - next trading day official daily history wins over rolling quote revisions for Monday and Friday
   ---
-  duration_ms: 3.247081
+  duration_ms: 3.063315
   type: 'test'
   ...
 # Subtest: rolling quote still backfills a missing previous trading day without replacing an existing official row
 ok 171 - rolling quote still backfills a missing previous trading day without replacing an existing official row
   ---
-  duration_ms: 1.133452
+  duration_ms: 1.131385
   type: 'test'
   ...
 # Subtest: exchange previousClose backfills a missing prior session more accurately than the last 5m candle
 ok 172 - exchange previousClose backfills a missing prior session more accurately than the last 5m candle
   ---
-  duration_ms: 1.134064
+  duration_ms: 1.093834
   type: 'test'
   ...
 1..172
@@ -133,7 +133,7 @@ ok 172 - exchange previousClose backfills a missing prior session more accuratel
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3480.437411
+# duration_ms 3390.760573
 
 === asset sync tail ===
 
@@ -166,10 +166,10 @@ Daemon will be stopped at the end of the build
 > Task :app:compileDebugJavaWithJavac
 Note: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/java/com/innative/halkaarz/MainActivity.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789061029824.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789061391316.json
 [Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 33s
+BUILD SUCCESSFUL in 31s
 16 actionable tasks: 16 executed
 
 === assemble tail ===
@@ -205,11 +205,11 @@ Daemon will be stopped at the end of the build
 > Task :app:processDebugJavaRes NO-SOURCE
 > Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugJavaResource
-> Task :app:mergeLibDexDebug
 > Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
 > Task :app:mergeDebugJniLibFolders
-> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
@@ -217,7 +217,7 @@ Daemon will be stopped at the end of the build
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789061062607.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789061422032.json
 
 BUILD SUCCESSFUL in 1m 2s
 33 actionable tasks: 17 executed, 16 up-to-date
