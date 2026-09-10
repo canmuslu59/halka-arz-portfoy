@@ -28,11 +28,12 @@ jobs:
           test -f .github/workflows/inspect-flatten-blockers.yml
           test -f .github/workflows/phase1-tdd.yml
           test -d UPLOAD_TO_GITHUB
+          test -f KURULUM.txt
           test -f noop.tmp
           test -f .github/workflows/android-apk.yml
           test -f .github/workflows/android-code22.yml
           test -f .github/workflows/android-play-bootstrap.yml
-          refs="$(git grep -nE 'UPLOAD_TO_GITHUB|noop\.tmp' -- ':!.github/workflows/cleanup-obsolete-release-paths.yml' || true)"
+          refs="$(git grep -nE 'UPLOAD_TO_GITHUB|noop\.tmp' -- ':!.github/workflows/cleanup-obsolete-release-paths.yml' ':!KURULUM.txt' || true)"
           if [ -n "$refs" ]; then
             echo 'Unexpected retained references to cleanup-only paths:'
             echo "$refs"
@@ -45,6 +46,7 @@ jobs:
           set -euo pipefail
           git rm -rf \
             UPLOAD_TO_GITHUB \
+            KURULUM.txt \
             noop.tmp \
             .github/workflows/android-apk.yml \
             .github/workflows/android-code22.yml \
