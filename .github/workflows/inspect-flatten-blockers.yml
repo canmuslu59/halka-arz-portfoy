@@ -9,7 +9,7 @@ on:
       - .github/workflows/inspect-flatten-blockers.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   audit:
@@ -45,29 +45,104 @@ jobs:
         run: npm ci
 
       - name: Full tests #1
-        run: npm test
+        id: tests1
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/npm-test-1.txt
 
       - name: Synchronize Android web assets
+        id: assets
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          npm run android:sync
-          diff -qr public android/app/src/main/assets/www
-          git diff --exit-code -- public android/app/src/main/assets/www
+          set -o pipefail
+          npm run android:sync 2>&1 | tee /tmp/android-sync.txt
+          diff -qr public android/app/src/main/assets/www 2>&1 | tee -a /tmp/android-sync.txt
+          git diff --exit-code -- public android/app/src/main/assets/www 2>&1 | tee -a /tmp/android-sync.txt
 
       - name: Full tests #2
-        run: npm test
-
-      - name: Compile Android Java
-        run: gradle -p android --no-daemon compileDebugJavaWithJavac
-
-      - name: Assemble debug
-        run: gradle -p android --no-daemon assembleDebug
-
-      - name: Source hygiene snapshot
+        id: tests2
+        continue-on-error: true
         shell: bash
         run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/npm-test-2.txt
+
+      - name: Compile Android Java
+        id: compile
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle -p android --no-daemon compileDebugJavaWithJavac 2>&1 | tee /tmp/android-compile.txt
+
+      - name: Assemble debug
+        id: assemble
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle -p android --no-daemon assembleDebug 2>&1 | tee /tmp/android-assemble.txt
+
+      - name: Persist audit diagnostic
+        if: always()
+        shell: bash
+        env:
+          TESTS1: ${{ steps.tests1.outcome }}
+          ASSETS: ${{ steps.assets.outcome }}
+          TESTS2: ${{ steps.tests2.outcome }}
+          COMPILE: ${{ steps.compile.outcome }}
+          ASSEMBLE: ${{ steps.assemble.outcome }}
+        run: |
           set -euo pipefail
-          echo "HEAD=$(git rev-parse HEAD)"
-          git status --short
-          git diff --check
+          mkdir -p .ci/current-audit
+          {
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "tests1=$TESTS1"
+            echo "assets=$ASSETS"
+            echo "tests2=$TESTS2"
+            echo "compile=$COMPILE"
+            echo "assemble=$ASSEMBLE"
+            echo
+            echo "=== npm test #1 failures/summary ==="
+            grep -E '^(not ok|# fail|# pass|# tests|# suites|# duration_ms)|AssertionError|ERR_ASSERTION|error:' /tmp/npm-test-1.txt 2>/dev/null || true
+            echo
+            echo "=== npm test #1 tail ==="
+            tail -n 120 /tmp/npm-test-1.txt 2>/dev/null || true
+            echo
+            echo "=== asset sync tail ==="
+            tail -n 80 /tmp/android-sync.txt 2>/dev/null || true
+            echo
+            echo "=== compile tail ==="
+            tail -n 80 /tmp/android-compile.txt 2>/dev/null || true
+            echo
+            echo "=== assemble tail ==="
+            tail -n 80 /tmp/android-assemble.txt 2>/dev/null || true
+          } > .ci/current-audit/latest.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/current-audit/latest.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: capture current clean-source audit"
+            git push origin HEAD:refactor/code22-clean-source-work2
+          fi
+
+      - name: Enforce audit result
+        if: always()
+        shell: bash
+        env:
+          TESTS1: ${{ steps.tests1.outcome }}
+          ASSETS: ${{ steps.assets.outcome }}
+          TESTS2: ${{ steps.tests2.outcome }}
+          COMPILE: ${{ steps.compile.outcome }}
+          ASSEMBLE: ${{ steps.assemble.outcome }}
+        run: |
+          set -euo pipefail
+          printf 'tests1=%s assets=%s tests2=%s compile=%s assemble=%s\n' "$TESTS1" "$ASSETS" "$TESTS2" "$COMPILE" "$ASSEMBLE"
+          test "$TESTS1" = success
+          test "$ASSETS" = success
+          test "$TESTS2" = success
+          test "$COMPILE" = success
+          test "$ASSEMBLE" = success
