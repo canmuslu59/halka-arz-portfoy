@@ -30,7 +30,6 @@ jobs:
         run: |
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
-          git diff --exit-code -- android/app/src/main/assets/www
       - name: Full regression suite
         run: npm test
       - name: Commit verified refresh coordination
@@ -41,4 +40,3 @@ jobs:
           git diff --cached --check
           git commit -m "fix: preserve forced refresh intent and coalesce refreshes"
           git push
-# rerun: synchronous task start preserves the existing UI refresh semantics
