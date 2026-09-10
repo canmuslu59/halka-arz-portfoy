@@ -10,6 +10,7 @@ on:
       - 'test/android-network-policy.test.js'
       - 'test/android-notification-hardening.test.js'
       - 'test/android-push-config-noop.test.js'
+      - 'test/android-lifecycle-hardening.test.js'
       - 'test/navigation-contract.test.js'
       - 'test/backend-service.test.js'
       - '.ci/NativeHttpPolicyHarness.java'
@@ -60,6 +61,8 @@ jobs:
           java -cp /tmp/native-http-policy-test com.innative.halkaarz.NativeHttpPolicyHarness
       - name: Navigation state contract
         run: node --test test/navigation-contract.test.js
+      - name: Android lifecycle contract
+        run: node --test test/android-lifecycle-hardening.test.js
       - name: Push backend service contract
         run: node --test test/backend-service.test.js
       - name: Native notification hardening contract
