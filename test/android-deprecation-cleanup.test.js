@@ -30,7 +30,7 @@ test('notification permission uses Activity Result API without deprecated permis
   assert.match(java, /import androidx\.activity\.result\.ActivityResultLauncher;/);
   assert.match(java, /import androidx\.activity\.result\.contract\.ActivityResultContracts;/);
   assert.match(java, /ActivityResultLauncher<String> notificationPermissionLauncher/);
-  assert.match(java, /registerForActivityResult\(new ActivityResultContracts\.RequestPermission\(\)/);
+  assert.match(java, /registerForActivityResult\(\s*new ActivityResultContracts\.RequestPermission\(\)/);
   assert.match(java, /notificationPermissionLauncher\.launch\(Manifest\.permission\.POST_NOTIFICATIONS\)/);
   assert.match(java, /handleNotificationPermissionResult\(\)/);
   assert.doesNotMatch(java, /onRequestPermissionsResult\s*\(/);
