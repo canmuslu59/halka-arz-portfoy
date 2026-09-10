@@ -138,3 +138,27 @@ test('manual first trading date cannot be moved into the future when editing a h
   const portfolio = await service.getPortfolio({ refresh:false });
   assert.equal(portfolio.holdings[0].firstTradeDate, '2026-08-20');
 });
+
+test('automatic IPO refresh cannot move first trading date after an existing sale', async () => {
+  const repository = memoryRepository();
+  let ipoData = ipo();
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => quote(),
+    getHistory: async () => quote(),
+    getIpo: async () => ipoData,
+    getSector: async () => ({ ticker:'TEST', sector:'Test' }),
+    now: () => new Date('2026-08-28T10:00:00.000Z'),
+    uuid: (() => { let i = 0; return () => `id-${++i}`; })(),
+  });
+
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  await service.addSale(holding.id, { lots:2, price:12, date:'2026-08-22' });
+
+  ipoData = { ...ipoData, firstTradeDate:'2026-08-23' };
+  const refreshed = await service.refreshHolding(holding.id);
+
+  assert.equal(refreshed.firstTradeDate, '2026-08-20');
+  assert.equal(refreshed.sales[0].date, '2026-08-22');
+  assert.match(refreshed.errors.ipo || '', /satış|ilk işlem/i);
+});
