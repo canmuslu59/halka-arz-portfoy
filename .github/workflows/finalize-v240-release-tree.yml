@@ -29,14 +29,16 @@ jobs:
           git rm .github/workflows/apply-v240-identity.yml
           git rm .github/workflows/apply-release-test-normalization.yml
           git rm .github/workflows/finalize-v240-release-tree.yml
-          cat >> README.md <<'EOF'
-
-## Phase 2 release adayı — v2.4.0 / Code22
-
-Temiz Phase 1 kaynak ağacından oluşturulan release adayı **versionCode 22 / versionName 2.4.0** kimliğini kullanır. `release/v2.4.0-code22` dalındaki `Build v2.4.0 Release Candidate` akışı tam test paketini, Android varlık eşitliğini ve release Java derlemesini doğruladıktan sonra **imzasız** bir Android App Bundle üretir.
-
-Play Store'a gönderilecek nihai AAB bu imzasız aday değildir. Güncellemenin Play tarafından kabul edilmesi için daha önceki yayınlarda kullanılan **mevcut upload/private signing key** ile imzalanması gerekir. Release anahtarı veya parolası kaynak depoya eklenmemeli ve yeni bir upload anahtarı oluşturularak eski anahtarın yerine kullanılmamalıdır.
-EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('README.md')
+          text = path.read_text()
+          heading = '## Phase 2 release adayı — v2.4.0 / Code22'
+          if heading in text:
+              raise SystemExit('Phase 2 README section already exists')
+          addition = '''\n\n## Phase 2 release adayı — v2.4.0 / Code22\n\nTemiz Phase 1 kaynak ağacından oluşturulan release adayı **versionCode 22 / versionName 2.4.0** kimliğini kullanır. `release/v2.4.0-code22` dalındaki `Build v2.4.0 Release Candidate` akışı tam test paketini, Android varlık eşitliğini ve release Java derlemesini doğruladıktan sonra **imzasız** bir Android App Bundle üretir.\n\nPlay Store'a gönderilecek nihai AAB bu imzasız aday değildir. Güncellemenin Play tarafından kabul edilmesi için daha önceki yayınlarda kullanılan **mevcut upload/private signing key** ile imzalanması gerekir. Release anahtarı veya parolası kaynak depoya eklenmemeli ve yeni bir upload anahtarı oluşturularak eski anahtarın yerine kullanılmamalıdır.\n'''
+          path.write_text(text + addition)
+          PY
       - name: Verify clean source and full regression
         run: |
           npm test
