@@ -1,0 +1,59 @@
+name: Build v2.4.0 Release Candidate
+
+on:
+  push:
+    branches:
+      - release/v2.4.0-code22
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - run: npm ci
+      - name: Verify release identity
+        run: node --test test/release-identity.test.js
+      - name: Full regression suite
+        run: npm test
+      - name: Synchronize Android assets
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+      - name: Compile release Java
+        run: gradle -p android --no-daemon compileReleaseJavaWithJavac
+      - name: Build unsigned release candidate AAB
+        run: gradle -p android --no-daemon bundleRelease
+      - name: Verify unsigned AAB
+        run: |
+          test -s android/app/build/outputs/bundle/release/app-release.aab
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.0-code22-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.4.0-code22-unsigned.aab > v2.4.0-code22-aab-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2.4.0-code22-unsigned-aab
+          path: |
+            halka-arz-portfoyum-v2.4.0-code22-unsigned.aab
+            v2.4.0-code22-aab-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
