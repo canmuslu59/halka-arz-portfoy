@@ -9,6 +9,7 @@ import { resolveTheme, nextTheme } from './core/theme.js';
 import { normalizeAlertSettings, evaluateDailyAlerts, notificationPayloadForEvent } from './core/notification-rules.js';
 import { createProAccess } from './core/pro-access.js';
 import { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';
+import { createRefreshGate } from './core/refresh-coordinator.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -564,18 +565,19 @@ function renderMarketStatus() {
   el.title = info.reason || '';
 }
 
-let portfolioRefreshPromise = null;
+const portfolioRefreshGate = createRefreshGate();
+const historyRefreshGate = createRefreshGate();
+
 async function loadPortfolio({ quiet = false, force = false } = {}) {
-  if (portfolioRefreshPromise) return portfolioRefreshPromise;
   const btn = $('#refreshBtn');
-  const run = (async () => {
+  return portfolioRefreshGate.run(async ({ force:runForce }) => {
     if (!quiet) btn?.classList.add('spinning');
     try {
       const cached = await service.getPortfolio({ refresh:false });
       state.portfolio = cached;
       renderPortfolio(cached);
 
-      const fresh = await service.getPortfolio({ refresh:true, force });
+      const fresh = await service.getPortfolio({ refresh:true, force:runForce });
       state.portfolio = fresh;
       renderPortfolio(fresh);
       evaluateLocalAlerts(fresh);
@@ -587,27 +589,26 @@ async function loadPortfolio({ quiet = false, force = false } = {}) {
     } finally {
       if (!quiet) btn?.classList.remove('spinning');
     }
-  })();
-  portfolioRefreshPromise = run;
-  try {
-    return await run;
-  } finally {
-    if (portfolioRefreshPromise === run) portfolioRefreshPromise = null;
-  }
+  }, { force });
 }
 
 async function refreshBackgroundHistory({ force = false, announce = false } = {}) {
-  if (state.historyRefreshStarted && !force) return;
-  state.historyRefreshStarted = true;
-  try {
-    const data = await service.refreshHistory({ force });
-    state.portfolio = data;
-    renderPortfolio(data);
-    if (state.selected) state.selected = data.holdings.find(h => h.id === state.selected.id) || null;
-    if (announce) toast('Geçmiş ve sektör verileri güncellendi.');
-  } catch (error) {
-    if (announce) toast(error.message);
-  }
+  return historyRefreshGate.run(async ({ force:runForce }) => {
+    state.historyRefreshStarted = true;
+    try {
+      const data = await service.refreshHistory({ force:runForce });
+      state.portfolio = data;
+      renderPortfolio(data);
+      if (state.selected) state.selected = data.holdings.find(h => h.id === state.selected.id) || null;
+      if (announce) toast('Geçmiş ve sektör verileri güncellendi.');
+      return data;
+    } catch (error) {
+      if (announce) toast(error.message);
+      return state.portfolio;
+    } finally {
+      state.historyRefreshStarted = false;
+    }
+  }, { force });
 }
 
 function renderPortfolio(data) {
