@@ -52,7 +52,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add public/index.html test/v236-code18.test.js android/app/src/main/assets/www
+          git add public/index.html test/v236-code18.test.js test/ui-contract.test.js android/app/src/main/assets/www
           git rm scripts/apply-phase1-contract-asset-sync.mjs .github/workflows/apply-phase1-contract-asset-sync.yml
           git commit -m 'fix: align Phase1 identity contracts and Android assets'
           git push origin HEAD:refactor/code22-clean-source-work2
