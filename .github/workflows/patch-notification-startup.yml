@@ -1,0 +1,75 @@
+name: Patch Notification Startup Permission
+
+on:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - '.github/workflows/patch-notification-startup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply exact permission policy patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
+          text = main.read_text()
+          old = '''    private void requestStartupNotificationPermission() {
+              if (Build.VERSION.SDK_INT < 33) return;
+              if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+              requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+          }'''
+          new = '''    private void requestStartupNotificationPermission() {
+              if (Build.VERSION.SDK_INT < 33) return;
+              if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+              SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+              if (prefs.getBoolean(NOTIFICATION_ASKED_KEY, false)) return;
+              requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+          }'''
+          if text.count(old) != 1:
+              raise SystemExit('startup permission method did not match exactly once')
+          main.write_text(text.replace(old, new))
+
+          regression = Path('test/code19-behavior.test.js')
+          text = regression.read_text()
+          old = "  assert.doesNotMatch(main, /requestStartupNotificationPermission[\\s\\S]{0,1200}NOTIFICATION_ASKED_KEY/);"
+          new = "  assert.match(main, /requestStartupNotificationPermission[\\s\\S]{0,1200}NOTIFICATION_ASKED_KEY/);"
+          if text.count(old) != 1:
+              raise SystemExit('legacy permission assertion did not match exactly once')
+          regression.write_text(text.replace(old, new))
+          PY
+      - run: npm ci
+      - name: Focused permission contracts
+        run: node --test test/android-lifecycle-hardening.test.js test/code19-behavior.test.js
+      - name: Full regression suite
+        run: npm test
+      - name: Verify web assets unchanged
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+      - name: Verify patch hygiene
+        run: git diff --check
+      - name: Commit verified permission fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add android/app/src/main/java/com/innative/halkaarz/MainActivity.java test/code19-behavior.test.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: avoid repeated automatic notification permission prompts'
+          git push origin HEAD:refactor/code22-clean-source-work2
