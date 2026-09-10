@@ -1,5 +1,6 @@
 import { cleanTicker } from './domain.js';
 import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseAhlatciCalendar, parseFintablesSector } from './parsers.js';
+import { parseGedikCalendar } from './gedik-calendar.js';
 
 export function createDataSources({ getJson, getText }) {
   if (typeof getJson !== 'function' || typeof getText !== 'function') {
@@ -66,6 +67,13 @@ export function createDataSources({ getJson, getText }) {
   }
 
   async function getIpoCalendar() {
+    try {
+      const html = await getText('https://gedik.com/halka-arz-takvimi');
+      const rows = parseGedikCalendar(html);
+      if (rows.length) return rows;
+    } catch {
+      // Fall back to the previous brokerage only when the current source is unavailable.
+    }
     const html = await getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1');
     return parseAhlatciCalendar(html);
   }
