@@ -1,0 +1,9 @@
+# Dependencies and generated output
+node_modules/
+android/.gradle/
+android/**/build/
+android/local.properties
+
+# Signing material must stay local/private
+*.keystore
+*.jks
