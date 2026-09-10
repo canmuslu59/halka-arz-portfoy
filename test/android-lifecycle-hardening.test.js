@@ -41,5 +41,5 @@ test('startup notification permission is automatic only before the first answer 
 
   const bridgeRequest = java.match(/public void requestNotificationPermission\(\) \{[\s\S]*?\n        \}/)?.[0] || '';
   assert.ok(bridgeRequest, 'manual notification permission bridge must exist');
-  assert.match(bridgeRequest, /requestPermissions\(new String\[\]\{Manifest\.permission\.POST_NOTIFICATIONS\}, NOTIFICATION_PERMISSION_REQUEST\)/);
+  assert.match(bridgeRequest, /notificationPermissionLauncher\.launch\(Manifest\.permission\.POST_NOTIFICATIONS\)/);
 });

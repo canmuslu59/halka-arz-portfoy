@@ -20,6 +20,8 @@ import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -49,7 +51,6 @@ public class MainActivity extends ComponentActivity {
     private static final String NOTIFICATION_ASKED_KEY = "notification_permission_asked_v1";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
     private static final int MAX_REDIRECTS = 5;
-    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
     private final ExecutorService networkExecutor = new ThreadPoolExecutor(
             4,
@@ -60,6 +61,10 @@ public class MainActivity extends ComponentActivity {
             new ThreadPoolExecutor.AbortPolicy()
     );
     private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;
+    private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> handleNotificationPermissionResult()
+    );
     private final OnBackPressedCallback backPressedCallback = new OnBackPressedCallback(true) {
         @Override
         public void handleOnBackPressed() {
@@ -100,7 +105,7 @@ public class MainActivity extends ComponentActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
         SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (prefs.getBoolean(NOTIFICATION_ASKED_KEY, false)) return;
-        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
     }
 
     private void applyInsets(WebView view) {
@@ -222,16 +227,12 @@ public class MainActivity extends ComponentActivity {
         Toast.makeText(this, "Çıkmak için tekrar geri basın", Toast.LENGTH_SHORT).show();
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
-            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
-            if (webView != null) {
-                webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
-            }
-            BackgroundAlertScheduler.ensure(this);
+    private void handleNotificationPermissionResult() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
+        if (webView != null) {
+            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
         }
+        BackgroundAlertScheduler.ensure(this);
     }
 
     private class AndroidBridge {
@@ -273,7 +274,7 @@ public class MainActivity extends ComponentActivity {
             if (Build.VERSION.SDK_INT < 33) return;
             activity.runOnUiThread(() -> {
                 prefs.edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
-                activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+                activity.notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             });
         }
 
