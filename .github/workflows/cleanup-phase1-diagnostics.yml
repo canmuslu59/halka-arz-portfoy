@@ -1,0 +1,62 @@
+name: Cleanup Obsolete Diagnostic Workflows
+
+on:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - '.github/workflows/cleanup-phase1-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify current audit and TDD workflows are retained
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .github/workflows/inspect-flatten-blockers.yml
+          test -f .github/workflows/phase1-tdd.yml
+          test -f .github/workflows/android-apk.yml
+          test -f .github/workflows/android-code22.yml
+      - name: Remove obsolete inspection and flatten workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/code21-inspect.yml \
+            .github/workflows/code22-diagnose.yml \
+            .github/workflows/code22-inspect.yml \
+            .github/workflows/code22-test-inspect.yml \
+            .github/workflows/flatten-code22-clean-source.yml
+          if [ -d .github/workflows/.github ]; then
+            git rm -rf .github/workflows/.github
+          fi
+          git rm .github/workflows/cleanup-phase1-diagnostics.yml
+      - run: npm ci
+      - name: Full regression suite
+        run: npm test
+      - name: Verify Android assets remain exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+      - name: Commit verified diagnostic cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: remove obsolete diagnostic workflows"
+          git push
