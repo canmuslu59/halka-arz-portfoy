@@ -216,20 +216,31 @@ public class BackgroundAlertWorker extends Worker {
     }
 
     private static void checkIpoCalendar(Context context, SharedPreferences prefs) throws Exception {
-        List<IpoCalendarParser.Entry> entries;
+        List<IpoCalendarParser.Entry> gedikEntries = null;
+        List<IpoCalendarParser.Entry> ahlatciEntries = null;
+        Exception gedikError = null;
+        Exception ahlatciError = null;
+
         try {
-            String html = fetchText(GEDIK_IPO_CALENDAR_URL, 3 * 1024 * 1024);
-            entries = IpoCalendarParser.parseGedik(html);
-        } catch (Exception currentSourceError) {
-            try {
-                String fallbackHtml = fetchText(AHLATCI_IPO_CALENDAR_URL, 3 * 1024 * 1024);
-                entries = IpoCalendarParser.parse(fallbackHtml);
-            } catch (Exception fallbackError) {
-                fallbackError.addSuppressed(currentSourceError);
-                throw fallbackError;
-            }
+            String gedikHtml = fetchText(GEDIK_IPO_CALENDAR_URL, 3 * 1024 * 1024);
+            gedikEntries = IpoCalendarParser.parseGedik(gedikHtml);
+        } catch (Exception error) {
+            gedikError = error;
         }
 
+        try {
+            String ahlatciHtml = fetchText(AHLATCI_IPO_CALENDAR_URL, 3 * 1024 * 1024);
+            ahlatciEntries = IpoCalendarParser.parse(ahlatciHtml);
+        } catch (Exception error) {
+            ahlatciError = error;
+        }
+
+        if (gedikError != null && ahlatciError != null) {
+            ahlatciError.addSuppressed(gedikError);
+            throw ahlatciError;
+        }
+
+        List<IpoCalendarParser.Entry> entries = mergeIpoEntries(gedikEntries, ahlatciEntries);
         Set<String> seen = new HashSet<>();
         try {
             JSONArray old = new JSONArray(prefs.getString(IPO_STATE_KEY, "[]"));
@@ -258,6 +269,32 @@ public class BackgroundAlertWorker extends Worker {
             }
         }
         if (changed) prefs.edit().putString(IPO_STATE_KEY, toJsonArrayStrings(seen).toString()).apply();
+
+        // A partial source outage must not be treated as a confirmed empty calendar.
+        // Process the surviving source first, then surface the failure so transient errors can retry.
+        if (gedikError != null) throw gedikError;
+        if (ahlatciError != null) throw ahlatciError;
+    }
+
+    private static List<IpoCalendarParser.Entry> mergeIpoEntries(
+            List<IpoCalendarParser.Entry> gedikEntries,
+            List<IpoCalendarParser.Entry> ahlatciEntries) {
+        Map<String, IpoCalendarParser.Entry> merged = new java.util.LinkedHashMap<>();
+        if (ahlatciEntries != null) {
+            for (IpoCalendarParser.Entry entry : ahlatciEntries) {
+                if (entry == null) continue;
+                String ticker = normalizeTicker(entry.ticker);
+                if (!ticker.isEmpty()) merged.put(ticker, entry);
+            }
+        }
+        if (gedikEntries != null) {
+            for (IpoCalendarParser.Entry entry : gedikEntries) {
+                if (entry == null) continue;
+                String ticker = normalizeTicker(entry.ticker);
+                if (!ticker.isEmpty()) merged.put(ticker, entry);
+            }
+        }
+        return new java.util.ArrayList<>(merged.values());
     }
 
     private static String ipoEventKey(String ticker, String offerDates) {
