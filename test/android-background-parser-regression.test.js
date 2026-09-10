@@ -28,11 +28,13 @@ test('background scheduler runs alerts without holdings and kicks immediate work
 
 test('background worker has native IPO fetch, de-dup state and notification permission guard', async () => {
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  assert.match(worker, /gedik\.com\/halka-arz-takvimi/);
   assert.match(worker, /ahlatciyatirim\.com\.tr\/halka-arz/);
   assert.match(worker, /IPO_STATE_KEY/);
   assert.match(worker, /showIpoNotification/);
   assert.match(worker, /NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)/);
-  assert.match(worker, /IpoCalendarParser\.parse\(html\)/);
+  assert.match(worker, /IpoCalendarParser\.parseGedik\(html\)/);
+  assert.match(worker, /IpoCalendarParser\.parse\(fallbackHtml\)/);
 });
 
 test('active card parser isolates consortium leader from page intro', () => {
