@@ -8,6 +8,7 @@ import { createIpoService } from './core/ipo-service.js';
 import { resolveTheme, nextTheme } from './core/theme.js';
 import { normalizeAlertSettings, evaluateDailyAlerts, notificationPayloadForEvent } from './core/notification-rules.js';
 import { createProAccess } from './core/pro-access.js';
+import { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -476,12 +477,9 @@ function syncPushConfiguration() {
 window.__notificationPermissionChanged = () => { renderSettings(); loadPortfolio({ quiet:true, force:true }); };
 window.__pushTokenChanged = () => syncPushConfiguration();
 window.__handleAndroidBack = () => {
-  const depth = Number(window.history.state?.navDepth || 0);
-  if (depth > 0) {
-    window.history.back();
-    return true;
-  }
-  return false;
+  if (!canHandleAppBack(window.history.state)) return false;
+  window.history.back();
+  return true;
 };
 window.__handlePushRoute = route => {
   const kind = String(route?.kind || 'portfolio');
@@ -521,7 +519,7 @@ function switchView(view, { push = true, selectedTicker = null } = {}) {
   if (next === 'settings') renderSettings();
   if (push) {
     const hash = next === 'portfolio' ? '' : `#${next}`;
-    window.history.pushState({ appRoot:true, view:next, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...(selectedTicker ? { selectedTicker } : {}) }, '', `${location.pathname}${location.search}${hash}`);
+    window.history.pushState(nextNavigationState(window.history.state, { view:next, ...(selectedTicker ? { selectedTicker } : {}) }), '', `${location.pathname}${location.search}${hash}`);
   }
 }
 
@@ -728,7 +726,7 @@ function openSheet(id, navigation = {}, { push = true } = {}) {
   showSheet(id);
   if (push) {
     const hash = id === '#addSheet' ? '#ekle' : '#detay';
-    window.history.pushState({ appRoot:true, view:state.view, sheet:id, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...navigation }, '', hash);
+    window.history.pushState(nextNavigationState(window.history.state, { view:state.view, sheet:id, ...navigation }), '', hash);
   }
 }
 
@@ -1083,8 +1081,8 @@ document.addEventListener('visibilitychange', () => {
 
 window.__showBackExitHint = () => toast('Çıkmak için tekrar geri basın.');
 
-if (!window.history.state?.appRoot) window.history.replaceState({ appRoot:true, view:'portfolio', navDepth:0 }, '', `${location.pathname}${location.search}`);
-else if (!Number.isFinite(Number(window.history.state?.navDepth))) window.history.replaceState({ ...window.history.state, navDepth:0 }, '', location.href);
+if (!window.history.state?.appRoot) window.history.replaceState(createRootNavigationState('portfolio'), '', `${location.pathname}${location.search}`);
+else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(window.history.state.navDepth) < 0) window.history.replaceState(createRootNavigationState(window.history.state?.view || 'portfolio'), '', location.href);
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'app.local') navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 initTheme();
