@@ -452,8 +452,22 @@ function hydrate(raw, errors = {}) {
     const stamp = now().toISOString();
     if (quoteResult.status === 'fulfilled') raw.quoteSnapshot = { ...quoteResult.value, fetchedAt:stamp };
     else errors.market = messageOf(quoteResult.reason, 'Fiyat verisi alınamadı.');
-    if (ipoResult.status === 'fulfilled') raw.ipoSnapshot = { ...ipoResult.value, fetchedAt:stamp };
-    else errors.ipo = messageOf(ipoResult.reason, 'Halka arz verisi alınamadı.');
+    if (ipoResult.status === 'fulfilled') {
+      const nextIpo = { ...ipoResult.value, fetchedAt:stamp };
+      const candidateFirstTradeDate = nextIpo.firstTradeDate || null;
+      const conflictsWithSale = !raw.firstTradeDateOverride
+        && candidateFirstTradeDate
+        && (raw.sales || []).some(sale => sale?.date && sale.date < candidateFirstTradeDate);
+      if (conflictsWithSale) {
+        raw.ipoSnapshot = {
+          ...nextIpo,
+          firstTradeDate: raw.ipoSnapshot?.firstTradeDate || null,
+        };
+        errors.ipo = 'Halka arz ilk işlem tarihi mevcut satış kaydıyla çeliştiği için değiştirilmedi.';
+      } else {
+        raw.ipoSnapshot = nextIpo;
+      }
+    } else errors.ipo = messageOf(ipoResult.reason, 'Halka arz verisi alınamadı.');
     if (sectorResult.status === 'fulfilled') {
       raw.sectorSnapshot = normalizedSectorSnapshot(sectorResult.value, inferSectorFromCompany(raw.ipoSnapshot?.company, raw.ticker), stamp);
     } else {
