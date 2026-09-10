@@ -1,4 +1,4 @@
-name: Export Reconstructed Code22 Source
+name: Export Current Clean Source
 
 on:
   workflow_dispatch:
@@ -18,39 +18,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refactor/code22-clean-source-work2
-      - name: Reconstruct exact latest source
+      - name: Export exact checked-in source
         shell: bash
         run: |
           set -euo pipefail
-          cat .ci/code18-delta/part* > /tmp/a.b64
-          base64 -d /tmp/a.b64 > /tmp/a.tar.gz
-          tar -xzf /tmp/a.tar.gz -C .
-          mkdir -p android/app/src/main/res/drawable-nodpi
-          base64 -d .ci/code17-launcher.webp.b64 > android/app/src/main/res/drawable-nodpi/ic_launcher.webp
-          rm -f android/app/src/main/res/drawable/ic_launcher.xml
-          cat .ci/code19-delta/part* > /tmp/b.b64
-          base64 -d /tmp/b.b64 > /tmp/b.tar.gz
-          tar -xzf /tmp/b.tar.gz -C .
-          python .ci/code20-transform.py
-          python .ci/code21-transform.py
-          python .ci/code22-transform.py
-          python .ci/code22-postfix.py
-          cp .ci/code22-regression.test.js test/code22-regression.test.js
           npm ci
           npm run android:sync
-          tar -czf reconstructed-code22-source.tar.gz \
-            package.json package-lock.json server.js public scripts test backend android \
-            README.md Dockerfile 2>/dev/null || \
-          tar -czf reconstructed-code22-source.tar.gz \
-            package.json package-lock.json server.js public scripts test android \
-            README.md Dockerfile
-          sha256sum reconstructed-code22-source.tar.gz > reconstructed-code22-source.sha256
-          cat reconstructed-code22-source.sha256
+          diff -qr public android/app/src/main/assets/www
+          tar --exclude='.git' --exclude='node_modules' -czf clean-source.tar.gz .
+          sha256sum clean-source.tar.gz > clean-source.sha256
+          cat clean-source.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: reconstructed-code22-source
+          name: clean-code22-source
           path: |
-            reconstructed-code22-source.tar.gz
-            reconstructed-code22-source.sha256
+            clean-source.tar.gz
+            clean-source.sha256
           if-no-files-found: error
           retention-days: 7
