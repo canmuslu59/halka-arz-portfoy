@@ -2,9 +2,6 @@ name: Flatten Code22 Clean Source
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - refactor/code22-clean-source-work2
 
 permissions:
   contents: write
@@ -49,11 +46,18 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Baseline tests on reconstructed production source
+      - name: Synchronize Android web assets before baseline
         shell: bash
         run: |
           set -euo pipefail
           npm ci
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+
+      - name: Baseline tests on synchronized reconstructed source
+        shell: bash
+        run: |
+          set -euo pipefail
           node --test test/*.test.js | tee /tmp/baseline-tests.txt
 
       - name: Commit flattened source
