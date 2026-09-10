@@ -30,17 +30,17 @@ jobs:
           main = Path('android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
           text = main.read_text()
           old = '''    private void requestStartupNotificationPermission() {
-              if (Build.VERSION.SDK_INT < 33) return;
-              if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
-              requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
-          }'''
+                  if (Build.VERSION.SDK_INT < 33) return;
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+                  requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+              }'''
           new = '''    private void requestStartupNotificationPermission() {
-              if (Build.VERSION.SDK_INT < 33) return;
-              if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
-              SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-              if (prefs.getBoolean(NOTIFICATION_ASKED_KEY, false)) return;
-              requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
-          }'''
+                  if (Build.VERSION.SDK_INT < 33) return;
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+                  SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                  if (prefs.getBoolean(NOTIFICATION_ASKED_KEY, false)) return;
+                  requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+              }'''
           if text.count(old) != 1:
               raise SystemExit('startup permission method did not match exactly once')
           main.write_text(text.replace(old, new))
