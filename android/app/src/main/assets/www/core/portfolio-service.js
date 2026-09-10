@@ -387,6 +387,10 @@ function hydrate(raw, errors = {}) {
     }
     if (typeof patch.firstTradeDateOverride === 'string' || patch.firstTradeDateOverride === null) {
       raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');
+      const effectiveFirstTradeDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || null;
+      if (effectiveFirstTradeDate && (raw.sales || []).some(sale => sale?.date && sale.date < effectiveFirstTradeDate)) {
+        throw new Error('İlk işlem tarihi mevcut bir satış tarihinden sonra olamaz.');
+      }
     }
     if (typeof patch.sectorOverride === 'string' || patch.sectorOverride === null) {
       raw.sectorOverride = patch.sectorOverride?.trim() || null;
