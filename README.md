@@ -111,7 +111,7 @@ Portföy Android cihazdaki yerel depolamada tutulur ve Android otomatik yedeklem
 
 Bu aşamada son yayımlanmış Play kimliği korunur: **versionCode 21 / versionName 2.3.9**. Phase 1 doğrulaması Play Store'a gönderilecek imzalı release veya AAB üretmez.
 
-GitHub Actions içindeki **Phase1 TDD Contracts** odaklı davranış kontratlarını; **Audit Current Clean Source** ise doğrudan kaynak ağacını uçtan uca doğrular. Full audit iki test geçişini, `public/` ile Android web varlıklarının birebir eşitliğini, Android Java derlemesini ve debug derleme kontrolünü içerir. Play için imzalı nihai paketleme ayrı release aşamasında yapılır.
+GitHub Actions içindeki **Phase1 TDD Contracts** odaklı davranış kontratlarını; **Audit Current Clean Source** ise doğrudan kaynak ağacını uçtan uca doğrular. Full audit iki test geçişini, `public/` ile Android web varlıklarının birebir eşitliğini, kritik parser/bildirim/navigation kontratlarını, Android release Java kaynak derlemesini, debug derleme kontrolünü ve Phase 1 sırasında AAB üretilmediğini doğrular. Play için imzalı nihai paketleme ayrı release aşamasında yapılır.
 
 ### Yerel Android doğrulaması
 
@@ -122,7 +122,7 @@ npm ci
 npm test
 npm run android:sync
 diff -qr public android/app/src/main/assets/www
-gradle -p android --no-daemon compileDebugJavaWithJavac
+gradle -p android --no-daemon compileReleaseJavaWithJavac
 ```
 
 Windows'ta `diff -qr` yerine Git ile senkronizasyon sonrasında `android/app/src/main/assets/www` altında beklenmeyen değişiklik olmadığını kontrol edebilirsiniz.
