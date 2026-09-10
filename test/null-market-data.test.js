@@ -51,4 +51,4 @@ test('portfolio hydration keeps null quote fields null', async () => {
   assert.equal(holding.activeValue, null);
   assert.equal(holding.unrealizedProfit, null);
   assert.equal(holding.totalProfit, null);
-}
+});
