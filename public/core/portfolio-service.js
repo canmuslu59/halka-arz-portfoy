@@ -330,6 +330,9 @@ function hydrate(raw, errors = {}) {
       throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
     }
     const normalizedFirstTradeDateOverride = optionalIsoDate(firstTradeDateOverride, 'İlk işlem tarihi');
+    if (normalizedFirstTradeDateOverride && normalizedFirstTradeDateOverride > dateInIstanbul(now())) {
+      throw new Error('İlk işlem tarihi gelecekte olamaz.');
+    }
     const data = await repository.load();
     if (data.holdings.some(item => cleanTicker(item.ticker) === key)) throw new Error(`${key} zaten portföyde.`);
 
@@ -387,6 +390,9 @@ function hydrate(raw, errors = {}) {
     }
     if (typeof patch.firstTradeDateOverride === 'string' || patch.firstTradeDateOverride === null) {
       raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');
+      if (raw.firstTradeDateOverride && raw.firstTradeDateOverride > dateInIstanbul(now())) {
+        throw new Error('İlk işlem tarihi gelecekte olamaz.');
+      }
       const effectiveFirstTradeDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || null;
       if (effectiveFirstTradeDate && (raw.sales || []).some(sale => sale?.date && sale.date < effectiveFirstTradeDate)) {
         throw new Error('İlk işlem tarihi mevcut bir satış tarihinden sonra olamaz.');
