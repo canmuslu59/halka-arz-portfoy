@@ -14,10 +14,12 @@ on:
       - 'test/android-worker-retry-policy.test.js'
       - 'test/navigation-contract.test.js'
       - 'test/backend-service.test.js'
+      - 'test/server-persistence.test.js'
       - '.ci/NativeHttpPolicyHarness.java'
       - '.ci/BackgroundRetryPolicyHarness.java'
       - 'backend/service.js'
       - 'backend/alert-engine.js'
+      - 'backend/portfolio-store.js'
       - 'public/core/navigation.js'
       - 'public/core/notification-rules.js'
       - 'public/app.js'
@@ -77,6 +79,8 @@ jobs:
           java -cp /tmp/background-retry-policy-test com.innative.halkaarz.BackgroundRetryPolicyHarness
       - name: Push backend service contract
         run: node --test test/backend-service.test.js
+      - name: Server persistence contract
+        run: node --test test/server-persistence.test.js
       - name: Native notification hardening contract
         run: node --test test/android-notification-hardening.test.js
       - name: Push config duplicate no-op contract
