@@ -59,14 +59,18 @@ test('Android storage stays device-local and source avoids newer String APIs', a
   assert.doesNotMatch(java, /\.isBlank\(/);
 });
 
-test('GitHub Actions workflow builds and uploads the Play AAB', async () => {
-  const yaml = await read('.github/workflows/android-apk.yml');
-  assert.match(yaml, /actions\/setup-java@v4/);
-  assert.match(yaml, /android-actions\/setup-android@v3/);
-  assert.match(yaml, /platforms;android-36/);
-  assert.match(yaml, /build-tools;36\.0\.0/);
-  assert.match(yaml, /bundleRelease/);
-  assert.match(yaml, /actions\/upload-artifact@v4/);
+test('historical transform-driven Play workflows are retired from the direct-source tree', async () => {
+  const workflows = await fs.readdir('.github/workflows');
+  for (const obsolete of ['android-apk.yml', 'android-code22.yml', 'android-play-bootstrap.yml']) {
+    assert.equal(workflows.includes(obsolete), false, `${obsolete} must not remain as an executable release path`);
+  }
+
+  for (const retained of ['inspect-flatten-blockers.yml', 'phase1-tdd.yml']) {
+    assert.ok(workflows.includes(retained), `${retained} must remain available for Phase 1 verification`);
+    const yaml = await read(`.github/workflows/${retained}`);
+    assert.doesNotMatch(yaml, /\.ci\/(?:code17-launcher|code18-|code19-|code20-transform|code21-transform|code22-transform|code22-postfix|code22-regression)/);
+    assert.doesNotMatch(yaml, /bundleRelease/);
+  }
 });
 
 
