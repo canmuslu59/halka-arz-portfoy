@@ -23,6 +23,22 @@ jobs:
       - name: Apply pending Code23 fixes
         if: github.event.head_commit.message == 'run-code23-fixes'
         run: |
+          cat > public/sw.js <<'EOF'
+          const CACHE = 'halka-arz-portfoy-v5';
+          const ASSETS = [
+            './',
+            './styles.css', './app.js', './icon.svg', './manifest.webmanifest',
+            './core/http.js', './core/data-sources.js', './core/parsers.js', './core/domain.js',
+            './core/analytics.js', './core/ipo-analytics.js', './core/ipo-service.js', './core/market-calendar.js',
+            './core/navigation.js', './core/notification-rules.js', './core/portfolio-service.js', './core/pro-access.js',
+            './core/refresh-coordinator.js', './core/repository.js', './core/theme.js'
+          ];
+          self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
+          self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
+          self.addEventListener('fetch',e=>{
+            e.respondWith(fetch(e.request).then(r=>{const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return r}).catch(()=>caches.match(e.request)));
+          });
+          EOF
           node apply-code23-fixes.mjs
           npm run android:sync
           git diff --check
