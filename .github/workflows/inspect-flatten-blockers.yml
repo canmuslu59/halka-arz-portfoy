@@ -1,0 +1,42 @@
+name: Inspect Flatten Blockers
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/code22-clean-source-work2
+      - name: Reconstruct final source and inspect blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ci/code18-delta/part* > /tmp/a.b64; base64 -d /tmp/a.b64 > /tmp/a.tar.gz; tar -xzf /tmp/a.tar.gz -C .
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          base64 -d .ci/code17-launcher.webp.b64 > android/app/src/main/res/drawable-nodpi/ic_launcher.webp
+          rm -f android/app/src/main/res/drawable/ic_launcher.xml
+          cat .ci/code19-delta/part* > /tmp/b.b64; base64 -d /tmp/b.b64 > /tmp/b.tar.gz; tar -xzf /tmp/b.tar.gz -C .
+          python .ci/code20-transform.py
+          python .ci/code21-transform.py
+          python .ci/code22-transform.py
+          python .ci/code22-postfix.py
+          cp .ci/code22-regression.test.js test/code22-regression.test.js
+          echo '=== FINAL v236 TEST ==='
+          cat test/v236-code18.test.js
+          echo '=== FINAL ANDROID MANIFEST ==='
+          cat android/app/src/main/AndroidManifest.xml
+          echo '=== SYNC SCRIPT ==='
+          cat scripts/sync-android-assets.mjs
+          echo '=== ASSET DIR BEFORE SYNC ==='
+          find android/app/src/main/assets/www -maxdepth 2 -type f -printf '%P\n' | sort || true
+          echo '=== PUBLIC DIR ==='
+          find public -maxdepth 2 -type f -printf '%P\n' | sort
