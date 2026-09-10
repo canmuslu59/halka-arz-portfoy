@@ -25,14 +25,14 @@ jobs:
           npm ci
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
-          tar --exclude='.git' --exclude='node_modules' -czf clean-source.tar.gz .
-          sha256sum clean-source.tar.gz > clean-source.sha256
-          cat clean-source.sha256
+          tar --exclude='.git' --exclude='node_modules' -czf /tmp/clean-source.tar.gz .
+          sha256sum /tmp/clean-source.tar.gz > /tmp/clean-source.sha256
+          cat /tmp/clean-source.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: clean-code22-source
           path: |
-            clean-source.tar.gz
-            clean-source.sha256
+            /tmp/clean-source.tar.gz
+            /tmp/clean-source.sha256
           if-no-files-found: error
           retention-days: 7
