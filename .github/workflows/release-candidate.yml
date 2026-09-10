@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - release/v2.4.1-code23
-      - feature/code23-ipo-crosscheck-20260911
   workflow_dispatch:
 
 permissions:
