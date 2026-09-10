@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,7 +34,8 @@ public class BackgroundAlertWorker extends Worker {
     private static final String TAG = "BackgroundAlertWorker";
     private static final String STATE_KEY = "background_alert_state_v1";
     private static final String IPO_STATE_KEY = "background_ipo_seen_v1";
-    private static final String IPO_CALENDAR_URL = "https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1";
+    private static final String GEDIK_IPO_CALENDAR_URL = "https://gedik.com/halka-arz-takvimi";
+    private static final String AHLATCI_IPO_CALENDAR_URL = "https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1";
     private static final ZoneId ISTANBUL = ZoneId.of("Europe/Istanbul");
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
@@ -212,9 +214,21 @@ public class BackgroundAlertWorker extends Worker {
         return NotificationHelper.show(context, data);
     }
 
-
     private static void checkIpoCalendar(Context context, SharedPreferences prefs) throws Exception {
-        String html = fetchText(IPO_CALENDAR_URL, 3 * 1024 * 1024);
+        List<IpoCalendarParser.Entry> entries;
+        try {
+            String html = fetchText(GEDIK_IPO_CALENDAR_URL, 3 * 1024 * 1024);
+            entries = IpoCalendarParser.parseGedik(html);
+        } catch (Exception currentSourceError) {
+            try {
+                String fallbackHtml = fetchText(AHLATCI_IPO_CALENDAR_URL, 3 * 1024 * 1024);
+                entries = IpoCalendarParser.parse(fallbackHtml);
+            } catch (Exception fallbackError) {
+                fallbackError.addSuppressed(currentSourceError);
+                throw fallbackError;
+            }
+        }
+
         Set<String> seen = new HashSet<>();
         try {
             JSONArray old = new JSONArray(prefs.getString(IPO_STATE_KEY, "[]"));
@@ -225,7 +239,7 @@ public class BackgroundAlertWorker extends Worker {
         } catch (Exception ignored) {}
 
         boolean changed = false;
-        for (IpoCalendarParser.Entry entry : IpoCalendarParser.parse(html)) {
+        for (IpoCalendarParser.Entry entry : entries) {
             if (entry.ticker.isEmpty()) continue;
             String eventKey = ipoEventKey(entry.ticker, entry.offerDates);
             if (seen.contains(eventKey)) continue;

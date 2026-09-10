@@ -24,6 +24,9 @@ final class IpoCalendarParser {
     private static final Pattern LINK = Pattern.compile("(?is)<a\\b[^>]*href=[\"']([^\"']*/halka-arz/[^\"'?#]+)[\"'][^>]*>([\\s\\S]*?)</a>");
     private static final Pattern TICKER_STATE = Pattern.compile("(?iu)\\b([A-ZÇĞİÖŞÜ0-9]{3,8})\\s+(Aktif|Yaklaşan)\\b");
     private static final Pattern DATE = Pattern.compile("(?iu)Talep\\s+Tarih(?:leri|i)\\s*((?:\\d{1,2}\\s*[-–—]\\s*)?\\d{1,2}\\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\\s+20\\d{2})");
+    private static final Pattern GEDIK_ACTIVE = Pattern.compile(
+            "\\b([A-Z0-9]{3,8})\\s+(.{3,180}?A\\.?\\s*Ş\\.?)\\s+AKTİF\\s+((?:\\d{1,2}\\s*[-–—]\\s*){0,2}\\d{1,2}\\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\\s+20\\d{2})\\s+[0-9.]+(?:,[0-9]+)?\\s*TL"
+    );
 
     private IpoCalendarParser() {}
 
@@ -72,6 +75,35 @@ final class IpoCalendarParser {
             unique.putIfAbsent(symbol, new Entry(symbol, company, dates));
         }
         return new ArrayList<>(unique.values());
+    }
+
+    static List<Entry> parseGedik(String html) {
+        String text = stripHtml(html);
+        Map<String, Entry> unique = new LinkedHashMap<>();
+        Matcher matcher = GEDIK_ACTIVE.matcher(text);
+        while (matcher.find()) {
+            String ticker = normalizeTicker(matcher.group(1));
+            if (ticker.isEmpty()) continue;
+            String company = matcher.group(2).replaceAll("\\s+", " ").trim();
+            String dates = normalizeGedikDates(matcher.group(3));
+            String key = ticker + "|" + dates;
+            unique.putIfAbsent(key, new Entry(ticker, company, dates));
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private static String normalizeGedikDates(String value) {
+        String compact = String.valueOf(value == null ? "" : value)
+                .replace('–', '-')
+                .replace('—', '-')
+                .replaceAll("\\s*-\\s*", "-")
+                .replaceAll("\\s+", " ")
+                .trim();
+        Matcher matcher = Pattern.compile("^(\\d{1,2}(?:-\\d{1,2})+)\\s+(.+)$").matcher(compact);
+        if (!matcher.find()) return compact;
+        String[] days = matcher.group(1).split("-");
+        if (days.length < 2) return compact;
+        return days[0] + "-" + days[days.length - 1] + " " + matcher.group(2);
     }
 
     private static String normalizeTicker(String value) {

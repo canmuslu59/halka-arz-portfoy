@@ -11,6 +11,8 @@ final class NativeHttpPolicy {
             "query1.finance.yahoo.com",
             "www.ahlatciyatirim.com.tr",
             "ahlatciyatirim.com.tr",
+            "gedik.com",
+            "www.gedik.com",
             "fintables.com",
             "www.fintables.com"
     ));
