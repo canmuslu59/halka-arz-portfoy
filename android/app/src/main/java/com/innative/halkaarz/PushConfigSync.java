@@ -37,15 +37,28 @@ final class PushConfigSync {
             safe.put("ipoEnabled", parsed.optBoolean("ipoEnabled", true));
             org.json.JSONArray holdings = parsed.optJSONArray("holdings") == null ? new org.json.JSONArray() : parsed.optJSONArray("holdings");
             safe.put("holdings", holdings);
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(CONFIG_KEY, safe.toString()).apply();
+
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String nextConfig = safe.toString();
+            String previousConfig = prefs.getString(CONFIG_KEY, "");
+            if (nextConfig.equals(previousConfig)) return;
+
+            prefs.edit().putString(CONFIG_KEY, nextConfig).apply();
             BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true));
             syncAsync(context);
         } catch (Exception ignored) {}
     }
 
     static void saveToken(Context context, String token) {
-        if (token == null || token.trim().isEmpty()) return;
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(TOKEN_KEY, token).apply();
+        if (token == null) return;
+        String safeToken = token.trim();
+        if (safeToken.isEmpty()) return;
+
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String previousToken = prefs.getString(TOKEN_KEY, "");
+        if (safeToken.equals(previousToken)) return;
+
+        prefs.edit().putString(TOKEN_KEY, safeToken).apply();
         syncAsync(context);
     }
 
