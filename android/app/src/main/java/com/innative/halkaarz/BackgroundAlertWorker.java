@@ -38,6 +38,7 @@ public class BackgroundAlertWorker extends Worker {
     private static final String AHLATCI_IPO_CALENDAR_URL = "https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1";
     private static final ZoneId ISTANBUL = ZoneId.of("Europe/Istanbul");
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_REDIRECTS = 5;
 
     public BackgroundAlertWorker(@NonNull Context appContext, @NonNull WorkerParameters params) {
         super(appContext, params);
@@ -282,18 +283,49 @@ public class BackgroundAlertWorker extends Worker {
     }
 
     private static String fetchText(String urlText, int maxBytes) throws Exception {
-        HttpURLConnection connection = null;
-        try {
-            connection = (HttpURLConnection) new URL(urlText).openConnection();
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/152 Mobile Safari/537.36");
-            connection.setRequestProperty("Accept", "text/html,*/*");
-            int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) throw new BackgroundRetryPolicy.HttpStatusException(status);
-            return readUtf8(connection.getInputStream(), maxBytes);
-        } finally { if (connection != null) connection.disconnect(); }
+        return fetchBody(
+                urlText,
+                maxBytes,
+                "text/html,*/*",
+                "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/152 Mobile Safari/537.36"
+        );
+    }
+
+    private static String fetchBody(String urlText, int maxBytes, String accept, String userAgent) throws Exception {
+        URL url = NativeHttpPolicy.requireAllowed(urlText);
+        int redirectCount = 0;
+        while (true) {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(12000);
+                connection.setRequestMethod("GET");
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("User-Agent", userAgent);
+                connection.setRequestProperty("Accept", accept);
+                int status = connection.getResponseCode();
+                if (isRedirectStatus(status)) {
+                    if (redirectCount >= MAX_REDIRECTS) throw new IllegalStateException("Çok fazla yönlendirme.");
+                    URL nextUrl = NativeHttpPolicy.resolveRedirect(url, connection.getHeaderField("Location"));
+                    url = nextUrl;
+                    redirectCount += 1;
+                    continue;
+                }
+                if (status < 200 || status >= 300) throw new BackgroundRetryPolicy.HttpStatusException(status);
+                return readUtf8(connection.getInputStream(), maxBytes);
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }
+    }
+
+    private static boolean isRedirectStatus(int status) {
+        return status == HttpURLConnection.HTTP_MOVED_PERM
+                || status == HttpURLConnection.HTTP_MOVED_TEMP
+                || status == HttpURLConnection.HTTP_SEE_OTHER
+                || status == 307
+                || status == 308;
     }
 
     private static String stripHtml(String html) {
@@ -307,50 +339,40 @@ public class BackgroundAlertWorker extends Worker {
 
     private static Quote fetchQuote(String ticker) throws Exception {
         String urlText = "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + ".IS?range=5d&interval=5m&includePrePost=false&events=div%2Csplits";
-        HttpURLConnection connection = null;
-        try {
-            URL url = new URL(urlText);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setRequestMethod("GET");
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
-            connection.setRequestProperty("Accept", "application/json,text/plain,*/*");
-            int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) throw new BackgroundRetryPolicy.HttpStatusException(status);
-            String body = readUtf8(connection.getInputStream(), MAX_RESPONSE_BYTES);
-            JSONObject root = new JSONObject(body);
-            JSONObject result = root.optJSONObject("chart") == null ? null : root.optJSONObject("chart").optJSONArray("result") == null
-                    ? null : root.optJSONObject("chart").optJSONArray("result").optJSONObject(0);
-            if (result == null) throw new IllegalStateException("Fiyat verisi bulunamadı.");
-            JSONObject meta = result.optJSONObject("meta");
-            if (meta == null) meta = new JSONObject();
-            double current = finite(meta.optDouble("regularMarketPrice", Double.NaN));
-            double previousClose = finite(meta.optDouble("previousClose", Double.NaN));
-            if (!Double.isFinite(previousClose)) previousClose = finite(meta.optDouble("chartPreviousClose", Double.NaN));
-            long marketEpoch = meta.optLong("regularMarketTime", 0L);
+        String body = fetchBody(
+                urlText,
+                MAX_RESPONSE_BYTES,
+                "application/json,text/plain,*/*",
+                "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36"
+        );
+        JSONObject root = new JSONObject(body);
+        JSONObject result = root.optJSONObject("chart") == null ? null : root.optJSONObject("chart").optJSONArray("result") == null
+                ? null : root.optJSONObject("chart").optJSONArray("result").optJSONObject(0);
+        if (result == null) throw new IllegalStateException("Fiyat verisi bulunamadı.");
+        JSONObject meta = result.optJSONObject("meta");
+        if (meta == null) meta = new JSONObject();
+        double current = finite(meta.optDouble("regularMarketPrice", Double.NaN));
+        double previousClose = finite(meta.optDouble("previousClose", Double.NaN));
+        if (!Double.isFinite(previousClose)) previousClose = finite(meta.optDouble("chartPreviousClose", Double.NaN));
+        long marketEpoch = meta.optLong("regularMarketTime", 0L);
 
-            JSONArray timestamps = result.optJSONArray("timestamp");
-            JSONObject indicators = result.optJSONObject("indicators");
-            JSONArray quoteArray = indicators == null ? null : indicators.optJSONArray("quote");
-            JSONObject quote = quoteArray == null ? null : quoteArray.optJSONObject(0);
-            JSONArray closes = quote == null ? null : quote.optJSONArray("close");
-            if (closes != null) {
-                for (int i = closes.length() - 1; i >= 0; i--) {
-                    double close = finite(closes.optDouble(i, Double.NaN));
-                    if (!Double.isFinite(close)) continue;
-                    if (!Double.isFinite(current)) current = close;
-                    if (marketEpoch <= 0 && timestamps != null) marketEpoch = timestamps.optLong(i, 0L);
-                    break;
-                }
+        JSONArray timestamps = result.optJSONArray("timestamp");
+        JSONObject indicators = result.optJSONObject("indicators");
+        JSONArray quoteArray = indicators == null ? null : indicators.optJSONArray("quote");
+        JSONObject quote = quoteArray == null ? null : quoteArray.optJSONObject(0);
+        JSONArray closes = quote == null ? null : quote.optJSONArray("close");
+        if (closes != null) {
+            for (int i = closes.length() - 1; i >= 0; i--) {
+                double close = finite(closes.optDouble(i, Double.NaN));
+                if (!Double.isFinite(close)) continue;
+                if (!Double.isFinite(current)) current = close;
+                if (marketEpoch <= 0 && timestamps != null) marketEpoch = timestamps.optLong(i, 0L);
+                break;
             }
-            if (!(current > 0) || !(previousClose > 0) || marketEpoch <= 0) throw new IllegalStateException("Eksik fiyat verisi.");
-            String marketDate = Instant.ofEpochSecond(marketEpoch).atZone(ISTANBUL).toLocalDate().toString();
-            return new Quote(current, previousClose, marketDate);
-        } finally {
-            if (connection != null) connection.disconnect();
         }
+        if (!(current > 0) || !(previousClose > 0) || marketEpoch <= 0) throw new IllegalStateException("Eksik fiyat verisi.");
+        String marketDate = Instant.ofEpochSecond(marketEpoch).atZone(ISTANBUL).toLocalDate().toString();
+        return new Quote(current, previousClose, marketDate);
     }
 
     private static double finite(double value) {
