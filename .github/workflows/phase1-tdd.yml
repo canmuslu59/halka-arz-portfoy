@@ -10,11 +10,14 @@ on:
       - 'test/android-network-policy.test.js'
       - 'test/android-notification-hardening.test.js'
       - 'test/android-push-config-noop.test.js'
+      - 'test/navigation-contract.test.js'
       - 'test/backend-service.test.js'
       - '.ci/NativeHttpPolicyHarness.java'
       - 'backend/service.js'
       - 'backend/alert-engine.js'
+      - 'public/core/navigation.js'
       - 'public/core/notification-rules.js'
+      - 'public/app.js'
       - 'android/build.gradle'
       - 'android/gradle.properties'
       - 'android/app/build.gradle'
@@ -55,6 +58,8 @@ jobs:
           mkdir -p /tmp/native-http-policy-test
           javac -d /tmp/native-http-policy-test android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java .ci/NativeHttpPolicyHarness.java
           java -cp /tmp/native-http-policy-test com.innative.halkaarz.NativeHttpPolicyHarness
+      - name: Navigation state contract
+        run: node --test test/navigation-contract.test.js
       - name: Push backend service contract
         run: node --test test/backend-service.test.js
       - name: Native notification hardening contract
