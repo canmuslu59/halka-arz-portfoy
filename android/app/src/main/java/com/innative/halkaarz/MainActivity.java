@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     private static final int MAX_REDIRECTS = 5;
     private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
-    private static final ExecutorService NETWORK_EXECUTOR = new ThreadPoolExecutor(
+    private final ExecutorService networkExecutor = new ThreadPoolExecutor(
             4,
             4,
             0L,
@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
             new ArrayBlockingQueue<>(128),
             new ThreadPoolExecutor.AbortPolicy()
     );
+    private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;
 
     private WebView webView;
     private JSONObject pendingPushRoute;
@@ -83,7 +84,7 @@ public class MainActivity extends Activity {
         PushConfigSync.installId(this);
         PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
-        webView.postDelayed(this::requestStartupNotificationPermission, 700L);
+        webView.postDelayed(startupPermissionRequest, 700L);
     }
 
     private void requestStartupNotificationPermission() {
@@ -142,6 +143,20 @@ public class MainActivity extends Activity {
                 deliverPendingPushRoute();
             }
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        WebView currentWebView = webView;
+        webView = null;
+        networkExecutor.shutdownNow();
+        if (currentWebView != null) {
+            currentWebView.removeCallbacks(startupPermissionRequest);
+            currentWebView.removeJavascriptInterface("AndroidBridge");
+            currentWebView.stopLoading();
+            currentWebView.destroy();
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -276,7 +291,7 @@ public class MainActivity extends Activity {
         public void httpGetAsync(String urlText, String requestId) {
             final String safeRequestId = requestId == null ? "" : requestId;
             try {
-                NETWORK_EXECUTOR.execute(() -> {
+                networkExecutor.execute(() -> {
                     String envelope = performHttpGet(urlText);
                     if (webView == null) return;
                     String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
