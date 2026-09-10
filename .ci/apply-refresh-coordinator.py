@@ -115,7 +115,12 @@ module.write_text("""export function createRefreshGate() {
   let queuedForce = null;
 
   function start(task, force) {
-    const promise = Promise.resolve().then(() => task({ force }));
+    let promise;
+    try {
+      promise = Promise.resolve(task({ force }));
+    } catch (error) {
+      promise = Promise.reject(error);
+    }
     const entry = { promise, force };
     active = entry;
     const clearActive = () => {
