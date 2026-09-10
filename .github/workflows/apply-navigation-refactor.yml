@@ -41,3 +41,4 @@ jobs:
           git diff --cached --check
           git commit -m "fix: preserve forced refresh intent and coalesce refreshes"
           git push
+# rerun: synchronous task start preserves the existing UI refresh semantics
