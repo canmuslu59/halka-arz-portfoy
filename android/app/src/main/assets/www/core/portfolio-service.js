@@ -17,6 +17,20 @@ function positiveNumber(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function isValidIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function optionalIsoDate(value, label = 'Tarih') {
+  if (value == null || value === '') return null;
+  const text = String(value);
+  if (!isValidIsoDate(text)) throw new Error(`${label} geçerli bir YYYY-AA-GG tarihi olmalı.`);
+  return text;
+}
+
 function messageOf(reason, fallback) {
   return reason?.message || String(reason || fallback);
 }
@@ -123,7 +137,15 @@ export function createPortfolioService({
     throw new TypeError('Market ve halka arz veri fonksiyonları gerekli.');
   }
 
-  function hydrate(raw, errors = {}) {
+
+let operationQueue = Promise.resolve();
+function serialize(task) {
+  const run = operationQueue.then(task, task);
+  operationQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+function hydrate(raw, errors = {}) {
     const ipo = raw.ipoSnapshot || {};
     const legacyMarket = raw.marketSnapshot || {};
     const quote = raw.quoteSnapshot || legacyMarket;
@@ -298,6 +320,7 @@ export function createPortfolioService({
     if (!key || !Number.isInteger(lotCount) || lotCount <= 0) {
       throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
     }
+    const normalizedFirstTradeDateOverride = optionalIsoDate(firstTradeDateOverride, 'İlk işlem tarihi');
     const data = await repository.load();
     if (data.holdings.some(item => cleanTicker(item.ticker) === key)) throw new Error(`${key} zaten portföyde.`);
 
@@ -306,7 +329,7 @@ export function createPortfolioService({
     const stamp = now().toISOString();
     const localDate = dateInIstanbul(now());
     const ipoData = ipoResult.status === 'fulfilled' ? ipoResult.value : null;
-    const firstTradeDate = firstTradeDateOverride || ipoData?.firstTradeDate || null;
+    const firstTradeDate = normalizedFirstTradeDateOverride || ipoData?.firstTradeDate || null;
     let historyResult = null;
     let historyError = null;
     if (firstTradeDate) {
@@ -320,7 +343,7 @@ export function createPortfolioService({
       currentLots: lotCount,
       addedAt: stamp,
       ipoPriceOverride: positiveNumber(ipoPriceOverride),
-      firstTradeDateOverride: firstTradeDateOverride || null,
+      firstTradeDateOverride: normalizedFirstTradeDateOverride,
       sectorOverride: null,
       sales: [],
       quoteSnapshot: { ...quoteResult.value, fetchedAt: stamp },
@@ -354,7 +377,7 @@ export function createPortfolioService({
       raw.ipoPriceOverride = patch.ipoPriceOverride === null ? null : Number(patch.ipoPriceOverride);
     }
     if (typeof patch.firstTradeDateOverride === 'string' || patch.firstTradeDateOverride === null) {
-      raw.firstTradeDateOverride = patch.firstTradeDateOverride || null;
+      raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');
     }
     if (typeof patch.sectorOverride === 'string' || patch.sectorOverride === null) {
       raw.sectorOverride = patch.sectorOverride?.trim() || null;
@@ -370,12 +393,13 @@ export function createPortfolioService({
     if (index < 0) throw new Error('Kayıt bulunamadı.');
     const raw = { ...data.holdings[index], sales: [...(data.holdings[index].sales || [])] };
     const valid = validateSale(raw, lots, price);
+    const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
     const stamp = now().toISOString();
     raw.sales.push({
       id: uuid(),
       lots: valid.lots,
       price: valid.price,
-      date: date || dateInIstanbul(now()),
+      date: saleDate,
       createdAt: stamp,
     });
     raw.currentLots = Number(raw.currentLots || 0) - valid.lots;
@@ -430,5 +454,14 @@ export function createPortfolioService({
     return hydrate(raw, errors);
   }
 
-  return { lookup, getPortfolio, refreshHistory, addHolding, updateHolding, addSale, deleteHolding, refreshHolding };
+  return {
+  lookup,
+  getPortfolio: (...args) => serialize(() => getPortfolio(...args)),
+  refreshHistory: (...args) => serialize(() => refreshHistory(...args)),
+  addHolding: (...args) => serialize(() => addHolding(...args)),
+  updateHolding: (...args) => serialize(() => updateHolding(...args)),
+  addSale: (...args) => serialize(() => addSale(...args)),
+  deleteHolding: (...args) => serialize(() => deleteHolding(...args)),
+  refreshHolding: (...args) => serialize(() => refreshHolding(...args)),
+};
 }

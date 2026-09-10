@@ -9,19 +9,19 @@ const ROOT = path.resolve('.');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const { evaluateDailyAlerts } = notificationRules;
 
-test('code18 keeps Play identity monotonic and preserves Android 15/16 edge-to-edge', () => {
+test('historical edge-to-edge regression follows the current published Play identity', () => {
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 18/);
-  assert.match(gradle, /versionName '2\.3\.6'/);
+  assert.match(gradle, /versionCode 21/);
+  assert.match(gradle, /versionName '2\.3\.9'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
   assert.match(gradle, /androidx\.fragment:fragment:1\.9\.0/);
   assert.match(java, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
-  assert.match(html, /v2\.3\.6 • Build 18/);
+  assert.match(html, /v2\.3\.9 • Build 21/);
 });
 
 test('BIST daily upper/lower limits use valid price-step rounding', () => {
@@ -32,20 +32,20 @@ test('BIST daily upper/lower limits use valid price-step rounding', () => {
   assert.equal(ipoAnalytics.floorPrice(23.17), 20.86);
 });
 
-test('1 percent threshold emits exactly the newly reached stock and portfolio levels', () => {
+test('1 percent threshold emits the newly reached portfolio level without ordinary stock alerts', () => {
   const first = evaluateDailyAlerts({
     day:'2026-09-08', threshold:1, enabled:true,
     holdings:[{ticker:'AAA',dailyPct:1.08,currentPrice:101.08,previousClose:100,dailySessionActive:true}],
     portfolioPct:1.04,
   });
-  assert.deepEqual(first.events.filter(e => e.kind === 'stock').map(e => e.level), [1]);
+  assert.equal(first.events.some(e => e.kind === 'stock'), false);
   assert.deepEqual(first.events.filter(e => e.kind === 'portfolio').map(e => e.level), [1]);
   const again = evaluateDailyAlerts({
     day:'2026-09-08', threshold:1, enabled:true,
     holdings:[{ticker:'AAA',dailyPct:1.4,currentPrice:101.4,previousClose:100,dailySessionActive:true}],
     portfolioPct:1.2, previousState:first.state,
   });
-  assert.equal(again.events.filter(e => e.kind === 'stock' || e.kind === 'portfolio').length, 0);
+  assert.equal(again.events.some(e => e.kind === 'stock' || e.kind === 'portfolio'), false);
 });
 
 test('tavan and taban are each notified only once per ticker per Istanbul day', () => {
