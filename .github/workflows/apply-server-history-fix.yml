@@ -1,0 +1,41 @@
+name: Apply Server History Fix
+
+on:
+  push:
+    branches:
+      - release/v2.4.0-code22
+    paths:
+      - .github/workflows/apply-server-history-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply exact guarded patch
+        run: python3 .ci/apply-server-history-fix.py
+      - name: Verify focused server history behavior
+        run: node --test test/server-history-regression.test.js
+      - name: Full regression suite
+        run: npm test
+      - name: Verify source tree
+        run: git diff --check
+      - name: Commit verified production change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server.js
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No changes to commit"; exit 1; }
+          git commit -m "fix: preserve historical lots across sales"
+          git push origin HEAD:release/v2.4.0-code22
