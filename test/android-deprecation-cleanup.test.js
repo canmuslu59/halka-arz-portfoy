@@ -23,3 +23,17 @@ test('WebView configuration does not enable deprecated WebSQL database support',
   assert.match(java, /settings\.setDomStorageEnabled\(true\)/);
   assert.doesNotMatch(java, /settings\.setDatabaseEnabled\s*\(/);
 });
+
+test('notification permission uses Activity Result API without deprecated permission callbacks', async () => {
+  const java = await fs.readFile(MAIN, 'utf8');
+
+  assert.match(java, /import androidx\.activity\.result\.ActivityResultLauncher;/);
+  assert.match(java, /import androidx\.activity\.result\.contract\.ActivityResultContracts;/);
+  assert.match(java, /ActivityResultLauncher<String> notificationPermissionLauncher/);
+  assert.match(java, /registerForActivityResult\(new ActivityResultContracts\.RequestPermission\(\)/);
+  assert.match(java, /notificationPermissionLauncher\.launch\(Manifest\.permission\.POST_NOTIFICATIONS\)/);
+  assert.match(java, /handleNotificationPermissionResult\(\)/);
+  assert.doesNotMatch(java, /onRequestPermissionsResult\s*\(/);
+  assert.doesNotMatch(java, /requestPermissions\s*\(/);
+  assert.doesNotMatch(java, /NOTIFICATION_PERMISSION_REQUEST/);
+});
