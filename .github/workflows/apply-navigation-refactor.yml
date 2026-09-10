@@ -1,4 +1,4 @@
-name: Apply Refresh Coordination
+name: Apply IPO Outage Cache Fix
 
 on:
   push:
@@ -19,24 +19,24 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Patch refresh coordination with exact guards
-        run: python .ci/apply-refresh-coordinator.py
+      - name: Patch IPO outage cache handling with exact guards
+        run: python .ci/apply-ipo-outage-cache.py
       - run: npm ci
-      - name: Refresh coordination contract
-        run: node --test test/refresh-coordinator.test.js
-      - name: Portfolio service regression
-        run: node --test test/portfolio-service.test.js
-      - name: Synchronize Android assets
-        run: |
-          npm run android:sync
-          diff -qr public android/app/src/main/assets/www
+      - name: Server syntax check
+        run: node --check server.js
+      - name: IPO outage cache contract
+        run: node --test test/server-ipo-cache.test.js
+      - name: Server HTTP security regression
+        run: node --test test/server-security.test.js
+      - name: Server persistence regression
+        run: node --test test/server-persistence.test.js
       - name: Full regression suite
         run: npm test
-      - name: Commit verified refresh coordination
+      - name: Commit verified IPO outage cache fix
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/core/refresh-coordinator.js public/app.js android/app/src/main/assets/www
+          git add server.js
           git diff --cached --check
-          git commit -m "fix: preserve forced refresh intent and coalesce refreshes"
+          git commit -m "fix: avoid caching transient IPO source outages"
           git push
