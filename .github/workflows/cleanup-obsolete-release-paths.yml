@@ -1,5 +1,6 @@
 name: Cleanup Obsolete Release Paths
 
+# One-shot Phase 1 cleanup; this workflow removes itself only after verification passes.
 on:
   push:
     branches:
