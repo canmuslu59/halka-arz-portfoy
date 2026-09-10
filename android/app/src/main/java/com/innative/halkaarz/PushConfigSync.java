@@ -9,12 +9,17 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 final class PushConfigSync {
     static final String PREFS = "halka_arz_portfoy";
     static final String INSTALL_ID_KEY = "push_install_id_v1";
     static final String TOKEN_KEY = "push_fcm_token_v1";
     static final String CONFIG_KEY = "push_config_v1";
+    private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(
+            runnable -> new Thread(runnable, "push-config-sync")
+    );
 
     private PushConfigSync() {}
 
@@ -64,7 +69,7 @@ final class PushConfigSync {
 
     static void syncAsync(Context context) {
         Context app = context.getApplicationContext();
-        new Thread(() -> sync(app), "push-config-sync").start();
+        SYNC_EXECUTOR.execute(() -> sync(app));
     }
 
     private static void sync(Context context) {
