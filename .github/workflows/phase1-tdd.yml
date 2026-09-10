@@ -6,6 +6,10 @@ on:
       - refactor/code22-clean-source-work2
     paths:
       - 'test/android-build-hardening.test.js'
+      - 'test/backend-service.test.js'
+      - 'backend/service.js'
+      - 'backend/alert-engine.js'
+      - 'public/core/notification-rules.js'
       - 'android/build.gradle'
       - 'android/gradle.properties'
       - 'android/app/build.gradle'
@@ -16,16 +20,16 @@ permissions:
   contents: read
 
 jobs:
-  android-build-contract:
+  focused-contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: refactor/code22-clean-source-work2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Run focused Android build contract
+      - name: Android build contract
         run: node --test test/android-build-hardening.test.js
+      - name: Push backend service contract
+        run: node --test test/backend-service.test.js
