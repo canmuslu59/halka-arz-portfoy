@@ -19,7 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refactor/code22-clean-source-work2
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -100,7 +99,8 @@ jobs:
           set -euo pipefail
           mkdir -p .ci/current-audit
           {
-            echo "HEAD=$(git rev-parse HEAD)"
+            echo "EVENT_SHA=${GITHUB_SHA}"
+            echo "CHECKED_OUT_HEAD=$(git rev-parse HEAD)"
             echo "tests1=$TESTS1"
             echo "assets=$ASSETS"
             echo "tests2=$TESTS2"
