@@ -41,8 +41,17 @@ function isoFromTurkishDate(text) {
   return month ? `${m[3]}-${String(month).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}` : null;
 }
 async function readPortfolio() {
-  try { const x=JSON.parse(await fs.readFile(DATA_FILE,'utf8')); if(!Array.isArray(x.holdings)) x.holdings=[]; return x; }
-  catch { return {holdings:[]}; }
+  try {
+  const raw = await fs.readFile(DATA_FILE, 'utf8');
+  const data = JSON.parse(raw);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Portföy veri dosyası bozuk.');
+  if (!Array.isArray(data.holdings)) data.holdings = [];
+  return data;
+} catch (error) {
+  if (error?.code === 'ENOENT') return { holdings: [] };
+  if (error instanceof SyntaxError) throw new Error('Portföy veri dosyası bozuk.');
+  throw error;
+}
 }
 async function writePortfolio(data) {
   await fs.mkdir(path.dirname(DATA_FILE),{recursive:true});
@@ -130,8 +139,20 @@ function makePortfolioHistory(holdings){
   return [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(x=>({...x,profit:x.value-x.cost}));
 }
 function json(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(body);}
-async function readBody(req){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>131072)throw new Error('İstek çok büyük.');}return raw?JSON.parse(raw):{};}
-function authorized(req,url){if(!APP_PIN)return true;return String(req.headers['x-app-pin']||url.searchParams.get('pin')||'')===APP_PIN;}
+class HttpError extends Error {
+  constructor(statusCode, message) { super(message); this.statusCode = statusCode; }
+}
+async function readBody(req){
+  let raw='';
+  for await(const chunk of req){
+    raw+=chunk;
+    if(raw.length>131072) throw new HttpError(413,'İstek çok büyük.');
+  }
+  if(!raw) return {};
+  try { return JSON.parse(raw); }
+  catch { throw new HttpError(400,'Geçersiz JSON gövdesi.'); }
+}
+function authorized(req){if(!APP_PIN)return true;return String(req.headers['x-app-pin']||'')===APP_PIN;}
 async function portfolioResponse(){
   const data=await readPortfolio();const holdings=await Promise.all(data.holdings.map(hydrateHolding));
   const sums=holdings.reduce((a,h)=>{for(const k of ['invested','activeValue','salesProceeds','totalWealth','totalProfit','realizedProfit','unrealizedProfit','dailyProfit'])if(Number.isFinite(h[k]))a[k]+=h[k];return a;},{invested:0,activeValue:0,salesProceeds:0,totalWealth:0,totalProfit:0,realizedProfit:0,unrealizedProfit:0,dailyProfit:0});
@@ -139,13 +160,21 @@ async function portfolioResponse(){
   return {holdings,totals:sums,history:makePortfolioHistory(holdings),updatedAt:new Date().toISOString()};
 }
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon'};
-async function serveStatic(req,res,url){let pathname=decodeURIComponent(url.pathname);if(pathname==='/'||!path.extname(pathname))pathname='/index.html';const file=path.normalize(path.join(PUBLIC_DIR,pathname));if(!file.startsWith(PUBLIC_DIR))return false;try{const buf=await fs.readFile(file);res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','cache-control':pathname==='/index.html'?'no-cache':'public, max-age=3600'});res.end(buf);return true;}catch{return false;}}
+async function serveStatic(req,res,url){
+  let pathname;
+  try { pathname=decodeURIComponent(url.pathname); } catch { return false; }
+  if(pathname==='/'||!path.extname(pathname))pathname='/index.html';
+  const root=path.resolve(PUBLIC_DIR);
+  const file=path.resolve(root, `.${pathname}`);
+  if(file!==root && !file.startsWith(root+path.sep))return false;
+  try{const buf=await fs.readFile(file);res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','cache-control':pathname==='/index.html'?'no-cache':'public, max-age=3600'});res.end(buf);return true;}catch{return false;}
+}
 
 const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,`http://${req.headers.host||'localhost'}`); const method=req.method||'GET';
   try{
     if(url.pathname==='/api/health'&&method==='GET')return json(res,200,{ok:true,auth:Boolean(APP_PIN),now:new Date().toISOString()});
-    if(url.pathname.startsWith('/api/')&&!authorized(req,url))return json(res,401,{error:'PIN_REQUIRED',message:'Uygulama PIN kodu gerekli.'});
+    if(url.pathname.startsWith('/api/')&&!authorized(req))return json(res,401,{error:'PIN_REQUIRED',message:'Uygulama PIN kodu gerekli.'});
     let m;
     if((m=url.pathname.match(/^\/api\/lookup\/([^/]+)$/))&&method==='GET'){
       const ticker=cleanTicker(m[1]);if(!ticker)return json(res,400,{error:'Geçerli bir hisse kodu girin.'});const [market,ipo]=await Promise.allSettled([fetchMarket(ticker),fetchIpo(ticker)]);return json(res,200,{ticker,market:market.status==='fulfilled'?market.value:null,ipo:ipo.status==='fulfilled'?ipo.value:null,warnings:[market.status==='rejected'?market.reason?.message:null,ipo.status==='rejected'?ipo.reason?.message:null].filter(Boolean)});
@@ -167,6 +196,6 @@ const server=http.createServer(async(req,res)=>{
     }
     if(url.pathname.startsWith('/api/'))return json(res,404,{error:'API yolu bulunamadı.'});
     if(await serveStatic(req,res,url))return; res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});res.end('Bulunamadı');
-  }catch(e){console.error(e);json(res,500,{error:e?.message||'Sunucu hatası.'});}
+  }catch(e){const status=Number.isInteger(e?.statusCode)?e.statusCode:500;if(status>=500)console.error(e);json(res,status,{error:e?.message||'Sunucu hatası.'});}
 });
 server.listen(PORT,'0.0.0.0',()=>console.log(`Halka Arz Portföyü: http://localhost:${PORT}`));

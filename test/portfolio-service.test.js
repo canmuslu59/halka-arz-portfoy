@@ -321,3 +321,48 @@ test('portfolio exposes oldest active quote time so UI can show actual market-da
   assert.equal(portfolio.marketDataTime, '2026-08-31T10:05:00.000Z');
   assert.equal(portfolio.marketDataAgeMs, 15*60*1000);
 });
+
+
+test('concurrent quote refresh cannot overwrite a sale committed while the network request is in flight', async () => {
+  const repository = memoryRepository();
+  let quoteCalls = 0;
+  let releaseRefresh;
+  let markRefreshStarted;
+  const refreshGate = new Promise(resolve => { releaseRefresh = resolve; });
+  const refreshStarted = new Promise(resolve => { markRefreshStarted = resolve; });
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => {
+      quoteCalls += 1;
+      if (quoteCalls === 1) return market(15, 14);
+      markRefreshStarted();
+      await refreshGate;
+      return market(16, 15);
+    },
+    getHistory: async () => market(),
+    getIpo: async () => ipo(),
+    getSector: async () => ({ ticker:'TEST', sector:'Enerji' }),
+    now: () => new Date('2026-08-28T10:00:00.000Z'),
+    uuid: (() => { let i=0; return () => `race-${++i}`; })(),
+  });
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  const refreshPromise = service.getPortfolio({ refresh:true, force:true });
+  await refreshStarted;
+  const salePromise = service.addSale(holding.id, { lots:4, price:12, date:'2026-08-28' });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  releaseRefresh();
+  await Promise.all([refreshPromise, salePromise]);
+  const finalPortfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(finalPortfolio.holdings[0].currentLots, 6);
+  assert.equal(finalPortfolio.holdings[0].sales.length, 1);
+});
+
+test('sale and manual first-trade dates reject impossible ISO calendar dates', async () => {
+  const service = createPortfolioService({
+    repository: memoryRepository(), getQuote: async () => market(), getIpo: async () => ipo(),
+    now: () => new Date('2026-08-28T10:00:00.000Z'), uuid: () => 'holding-date',
+  });
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  await assert.rejects(() => service.addSale(holding.id, { lots:1, price:12, date:'2026-02-30' }), /tarih/i);
+  await assert.rejects(() => service.updateHolding(holding.id, { firstTradeDateOverride:'2026-13-01' }), /tarih/i);
+});
