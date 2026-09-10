@@ -2,6 +2,9 @@ name: Inspect Code22 Test Conflicts
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/v2.4.0-code22
 
 permissions:
   contents: read
