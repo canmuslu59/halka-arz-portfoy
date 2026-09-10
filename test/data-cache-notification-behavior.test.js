@@ -67,7 +67,7 @@ test('custom notification WAV resources are present and non-empty', async () => 
   }
 });
 
-test('Code21 invalidates old IPO calendar cache and advances Play identity', async () => {
+test('IPO calendar cache uses the current schema while Phase 1 keeps the published Play identity', async () => {
   const service = await read('public/core/ipo-service.js');
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
