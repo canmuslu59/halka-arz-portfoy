@@ -43,6 +43,18 @@ test('duplicate FCM token does not rewrite prefs or start another backend sync',
   assert.ok(body.indexOf('syncAsync(context)') > noOp, 'duplicate token guard must precede backend sync');
 });
 
+test('push backend syncs are serialized so an older request cannot finish after a newer one', async () => {
+  const source = await fs.readFile(PUSH_SYNC, 'utf8');
+  const body = methodBody(source, 'static void syncAsync(Context context)', 'private static void sync(Context context)');
+
+  assert.match(source, /private\s+static\s+final\s+ExecutorService\s+SYNC_EXECUTOR\s*=\s*Executors\.newSingleThreadExecutor/,
+    'push sync must share one process-wide serial executor');
+  assert.doesNotMatch(body, /new\s+Thread\s*\(/,
+    'syncAsync must not start an independent raw thread per settings change');
+  assert.match(body, /SYNC_EXECUTOR\.execute\s*\(\s*\(\)\s*->\s*sync\(app\)\s*\)/,
+    'every sync must be queued on the shared serial executor');
+});
+
 test('app startup independently restores background scheduling before token refresh', async () => {
   const source = await fs.readFile(MAIN, 'utf8');
   const ensure = source.indexOf('BackgroundAlertScheduler.ensure(this);');
