@@ -49,8 +49,8 @@ replaceOne(
 // 4) Calendar auto-refresh must bypass its own loaded-state shortcut.
 replaceOne(
   'public/app.js',
-  "  if (!document.hidden && state.view === 'calendar') loadIpoCalendar();\n}, 300_000);",
-  "  if (!document.hidden && state.view === 'calendar') loadIpoCalendar({ force:true });\n}, 300_000);",
+  "setInterval(() => { if (!document.hidden && state.view === 'calendar') loadIpoCalendar(); }, 300_000);",
+  "setInterval(() => { if (!document.hidden && state.view === 'calendar') loadIpoCalendar({ force:true }); }, 300_000);",
 );
 
 // 5) Foreground notification delivery state is committed only when native delivery succeeds.
@@ -135,7 +135,7 @@ replaceOne('test/release-identity.test.js', 'assert.match(index, /id="appVersion
 appendOnce(
   'test/android-notification-background-behavior.test.js',
   "background alert worker stays independent of MainActivity and WebView",
-  `test('background alert worker stays independent of MainActivity and WebView', async () => {\n  const scheduler = await fs.readFile('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java', 'utf8');\n  const worker = await fs.readFile('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java', 'utf8');\n  assert.match(scheduler, /PeriodicWorkRequest\\.Builder\\(BackgroundAlertWorker\\.class, 15, TimeUnit\\.MINUTES\\)/);\n  assert.match(scheduler, /enqueueUniquePeriodicWork/);\n  assert.match(worker, /NotificationHelper\\.show\\(context, data\\)/);\n  assert.doesNotMatch(worker, /MainActivity|WebView/);\n});`,
+  `test('background alert worker stays independent of MainActivity and WebView', async () => {\n  const scheduler = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java');\n  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');\n  assert.match(scheduler, /PeriodicWorkRequest\\.Builder\\(BackgroundAlertWorker\\.class, 15, TimeUnit\\.MINUTES\\)/);\n  assert.match(scheduler, /enqueueUniquePeriodicWork/);\n  assert.match(worker, /NotificationHelper\\.show\\(context, data\\)/);\n  assert.doesNotMatch(worker, /MainActivity|WebView/);\n});`,
 );
 
 console.log('Code23 fixes applied.');
