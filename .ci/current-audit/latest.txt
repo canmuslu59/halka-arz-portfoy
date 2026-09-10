@@ -1,128 +1,130 @@
-EVENT_SHA=1bf59caf92fbad63ed7032664741d75ef654784e
-CHECKED_OUT_HEAD=1bf59caf92fbad63ed7032664741d75ef654784e
+EVENT_SHA=a43b6ec4ee075dd19f0a791ed9fbf064bd4bb17a
+CHECKED_OUT_HEAD=a43b6ec4ee075dd19f0a791ed9fbf064bd4bb17a
 tests1=success
 assets=success
 tests2=success
+critical=success
 compile=success
 assemble=success
+hygiene=success
 
 === npm test #1 failures/summary ===
 # tests 174
 # suites 0
 # pass 174
 # fail 0
-# duration_ms 3515.407607
+# duration_ms 3193.496944
 
 === npm test #1 tail ===
-  duration_ms: 1.465469
+  duration_ms: 1.040993
   type: 'test'
   ...
 # Subtest: add holding flow keeps a stable form reference across await and always opens blank
 ok 157 - add holding flow keeps a stable form reference across await and always opens blank
   ---
-  duration_ms: 1.708742
+  duration_ms: 0.956304
   type: 'test'
   ...
 # Subtest: home screen exposes app version so installed APK can be verified
 ok 158 - home screen exposes app version so installed APK can be verified
   ---
-  duration_ms: 1.019429
+  duration_ms: 0.63544
   type: 'test'
   ...
 # Subtest: UI shows real market-data timestamp instead of only local refresh completion time
 ok 159 - UI shows real market-data timestamp instead of only local refresh completion time
   ---
-  duration_ms: 3.023766
+  duration_ms: 1.757642
   type: 'test'
   ...
 # Subtest: UI polls quotes frequently while BIST is open rather than once per minute
 ok 160 - UI polls quotes frequently while BIST is open rather than once per minute
   ---
-  duration_ms: 1.415073
+  duration_ms: 0.96825
   type: 'test'
   ...
 # Subtest: Android shell and bundled UI follow the current published Play identity
 ok 161 - Android shell and bundled UI follow the current published Play identity
   ---
-  duration_ms: 2.060236
+  duration_ms: 1.602451
   type: 'test'
   ...
 # Subtest: BIST daily upper/lower limits use valid price-step rounding
 ok 162 - BIST daily upper/lower limits use valid price-step rounding
   ---
-  duration_ms: 0.278787
+  duration_ms: 0.19345
   type: 'test'
   ...
 # Subtest: 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
 ok 163 - 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
   ---
-  duration_ms: 1.097534
+  duration_ms: 0.795407
   type: 'test'
   ...
 # Subtest: tavan and taban are each notified only once per ticker per Istanbul day
 ok 164 - tavan and taban are each notified only once per ticker per Istanbul day
   ---
-  duration_ms: 0.414766
+  duration_ms: 0.294565
   type: 'test'
   ...
 # Subtest: closed/non-current sessions do not create false tavan or taban alerts
 ok 165 - closed/non-current sessions do not create false tavan or taban alerts
   ---
-  duration_ms: 0.149462
+  duration_ms: 0.126029
   type: 'test'
   ...
 # Subtest: native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
 ok 166 - native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
   ---
-  duration_ms: 0.721842
+  duration_ms: 0.451694
   type: 'test'
   ...
 # Subtest: market notification channel is new and high importance for update installs
 ok 167 - market notification channel is new and high importance for update installs
   ---
-  duration_ms: 0.262667
+  duration_ms: 0.192895
   type: 'test'
   ...
 # Subtest: floating dock has scroll-aware fade and boundary recovery behavior
 ok 168 - floating dock has scroll-aware fade and boundary recovery behavior
   ---
-  duration_ms: 1.395102
+  duration_ms: 0.985734
   type: 'test'
   ...
 # Subtest: Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
 ok 169 - Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
   ---
-  duration_ms: 17.884088
+  duration_ms: 13.411394
   type: 'test'
   ...
 # Subtest: Monday live quote cannot rewrite finalized Friday close or Friday P/L
 ok 170 - Monday live quote cannot rewrite finalized Friday close or Friday P/L
   ---
-  duration_ms: 19.01512
+  duration_ms: 14.294461
   type: 'test'
   ...
 # Subtest: repeated Monday quote refreshes keep Friday history byte-for-byte stable
 ok 171 - repeated Monday quote refreshes keep Friday history byte-for-byte stable
   ---
-  duration_ms: 2.446197
+  duration_ms: 1.812212
   type: 'test'
   ...
 # Subtest: next trading day official daily history wins over rolling quote revisions for Monday and Friday
 ok 172 - next trading day official daily history wins over rolling quote revisions for Monday and Friday
   ---
-  duration_ms: 3.001236
+  duration_ms: 2.321391
   type: 'test'
   ...
 # Subtest: rolling quote still backfills a missing previous trading day without replacing an existing official row
 ok 173 - rolling quote still backfills a missing previous trading day without replacing an existing official row
   ---
-  duration_ms: 1.072692
+  duration_ms: 0.774113
   type: 'test'
   ...
 # Subtest: exchange previousClose backfills a missing prior session more accurately than the last 5m candle
 ok 174 - exchange previousClose backfills a missing prior session more accurately than the last 5m candle
   ---
-  duration_ms: 1.048715
+  duration_ms: 0.813313
   type: 'test'
   ...
 1..174
@@ -133,7 +135,7 @@ ok 174 - exchange previousClose backfills a missing prior session more accuratel
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3515.407607
+# duration_ms 3193.496944
 
 === asset sync tail ===
 
@@ -142,11 +144,144 @@ ok 174 - exchange previousClose backfills a missing prior session more accuratel
 
 Android assets synced: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/public -> /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/assets/www
 
-=== compile tail ===
+=== critical contracts tail ===
+  ...
+# Subtest: Android back is handled only for genuine app history above root
+ok 16 - Android back is handled only for genuine app history above root
+  ---
+  duration_ms: 1.437848
+  type: 'test'
+  ...
+# Subtest: new navigation never inherits stale sheet/detail fields unless explicitly requested
+ok 17 - new navigation never inherits stale sheet/detail fields unless explicitly requested
+  ---
+  duration_ms: 1.537094
+  type: 'test'
+  ...
+# Subtest: SPA wires tab, sheet, popstate and native back through navigation state helpers
+ok 18 - SPA wires tab, sheet, popstate and native back through navigation state helpers
+  ---
+  duration_ms: 2.825709
+  type: 'test'
+  ...
+# Subtest: numTR handles Turkish decimal and thousands separators
+ok 19 - numTR handles Turkish decimal and thousands separators
+  ---
+  duration_ms: 0.791447
+  type: 'test'
+  ...
+# Subtest: isoFromTurkishDate parses Turkish month names
+ok 20 - isoFromTurkishDate parses Turkish month names
+  ---
+  duration_ms: 0.529277
+  type: 'test'
+  ...
+# Subtest: parseYahooChart returns current, previous close and history
+ok 21 - parseYahooChart returns current, previous close and history
+  ---
+  duration_ms: 10.733435
+  type: 'test'
+  ...
+# Subtest: parseYahooChart rejects missing chart result
+ok 22 - parseYahooChart rejects missing chart result
+  ---
+  duration_ms: 0.389405
+  type: 'test'
+  ...
+# Subtest: Ahlatcı parsers extract IPO price and first trade date
+ok 23 - Ahlatcı parsers extract IPO price and first trade date
+  ---
+  duration_ms: 2.865647
+  type: 'test'
+  ...
+# Subtest: parseAhlatciList returns null when ticker is not in table
+ok 24 - parseAhlatciList returns null when ticker is not in table
+  ---
+  duration_ms: 0.134998
+  type: 'test'
+  ...
+# Subtest: parseYahooChart derives previous close from the trading day before latest market date
+ok 25 - parseYahooChart derives previous close from the trading day before latest market date
+  ---
+  duration_ms: 0.399258
+  type: 'test'
+  ...
+# Subtest: parseFintablesSector extracts company sector label
+ok 26 - parseFintablesSector extracts company sector label
+  ---
+  duration_ms: 0.499587
+  type: 'test'
+  ...
+# Subtest: parseYahooChart uses latest completed row as previous close when today candle is not present yet
+ok 27 - parseYahooChart uses latest completed row as previous close when today candle is not present yet
+  ---
+  duration_ms: 0.434433
+  type: 'test'
+  ...
+# Subtest: parseFintablesSector prefers actual sector links and ignores page navigation spam
+ok 28 - parseFintablesSector prefers actual sector links and ignores page navigation spam
+  ---
+  duration_ms: 0.48744
+  type: 'test'
+  ...
+# Subtest: parseYahooChart prefers exchange previousClose when daily series skips the prior trading day
+ok 29 - parseYahooChart prefers exchange previousClose when daily series skips the prior trading day
+  ---
+  duration_ms: 0.473805
+  type: 'test'
+  ...
+# Subtest: parseYahooChart collapses intraday candles into one row per Istanbul trading date and uses freshest tick
+ok 30 - parseYahooChart collapses intraday candles into one row per Istanbul trading date and uses freshest tick
+  ---
+  duration_ms: 1.789413
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 252.916706
+
+=== release compile tail ===
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:generateReleaseBuildConfig
+> Task :app:javaPreCompileRelease
+> Task :app:generateReleaseResValues
+> Task :app:checkReleaseAarMetadata
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :app:mergeReleaseResources
+> Task :app:processReleaseMainManifest
+> Task :app:packageReleaseResources
+> Task :app:parseReleaseLocalResources
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage
+> Task :app:processReleaseResources
+
+> Task :app:compileReleaseJavaWithJavac
+Note: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/java/com/innative/halkaarz/MainActivity.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789064887992.json
+[Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 32s
+16 actionable tasks: 16 executed
+
+=== assemble tail ===
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Daemon will be stopped at the end of the build 
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:generateDebugBuildConfig
 > Task :app:javaPreCompileDebug
 > Task :app:checkDebugAarMetadata
@@ -160,64 +295,40 @@ Daemon will be stopped at the end of the build
 > Task :app:packageDebugResources
 > Task :app:parseDebugLocalResources
 > Task :app:processDebugManifest
+> Task :app:mergeDebugShaders
 > Task :app:processDebugManifestForPackage
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugJavaRes NO-SOURCE
 > Task :app:processDebugResources
+> Task :app:mergeDebugJavaResource
 
 > Task :app:compileDebugJavaWithJavac
 Note: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/java/com/innative/halkaarz/MainActivity.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789064412332.json
-[Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 31s
-16 actionable tasks: 16 executed
-
-=== assemble tail ===
-To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
-Daemon will be stopped at the end of the build 
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:generateDebugBuildConfig UP-TO-DATE
-> Task :app:javaPreCompileDebug UP-TO-DATE
-> Task :app:checkDebugAarMetadata UP-TO-DATE
-> Task :app:generateDebugResValues UP-TO-DATE
-> Task :app:mapDebugSourceSetPaths UP-TO-DATE
-> Task :app:generateDebugResources UP-TO-DATE
-> Task :app:mergeDebugResources UP-TO-DATE
-> Task :app:packageDebugResources UP-TO-DATE
-> Task :app:parseDebugLocalResources UP-TO-DATE
-> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
-> Task :app:extractDeepLinksDebug UP-TO-DATE
-> Task :app:processDebugMainManifest UP-TO-DATE
-> Task :app:processDebugManifest UP-TO-DATE
-> Task :app:processDebugManifestForPackage UP-TO-DATE
-> Task :app:processDebugResources UP-TO-DATE
-> Task :app:compileDebugJavaWithJavac UP-TO-DATE
-> Task :app:mergeDebugShaders
-> Task :app:compileDebugShaders NO-SOURCE
-> Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeDebugAssets
-> Task :app:desugarDebugFileDependencies
-> Task :app:compressDebugAssets
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics
-> Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:mergeDebugJniLibFolders
 > Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugJavaResource
+> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:mergeLibDexDebug
 > Task :app:mergeExtDexDebug
-> Task :app:mergeDebugJniLibFolders
-> Task :app:mergeProjectDexDebug
-> Task :app:mergeDebugNativeLibs NO-SOURCE
 > Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:mergeProjectDexDebug
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789064443413.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789064917250.json
+[Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 57s
-33 actionable tasks: 17 executed, 16 up-to-date
+BUILD SUCCESSFUL in 49s
+33 actionable tasks: 33 executed
+
+=== source hygiene tail ===
