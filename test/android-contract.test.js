@@ -59,18 +59,18 @@ test('Android storage stays device-local and source avoids newer String APIs', a
   assert.doesNotMatch(java, /\.isBlank\(/);
 });
 
-test('historical transform-driven Play workflows are retired from the direct-source tree', async () => {
+test('historical and Phase1-only workflows are retired from the release tree', async () => {
   const workflows = await fs.readdir('.github/workflows');
-  for (const obsolete of ['android-apk.yml', 'android-code22.yml', 'android-play-bootstrap.yml']) {
+  for (const obsolete of [
+    'android-apk.yml',
+    'android-code22.yml',
+    'android-play-bootstrap.yml',
+    'inspect-flatten-blockers.yml',
+    'phase1-tdd.yml',
+  ]) {
     assert.equal(workflows.includes(obsolete), false, `${obsolete} must not remain as an executable release path`);
   }
-
-  for (const retained of ['inspect-flatten-blockers.yml', 'phase1-tdd.yml']) {
-    assert.ok(workflows.includes(retained), `${retained} must remain available for Phase 1 verification`);
-    const yaml = await read(`.github/workflows/${retained}`);
-    assert.doesNotMatch(yaml, /\.ci\/(?:code17-launcher|code18-|code19-|code20-transform|code21-transform|code22-transform|code22-postfix|code22-regression)/);
-    assert.doesNotMatch(yaml, /bundleRelease/);
-  }
+  assert.ok(workflows.includes('release-candidate.yml'), 'release-candidate.yml must remain as the release verification path');
 });
 
 test('README documents direct-source Android verification without retired release workflows', async () => {
@@ -80,8 +80,9 @@ test('README documents direct-source Android verification without retired releas
   assert.match(readme, /npm run android:sync/);
   assert.match(readme, /compileReleaseJavaWithJavac/);
   assert.doesNotMatch(readme, /compileDebugJavaWithJavac/);
-  assert.match(readme, /Audit Current Clean Source/);
-  assert.match(readme, /Phase1 TDD Contracts/);
+  assert.doesNotMatch(readme, /Audit Current Clean Source/);
+  assert.doesNotMatch(readme, /Phase1 TDD Contracts/);
+  assert.match(readme, /Build v2\.4\.0 Release Candidate/);
 });
 
 

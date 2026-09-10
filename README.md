@@ -107,15 +107,13 @@ Uygulama kişisel portföy takibi içindir; yatırım tavsiyesi üretmez. Ücret
 
 Portföy Android cihazdaki yerel depolamada tutulur ve Android otomatik yedeklemesi kapalıdır. Uygulama piyasa ve halka arz verilerini gerekli HTTPS veri kaynaklarından yeniler; ağ sorunu olduğunda mevcut son geçerli verileri korumaya çalışır. Web ve Android portföyleri arasında otomatik kullanıcı-verisi senkronizasyonu yoktur.
 
-### Phase 1 doğrulaması
+### Phase 1 geçmişi
 
-Bu aşamada son yayımlanmış Play kimliği korunur: **versionCode 21 / versionName 2.3.9**. Phase 1 doğrulaması Play Store'a gönderilecek imzalı release veya AAB üretmez.
-
-GitHub Actions içindeki **Phase1 TDD Contracts** odaklı davranış kontratlarını; **Audit Current Clean Source** ise doğrudan kaynak ağacını uçtan uca doğrular. Full audit iki test geçişini, `public/` ile Android web varlıklarının birebir eşitliğini, kritik parser/bildirim/navigation kontratlarını, Android release Java kaynak derlemesini, debug derleme kontrolünü ve Phase 1 sırasında AAB üretilmediğini doğrular. Play için imzalı nihai paketleme ayrı release aşamasında yapılır.
+Phase 1 sırasında son yayımlanmış Play kimliği **versionCode 21 / versionName 2.3.9** olarak korunmuş ve Play Store'a gönderilecek imzalı release/AAB üretilmemiştir. Bu aşamaya özel audit ve TDD workflow'ları release dalına taşınmaz; release doğrulaması artık aşağıdaki release-candidate akışı üzerinden yapılır.
 
 ### Yerel Android doğrulaması
 
-CI ile aynı doğrulama ortamı için Node.js 22, Java 17, Android SDK 36 ve Gradle 8.11.1 kullanılır. Kaynak ve Android web varlıklarını doğrulamak için:
+Release CI ile aynı doğrulama ortamı için Node.js 22, Java 17, Android SDK 36 ve Gradle 8.11.1 kullanılır. Kaynak ve Android web varlıklarını doğrulamak için:
 
 ```bash
 npm ci
@@ -133,10 +131,10 @@ Cihazda geliştirme amaçlı debug APK gerekiyorsa ayrıca:
 gradle -p android --no-daemon assembleDebug
 ```
 
-Debug APK yerel olarak `android/app/build/outputs/apk/debug/app-debug.apk` altında oluşur. Bu debug paketi Phase 1 doğrulaması içindir; Play release/AAB paketi değildir.
+Debug APK yerel olarak `android/app/build/outputs/apk/debug/app-debug.apk` altında oluşur. Bu debug paketi geliştirme doğrulaması içindir; Play release/AAB paketi değildir.
 
 ## Phase 2 release adayı — v2.4.0 / Code22
 
-Temiz Phase 1 kaynak ağacından oluşturulan release adayı **versionCode 22 / versionName 2.4.0** kimliğini kullanır. `release/v2.4.0-code22` dalındaki `Build v2.4.0 Release Candidate` akışı tam test paketini, Android varlık eşitliğini ve release Java derlemesini doğruladıktan sonra **imzasız** bir Android App Bundle üretir.
+Temiz Phase 1 kaynak ağacından oluşturulan release adayı **versionCode 22 / versionName 2.4.0** kimliğini kullanır. `release/v2.4.0-code22` dalındaki `Build v2.4.0 Release Candidate` akışı tam test paketini, Android varlık eşitliğini, release Java derlemesini ve deprecated Android API kontrolünü doğruladıktan sonra **imzasız** bir Android App Bundle üretir.
 
-Play Store'a gönderilecek nihai AAB bu imzasız aday değildir. Güncellemenin Play tarafından kabul edilmesi için daha önceki yayınlarda kullanılan **mevcut upload/private signing key** ile imzalanması gerekir. Release anahtarı veya parolası kaynak depoya eklenmemeli ve yeni bir upload anahtarı oluşturularak eski anahtarın yerine kullanılmamalıdır.
+Bu imzasız AAB doğrulama artefaktıdır. Play Store'a yüklenebilir nihai AAB, daha önceki yayınlarda kullanılan **mevcut upload/private signing key** ile ayrıca imzalanmalıdır. Release anahtarı veya parolası kaynak depoya eklenmemeli ve yeni bir upload anahtarı oluşturularak eski anahtarın yerine kullanılmamalıdır.
