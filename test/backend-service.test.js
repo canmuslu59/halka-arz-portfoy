@@ -100,3 +100,22 @@ test('IPO check seeds first snapshot then sends only a later new IPO once per in
   await service.ipoCheck();
   assert.equal(sent.length, 0);
 });
+
+test('IPO check remains active when market alerts are disabled but IPO alerts are enabled', async () => {
+  const store = memoryStore();
+  const sent = [];
+  let calendar = [{ticker:'AAA',company:'A AŞ'}];
+  const service = createPushService({
+    store,
+    sender:{send:async(token,message)=>sent.push(message)},
+    dataSources:{getQuote:async()=>null,getIpoCalendar:async()=>calendar},
+    now:()=>new Date('2026-09-04T10:00:00Z'),
+  });
+  await service.register(registration({
+    config:{enabled:false,threshold:3,ipoEnabled:true,holdings:[]},
+  }));
+  await service.ipoCheck();
+  calendar = [{ticker:'AAA',company:'A AŞ'},{ticker:'BBB',company:'B AŞ'}];
+  await service.ipoCheck();
+  assert.deepEqual(sent.map(m=>[m.data.kind,m.data.ticker]), [['ipo','BBB']]);
+});
