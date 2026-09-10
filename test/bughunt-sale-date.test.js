@@ -110,7 +110,7 @@ test('manual first trading date cannot be in the future when adding a holding', 
 
   await assert.rejects(
     () => service.addHolding({ ticker:'TEST', lots:10, firstTradeDateOverride:'2026-08-29' }),
-    /ilk işlem.*gelecekte|gelecekte.*ilk işlem/i,
+    /gelecekte olamaz/i,
   );
 
   const portfolio = await service.getPortfolio({ refresh:false });
@@ -132,7 +132,7 @@ test('manual first trading date cannot be moved into the future when editing a h
   const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
   await assert.rejects(
     () => service.updateHolding(holding.id, { firstTradeDateOverride:'2026-08-29' }),
-    /ilk işlem.*gelecekte|gelecekte.*ilk işlem/i,
+    /gelecekte olamaz/i,
   );
 
   const portfolio = await service.getPortfolio({ refresh:false });
