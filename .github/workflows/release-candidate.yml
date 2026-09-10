@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - release/v2.4.1-code23
-      - audit/code23-bughunt-round2-20260911
   workflow_dispatch:
 
 permissions:
