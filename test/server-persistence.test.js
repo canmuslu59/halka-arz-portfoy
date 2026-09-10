@@ -53,3 +53,15 @@ test('durable write fsyncs the temp file before atomic rename', async () => {
   assert.ok(renameAt > closeAt, 'atomic rename must happen after close');
   assert.match(source, /crypto\.randomUUID\(\)/);
 });
+
+test('HTTP server routes use the serialized store and support an injectable data path', async () => {
+  const source = await readFile(new URL('../server.js', import.meta.url), 'utf8');
+  assert.match(source, /import\s*\{\s*createPortfolioStore\s*\}\s*from\s*['"]\.\/backend\/portfolio-store\.js['"]/);
+  assert.match(source, /process\.env\.PORTFOLIO_DATA_FILE/);
+  assert.match(source, /createPortfolioStore\(\{\s*filePath:\s*DATA_FILE\s*\}\)/);
+  assert.match(source, /const\s+readPortfolio\s*=\s*portfolioStore\.read/);
+  assert.match(source, /const\s+mutatePortfolio\s*=\s*portfolioStore\.mutate/);
+  assert.doesNotMatch(source, /async function writePortfolio\(/);
+  assert.doesNotMatch(source, /await writePortfolio\(/);
+  assert.ok((source.match(/await mutatePortfolio\(/g) || []).length >= 4, 'all four mutation routes must use the serialized mutation queue');
+});
