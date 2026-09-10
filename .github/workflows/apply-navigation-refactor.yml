@@ -1,0 +1,80 @@
+name: Apply Navigation Integration
+
+on:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - '.github/workflows/apply-navigation-refactor.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Patch navigation integration with exact guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('public/app.js')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  "import { createProAccess } from './core/pro-access.js';\n",
+                  "import { createProAccess } from './core/pro-access.js';\nimport { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';\n",
+              ),
+              (
+                  "window.__handleAndroidBack = () => {\n  const depth = Number(window.history.state?.navDepth || 0);\n  if (depth > 0) {\n    window.history.back();\n    return true;\n  }\n  return false;\n};",
+                  "window.__handleAndroidBack = () => {\n  if (!canHandleAppBack(window.history.state)) return false;\n  window.history.back();\n  return true;\n};",
+              ),
+              (
+                  "window.history.pushState({ appRoot:true, view:next, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...(selectedTicker ? { selectedTicker } : {}) }, '', `${location.pathname}${location.search}${hash}`);",
+                  "window.history.pushState(nextNavigationState(window.history.state, { view:next, ...(selectedTicker ? { selectedTicker } : {}) }), '', `${location.pathname}${location.search}${hash}`);",
+              ),
+              (
+                  "window.history.pushState({ appRoot:true, view:state.view, sheet:id, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...navigation }, '', hash);",
+                  "window.history.pushState(nextNavigationState(window.history.state, { view:state.view, sheet:id, ...navigation }), '', hash);",
+              ),
+              (
+                  "if (!window.history.state?.appRoot) window.history.replaceState({ appRoot:true, view:'portfolio', navDepth:0 }, '', `${location.pathname}${location.search}`);",
+                  "if (!window.history.state?.appRoot) window.history.replaceState(createRootNavigationState('portfolio'), '', `${location.pathname}${location.search}`);",
+              ),
+              (
+                  "else if (!Number.isFinite(Number(window.history.state?.navDepth))) window.history.replaceState({ ...window.history.state, navDepth:0 }, '', location.href);",
+                  "else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(window.history.state.navDepth) < 0) window.history.replaceState(createRootNavigationState(window.history.state?.view || 'portfolio'), '', location.href);",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'guard failed: expected exactly one source match, got {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - run: npm ci
+      - name: Navigation contract
+        run: node --test test/navigation-contract.test.js
+      - name: Full tests before asset sync
+        run: npm test
+      - name: Sync Android web assets
+        run: npm run android:sync
+      - name: Full tests after asset sync
+        run: npm test
+      - name: Commit verified direct-source integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/app.js android/app/src/main/assets/www
+          git diff --cached --check
+          git commit -m "refactor: centralize navigation history state"
+          git push
