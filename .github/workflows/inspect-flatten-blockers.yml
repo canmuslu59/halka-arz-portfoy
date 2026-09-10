@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - refactor/code22-clean-source-work2
+    paths:
+      - .github/workflows/inspect-flatten-blockers.yml
 
 permissions:
   contents: read
@@ -16,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refactor/code22-clean-source-work2
-      - name: Reconstruct final source and inspect blockers
+      - name: Reconstruct final source and inspect backend path
         shell: bash
         run: |
           set -euo pipefail
@@ -30,13 +32,11 @@ jobs:
           python .ci/code22-transform.py
           python .ci/code22-postfix.py
           cp .ci/code22-regression.test.js test/code22-regression.test.js
-          echo '=== FINAL v236 TEST ==='
-          cat test/v236-code18.test.js
-          echo '=== FINAL ANDROID MANIFEST ==='
-          cat android/app/src/main/AndroidManifest.xml
-          echo '=== SYNC SCRIPT ==='
-          cat scripts/sync-android-assets.mjs
-          echo '=== ASSET DIR BEFORE SYNC ==='
-          find android/app/src/main/assets/www -maxdepth 2 -type f -printf '%P\n' | sort || true
-          echo '=== PUBLIC DIR ==='
-          find public -maxdepth 2 -type f -printf '%P\n' | sort
+          echo '=== BACKEND TREE ==='
+          find backend -maxdepth 3 -type f -print 2>/dev/null || true
+          echo '=== BACKEND SERVICE TEST ==='
+          cat test/backend-service.test.js 2>/dev/null || true
+          echo '=== BACKEND ALERT ENGINE TEST ==='
+          cat test/backend-alert-engine.test.js 2>/dev/null || true
+          echo '=== PUSH BACKEND REFERENCES ==='
+          grep -RniE 'backend/service|PUSH_BACKEND_URL|push/register|push/config|registerDevice|alert-engine' --exclude-dir=.git . || true
