@@ -27,6 +27,7 @@ on:
       - 'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java'
       - 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java'
       - 'android/app/src/main/java/com/innative/halkaarz/BackgroundRetryPolicy.java'
+      - 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java'
       - 'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
       - 'android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java'
       - 'android/app/src/main/java/com/innative/halkaarz/MainActivity.java'
