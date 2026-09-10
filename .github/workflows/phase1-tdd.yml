@@ -6,6 +6,7 @@ on:
       - refactor/code22-clean-source-work2
     paths:
       - 'test/android-build-hardening.test.js'
+      - 'test/android-notification-hardening.test.js'
       - 'test/backend-service.test.js'
       - 'backend/service.js'
       - 'backend/alert-engine.js'
@@ -13,6 +14,8 @@ on:
       - 'android/build.gradle'
       - 'android/gradle.properties'
       - 'android/app/build.gradle'
+      - 'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java'
+      - 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java'
       - '.github/workflows/phase1-tdd.yml'
   workflow_dispatch:
 
@@ -33,3 +36,5 @@ jobs:
         run: node --test test/android-build-hardening.test.js
       - name: Push backend service contract
         run: node --test test/backend-service.test.js
+      - name: Native notification hardening contract
+        run: node --test test/android-notification-hardening.test.js
