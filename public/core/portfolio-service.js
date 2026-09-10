@@ -403,6 +403,8 @@ function hydrate(raw, errors = {}) {
     const valid = validateSale(raw, lots, price);
     const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
     if (saleDate > dateInIstanbul(now())) throw new Error('Satış tarihi gelecekte olamaz.');
+    const firstTradeDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || null;
+    if (firstTradeDate && saleDate < firstTradeDate) throw new Error('Satış tarihi ilk işlem tarihinden önce olamaz.');
     const stamp = now().toISOString();
     raw.sales.push({
       id: uuid(),
