@@ -1,0 +1,40 @@
+name: One-time Code24 version sync
+
+on:
+  push:
+    branches:
+      - release/v2.4.2-code24
+
+permissions:
+  contents: write
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Update visible version only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          old = 'v2.4.1 • Build 23'
+          new = 'v2.4.2 • Build 24'
+          for name in ['public/index.html', 'android/app/src/main/assets/www/index.html']:
+              p = Path(name)
+              text = p.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{name}: expected exactly one old version marker')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git diff --check
+          git diff -- public/index.html android/app/src/main/assets/www/index.html
+      - name: Commit and remove applicator
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/code24-version-sync.yml
+          git add public/index.html android/app/src/main/assets/www/index.html
+          git commit -m 'release: sync visible v2.4.2 code24 identity'
+          git push origin HEAD:release/v2.4.2-code24
