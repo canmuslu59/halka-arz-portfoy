@@ -24,18 +24,7 @@ jobs:
           python .ci/code21-transform.py
           python .ci/code22-transform.py
           cp .ci/code22-regression.test.js test/code22-regression.test.js
-          echo '--- ALL TESTS BEFORE NPM CI ---'
+          echo '--- CODE19 BEHAVIOR TEST ---'
+          cat test/code19-behavior.test.js
+          echo '--- ALL TESTS ---'
           find test -maxdepth 1 -type f -name '*.test.js' -printf '%f\n' | sort
-          echo '--- CONFLICT MATCHES ---'
-          grep -RniE 'Android back handling goes back first|notification taps route stock kinds|native-backed local alerts|background scheduler only runs' test || true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm ci
-      - name: Inspect after npm ci
-        shell: bash
-        run: |
-          echo '--- ALL TESTS AFTER NPM CI ---'
-          find test -maxdepth 1 -type f -name '*.test.js' -printf '%f\n' | sort
-          echo '--- MATCHES WITH CONTEXT ---'
-          grep -RniE -B8 -A20 'Android back handling goes back first|notification taps route stock kinds|native-backed local alerts|background scheduler only runs' test || true
