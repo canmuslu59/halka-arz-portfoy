@@ -47,7 +47,8 @@ test('Android back button delegates to SPA history first and requires a second r
   assert.match(app, /history\.back\(\)/);
   assert.match(app, /navDepth/);
   assert.match(main, /Çıkmak için tekrar geri basın/);
-  assert.match(main, /now - lastBackPressMs <= EXIT_BACK_WINDOW_MS[\s\S]*super\.onBackPressed\(\)/);
+  assert.match(main, /now - lastBackPressMs <= EXIT_BACK_WINDOW_MS[\s\S]*backPressedCallback\.setEnabled\(false\)[\s\S]*getOnBackPressedDispatcher\(\)\.onBackPressed\(\)/);
+  assert.doesNotMatch(main, /super\.onBackPressed\(\)/);
 });
 
 test('Android schedules network-constrained background market and IPO checks even with an empty portfolio', async () => {

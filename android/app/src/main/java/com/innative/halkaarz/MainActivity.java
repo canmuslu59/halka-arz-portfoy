@@ -1,7 +1,6 @@
 package com.innative.halkaarz;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -19,6 +18,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import androidx.activity.ComponentActivity;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -40,7 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class MainActivity extends Activity {
+public class MainActivity extends ComponentActivity {
     private static final String START_URL = "https://app.local/index.html";
     private static final String PREFS = "halka_arz_portfoy";
     private static final String PORTFOLIO_KEY = "portfolio_json_v1";
@@ -59,6 +60,12 @@ public class MainActivity extends Activity {
             new ThreadPoolExecutor.AbortPolicy()
     );
     private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;
+    private final OnBackPressedCallback backPressedCallback = new OnBackPressedCallback(true) {
+        @Override
+        public void handleOnBackPressed() {
+            handleNativeBackPress();
+        }
+    };
 
     private WebView webView;
     private JSONObject pendingPushRoute;
@@ -71,6 +78,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
         WindowCompat.enableEdgeToEdge(getWindow());
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
@@ -128,7 +136,6 @@ public class MainActivity extends Activity {
         WebSettings settings = view.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -186,8 +193,7 @@ public class MainActivity extends Activity {
         webView.post(() -> webView.evaluateJavascript("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");", null));
     }
 
-    @Override
-    public void onBackPressed() {
+    private void handleNativeBackPress() {
         if (webView != null) {
             webView.evaluateJavascript("Boolean(window.__handleAndroidBack && window.__handleAndroidBack())", value -> {
                 if ("true".equalsIgnoreCase(String.valueOf(value))) {
@@ -204,7 +210,12 @@ public class MainActivity extends Activity {
     private void handleExitBackPress() {
         long now = System.currentTimeMillis();
         if (now - lastBackPressMs <= EXIT_BACK_WINDOW_MS) {
-            super.onBackPressed();
+            backPressedCallback.setEnabled(false);
+            try {
+                getOnBackPressedDispatcher().onBackPressed();
+            } finally {
+                backPressedCallback.setEnabled(true);
+            }
             return;
         }
         lastBackPressMs = now;
