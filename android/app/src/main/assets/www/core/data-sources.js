@@ -69,8 +69,7 @@ export function createDataSources({ getJson, getText }) {
   async function getIpoCalendar() {
     try {
       const html = await getText('https://gedik.com/halka-arz-takvimi');
-      const rows = parseGedikCalendar(html);
-      if (rows.length) return rows;
+      return parseGedikCalendar(html);
     } catch {
       // Fall back to the previous brokerage only when the current source is unavailable.
     }
