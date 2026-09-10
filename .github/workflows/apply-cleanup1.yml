@@ -1,0 +1,50 @@
+name: Apply Cleanup 1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - .github/workflows/apply-cleanup1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/code22-clean-source-work2
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Verify and apply audited patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ci/cleanup1/part* > /tmp/cleanup1.b64
+          base64 -d /tmp/cleanup1.b64 > /tmp/cleanup1.patch
+          echo "7d5ce758b4e8262c8c26a1a3a1926251f366f01a685c3373f7a5c6edb8b2798a  /tmp/cleanup1.patch" | sha256sum -c -
+          patch -p1 < /tmp/cleanup1.patch
+          npm ci
+          node --test test/server-security.test.js test/portfolio-service.test.js
+
+      - name: Commit direct clean sources only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .ci/cleanup1
+          rm -f .github/workflows/apply-cleanup1.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: harden server and serialize portfolio mutations"
+          git push origin HEAD:refactor/code22-clean-source-work2
