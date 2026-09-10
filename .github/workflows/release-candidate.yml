@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -34,10 +34,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4.0.1
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6.3.0
         with:
           gradle-version: '8.11.1'
       - name: Compile release Java with deprecation lint
@@ -62,7 +62,7 @@ jobs:
           test -s android/app/build/outputs/bundle/release/app-release.aab
           cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.0-code22-unsigned.aab
           sha256sum halka-arz-portfoyum-v2.4.0-code22-unsigned.aab > v2.4.0-code22-aab-sha256.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: v2.4.0-code22-unsigned-aab
           path: |
