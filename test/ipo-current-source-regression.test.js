@@ -31,7 +31,7 @@ test('fresh brokerage calendar parser extracts the active NETGL September offer'
   assert.equal(netgl?.status, 'active');
 });
 
-test('UI calendar treats a successful empty current source as authoritative', async () => {
+test('UI calendar cross-checks Ahlatci even after a successful empty Gedik response', async () => {
   const calls = [];
   const sources = createDataSources({
     getJson: async () => ({}),
@@ -40,13 +40,19 @@ test('UI calendar treats a successful empty current source as authoritative', as
       if (url === 'https://gedik.com/halka-arz-takvimi') {
         return '<html><body><h1>Halka Arz Takvimi</h1><p>Aktif halka arz bulunmuyor.</p></body></html>';
       }
-      throw new Error(`Fallback must not be requested after a successful current-source response: ${url}`);
+      if (url === 'https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1') {
+        return '<html><body><h1>Halka Arz</h1><p>Aktif halka arz bulunmuyor.</p></body></html>';
+      }
+      throw new Error(`Unexpected URL: ${url}`);
     },
   });
 
   const rows = await sources.getIpoCalendar();
   assert.deepEqual(rows, []);
-  assert.deepEqual(calls, ['https://gedik.com/halka-arz-takvimi']);
+  assert.deepEqual(calls.sort(), [
+    'https://gedik.com/halka-arz-takvimi',
+    'https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1',
+  ].sort());
 });
 
 test('UI calendar prefers the current brokerage source and Android native HTTP allows it', async () => {
@@ -67,4 +73,13 @@ test('background IPO worker checks the current calendar and preserves one-notifi
   assert.match(worker, /showIpoNotification/);
   assert.match(parser, /parseGedik/);
   assert.match(parser, /AKTİF/);
+});
+
+test('background IPO worker independently cross-checks Gedik and Ahlatci before deduping entries', async () => {
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  assert.match(worker, /List<IpoCalendarParser\.Entry>\s+gedikEntries/);
+  assert.match(worker, /List<IpoCalendarParser\.Entry>\s+ahlatciEntries/);
+  assert.match(worker, /mergeIpoEntries\s*\(/);
+  assert.match(worker, /GEDIK_IPO_CALENDAR_URL/);
+  assert.match(worker, /AHLATCI_IPO_CALENDAR_URL/);
 });
