@@ -26,14 +26,195 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Verify and apply audited patch
+      - name: Apply audited source fixes
         shell: bash
         run: |
           set -euo pipefail
-          cat .ci/cleanup1/part* > /tmp/cleanup1.b64
-          base64 -d /tmp/cleanup1.b64 > /tmp/cleanup1.patch
-          echo "7d5ce758b4e8262c8c26a1a3a1926251f366f01a685c3373f7a5c6edb8b2798a  /tmp/cleanup1.patch" | sha256sum -c -
-          patch -p1 < /tmp/cleanup1.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if text.count(old) != 1:
+                  raise SystemExit(f'{label}: expected one match, found {text.count(old)}')
+              return text.replace(old, new, 1)
+
+          p = Path('server.js')
+          s = p.read_text()
+          s = replace_once(s,
+          "  try { const x=JSON.parse(await fs.readFile(DATA_FILE,'utf8')); if(!Array.isArray(x.holdings)) x.holdings=[]; return x; }\n  catch { return {holdings:[]}; }",
+          """  try {
+            const raw = await fs.readFile(DATA_FILE, 'utf8');
+            const data = JSON.parse(raw);
+            if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Portföy veri dosyası bozuk.');
+            if (!Array.isArray(data.holdings)) data.holdings = [];
+            return data;
+          } catch (error) {
+            if (error?.code === 'ENOENT') return { holdings: [] };
+            if (error instanceof SyntaxError) throw new Error('Portföy veri dosyası bozuk.');
+            throw error;
+          }""", 'readPortfolio')
+          s = replace_once(s,
+          "async function readBody(req){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>131072)throw new Error('İstek çok büyük.');}return raw?JSON.parse(raw):{};}\nfunction authorized(req,url){if(!APP_PIN)return true;return String(req.headers['x-app-pin']||url.searchParams.get('pin')||'')===APP_PIN;}",
+          """class HttpError extends Error {
+            constructor(statusCode, message) { super(message); this.statusCode = statusCode; }
+          }
+          async function readBody(req){
+            let raw='';
+            for await(const chunk of req){
+              raw+=chunk;
+              if(raw.length>131072) throw new HttpError(413,'İstek çok büyük.');
+            }
+            if(!raw) return {};
+            try { return JSON.parse(raw); }
+            catch { throw new HttpError(400,'Geçersiz JSON gövdesi.'); }
+          }
+          function authorized(req){if(!APP_PIN)return true;return String(req.headers['x-app-pin']||'')===APP_PIN;}""", 'request parsing/auth')
+          s = replace_once(s,
+          "async function serveStatic(req,res,url){let pathname=decodeURIComponent(url.pathname);if(pathname==='/'||!path.extname(pathname))pathname='/index.html';const file=path.normalize(path.join(PUBLIC_DIR,pathname));if(!file.startsWith(PUBLIC_DIR))return false;try{const buf=await fs.readFile(file);res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','cache-control':pathname==='/index.html'?'no-cache':'public, max-age=3600'});res.end(buf);return true;}catch{return false;}}",
+          """async function serveStatic(req,res,url){
+            let pathname;
+            try { pathname=decodeURIComponent(url.pathname); } catch { return false; }
+            if(pathname==='/'||!path.extname(pathname))pathname='/index.html';
+            const root=path.resolve(PUBLIC_DIR);
+            const file=path.resolve(root, `.${pathname}`);
+            if(file!==root && !file.startsWith(root+path.sep))return false;
+            try{const buf=await fs.readFile(file);res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','cache-control':pathname==='/index.html'?'no-cache':'public, max-age=3600'});res.end(buf);return true;}catch{return false;}
+          }""", 'static path')
+          s = replace_once(s, "authorized(req,url)", "authorized(req)", 'authorized call')
+          s = replace_once(s,
+          "}catch(e){console.error(e);json(res,500,{error:e?.message||'Sunucu hatası.'});}",
+          "}catch(e){const status=Number.isInteger(e?.statusCode)?e.statusCode:500;if(status>=500)console.error(e);json(res,status,{error:e?.message||'Sunucu hatası.'});}", 'http error mapping')
+          p.write_text(s)
+
+          p = Path('public/core/portfolio-service.js')
+          s = p.read_text()
+          anchor = """function messageOf(reason, fallback) {
+            return reason?.message || String(reason || fallback);
+          }"""
+          helpers = """function isValidIsoDate(value) {
+            if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+            const [year, month, day] = value.split('-').map(Number);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+          }
+
+          function optionalIsoDate(value, label = 'Tarih') {
+            if (value == null || value === '') return null;
+            const text = String(value);
+            if (!isValidIsoDate(text)) throw new Error(`${label} geçerli bir YYYY-AA-GG tarihi olmalı.`);
+            return text;
+          }
+
+          function messageOf(reason, fallback) {
+            return reason?.message || String(reason || fallback);
+          }"""
+          s = replace_once(s, anchor, helpers, 'date helpers')
+          anchor = """  if (typeof getQuote !== 'function' || typeof getHistory !== 'function' || typeof getIpo !== 'function') {
+            throw new TypeError('Market ve halka arz veri fonksiyonları gerekli.');
+          }
+
+          function hydrate(raw, errors = {}) {"""
+          replacement = """  if (typeof getQuote !== 'function' || typeof getHistory !== 'function' || typeof getIpo !== 'function') {
+            throw new TypeError('Market ve halka arz veri fonksiyonları gerekli.');
+          }
+
+          let operationQueue = Promise.resolve();
+          function serialize(task) {
+            const run = operationQueue.then(task, task);
+            operationQueue = run.then(() => undefined, () => undefined);
+            return run;
+          }
+
+          function hydrate(raw, errors = {}) {"""
+          s = replace_once(s, anchor, replacement, 'operation queue')
+          s = replace_once(s,
+          """    if (!key || !Number.isInteger(lotCount) || lotCount <= 0) {
+              throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
+            }
+            const data = await repository.load();""",
+          """    if (!key || !Number.isInteger(lotCount) || lotCount <= 0) {
+              throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
+            }
+            const normalizedFirstTradeDateOverride = optionalIsoDate(firstTradeDateOverride, 'İlk işlem tarihi');
+            const data = await repository.load();""", 'add date validation')
+          s = replace_once(s, "const firstTradeDate = firstTradeDateOverride || ipoData?.firstTradeDate || null;", "const firstTradeDate = normalizedFirstTradeDateOverride || ipoData?.firstTradeDate || null;", 'first trade date')
+          s = replace_once(s, "firstTradeDateOverride: firstTradeDateOverride || null,", "firstTradeDateOverride: normalizedFirstTradeDateOverride,", 'stored first trade date')
+          s = replace_once(s, "raw.firstTradeDateOverride = patch.firstTradeDateOverride || null;", "raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');", 'update date validation')
+          s = replace_once(s,
+          """    const valid = validateSale(raw, lots, price);
+            const stamp = now().toISOString();""",
+          """    const valid = validateSale(raw, lots, price);
+            const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
+            const stamp = now().toISOString();""", 'sale date validation')
+          s = replace_once(s, "date: date || dateInIstanbul(now()),", "date: saleDate,", 'stored sale date')
+          s = replace_once(s,
+          "  return { lookup, getPortfolio, refreshHistory, addHolding, updateHolding, addSale, deleteHolding, refreshHolding };",
+          """  return {
+            lookup,
+            getPortfolio: (...args) => serialize(() => getPortfolio(...args)),
+            refreshHistory: (...args) => serialize(() => refreshHistory(...args)),
+            addHolding: (...args) => serialize(() => addHolding(...args)),
+            updateHolding: (...args) => serialize(() => updateHolding(...args)),
+            addSale: (...args) => serialize(() => addSale(...args)),
+            deleteHolding: (...args) => serialize(() => deleteHolding(...args)),
+            refreshHolding: (...args) => serialize(() => refreshHolding(...args)),
+          };""", 'serialized API')
+          p.write_text(s)
+
+          p = Path('test/portfolio-service.test.js')
+          s = p.read_text()
+          marker = "concurrent quote refresh cannot overwrite a sale committed while the network request is in flight"
+          if marker not in s:
+              s += r'''
+
+          test('concurrent quote refresh cannot overwrite a sale committed while the network request is in flight', async () => {
+            const repository = memoryRepository();
+            let quoteCalls = 0;
+            let releaseRefresh;
+            let markRefreshStarted;
+            const refreshGate = new Promise(resolve => { releaseRefresh = resolve; });
+            const refreshStarted = new Promise(resolve => { markRefreshStarted = resolve; });
+            const service = createPortfolioService({
+              repository,
+              getQuote: async () => {
+                quoteCalls += 1;
+                if (quoteCalls === 1) return market(15, 14);
+                markRefreshStarted();
+                await refreshGate;
+                return market(16, 15);
+              },
+              getHistory: async () => market(),
+              getIpo: async () => ipo(),
+              getSector: async () => ({ ticker:'TEST', sector:'Enerji' }),
+              now: () => new Date('2026-08-28T10:00:00.000Z'),
+              uuid: (() => { let i=0; return () => `race-${++i}`; })(),
+            });
+            const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+
+            const refreshPromise = service.getPortfolio({ refresh:true, force:true });
+            await refreshStarted;
+            const salePromise = service.addSale(holding.id, { lots:4, price:12, date:'2026-08-28' });
+            await new Promise(resolve => setTimeout(resolve, 10));
+            releaseRefresh();
+            await Promise.all([refreshPromise, salePromise]);
+
+            const finalPortfolio = await service.getPortfolio({ refresh:false });
+            assert.equal(finalPortfolio.holdings[0].currentLots, 6);
+            assert.equal(finalPortfolio.holdings[0].sales.length, 1);
+          });
+
+          test('sale and manual first-trade dates reject impossible ISO calendar dates', async () => {
+            const service = createPortfolioService({
+              repository: memoryRepository(), getQuote: async () => market(), getIpo: async () => ipo(),
+              now: () => new Date('2026-08-28T10:00:00.000Z'), uuid: () => 'holding-date',
+            });
+            const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+            await assert.rejects(() => service.addSale(holding.id, { lots:1, price:12, date:'2026-02-30' }), /tarih/i);
+            await assert.rejects(() => service.updateHolding(holding.id, { firstTradeDateOverride:'2026-13-01' }), /tarih/i);
+          });
+          '''
+              p.write_text(s)
+          PY
           npm ci
           node --test test/server-security.test.js test/portfolio-service.test.js
 
