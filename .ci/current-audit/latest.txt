@@ -1,245 +1,146 @@
-EVENT_SHA=0aeaa31aa3cb6a0d680e6a6ef2d03ed631f9afca
-CHECKED_OUT_HEAD=0aeaa31aa3cb6a0d680e6a6ef2d03ed631f9afca
-tests1=failure
-assets=failure
-tests2=failure
+EVENT_SHA=2bfe54af0cfc682f8597dbe9571448e0d30252e5
+CHECKED_OUT_HEAD=2bfe54af0cfc682f8597dbe9571448e0d30252e5
+tests1=success
+assets=success
+tests2=success
 compile=success
 assemble=success
 
 === npm test #1 failures/summary ===
-not ok 35 - Play update identity advances to versionCode 21 / versionName 2.3.9
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-not ok 41 - Code21 invalidates old IPO calendar cache and advances Play identity
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-not ok 120 - theme toggle is restored to topbar and removed from Settings
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-not ok 127 - home screen exposes app version so installed APK can be verified
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-not ok 130 - code18 keeps Play identity monotonic and preserves Android 15/16 edge-to-edge
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-not ok 132 - 1 percent threshold emits exactly the newly reached stock and portfolio levels
-  error: |-
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
 # tests 143
 # suites 0
-# pass 137
-# fail 6
-# duration_ms 2383.075788
+# pass 143
+# fail 0
+# duration_ms 2344.262794
 
 === npm test #1 tail ===
-  operator: 'match'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:16:10)
-    Test.runInAsyncScope (node:async_hooks:214:14)
-    Test.run (node:internal/test_runner/test:1047:25)
-    Test.start (node:internal/test_runner/test:944:17)
-    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  duration_ms: 1.705197
+  type: 'test'
+  ...
+# Subtest: add holding flow keeps a stable form reference across await and always opens blank
+ok 126 - add holding flow keeps a stable form reference across await and always opens blank
+  ---
+  duration_ms: 1.344059
+  type: 'test'
+  ...
+# Subtest: home screen exposes app version so installed APK can be verified
+ok 127 - home screen exposes app version so installed APK can be verified
+  ---
+  duration_ms: 1.298569
+  type: 'test'
+  ...
+# Subtest: UI shows real market-data timestamp instead of only local refresh completion time
+ok 128 - UI shows real market-data timestamp instead of only local refresh completion time
+  ---
+  duration_ms: 2.80358
+  type: 'test'
+  ...
+# Subtest: UI polls quotes frequently while BIST is open rather than once per minute
+ok 129 - UI polls quotes frequently while BIST is open rather than once per minute
+  ---
+  duration_ms: 1.346249
+  type: 'test'
+  ...
+# Subtest: historical edge-to-edge regression follows the current published Play identity
+ok 130 - historical edge-to-edge regression follows the current published Play identity
+  ---
+  duration_ms: 2.078396
+  type: 'test'
   ...
 # Subtest: BIST daily upper/lower limits use valid price-step rounding
 ok 131 - BIST daily upper/lower limits use valid price-step rounding
   ---
-  duration_ms: 0.327209
+  duration_ms: 0.260557
   type: 'test'
   ...
-# Subtest: 1 percent threshold emits exactly the newly reached stock and portfolio levels
-not ok 132 - 1 percent threshold emits exactly the newly reached stock and portfolio levels
+# Subtest: 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
+ok 132 - 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
   ---
-  duration_ms: 1.517825
+  duration_ms: 1.138536
   type: 'test'
-  location: '/home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:35:1'
-  failureType: 'testCodeFailure'
-  error: |-
-    Expected values to be strictly deep-equal:
-    + actual - expected
-    
-    + []
-    - [
-    -   1
-    - ]
-    
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected:
-    0: 1
-  actual:
-  operator: 'deepStrictEqual'
-  stack: |-
-    TestContext.<anonymous> (file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:41:10)
-    Test.runInAsyncScope (node:async_hooks:214:14)
-    Test.run (node:internal/test_runner/test:1047:25)
-    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
-    Test.postRun (node:internal/test_runner/test:1173:19)
-    Test.run (node:internal/test_runner/test:1101:12)
-    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
   ...
 # Subtest: tavan and taban are each notified only once per ticker per Istanbul day
 ok 133 - tavan and taban are each notified only once per ticker per Istanbul day
   ---
-  duration_ms: 0.443766
+  duration_ms: 0.43113
   type: 'test'
   ...
 # Subtest: closed/non-current sessions do not create false tavan or taban alerts
 ok 134 - closed/non-current sessions do not create false tavan or taban alerts
   ---
-  duration_ms: 0.319976
+  duration_ms: 0.152505
   type: 'test'
   ...
 # Subtest: native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
 ok 135 - native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
   ---
-  duration_ms: 0.636986
+  duration_ms: 0.73333
   type: 'test'
   ...
 # Subtest: market notification channel is new and high importance for update installs
 ok 136 - market notification channel is new and high importance for update installs
   ---
-  duration_ms: 0.305869
+  duration_ms: 0.276617
   type: 'test'
   ...
 # Subtest: floating dock has scroll-aware fade and boundary recovery behavior
 ok 137 - floating dock has scroll-aware fade and boundary recovery behavior
   ---
-  duration_ms: 1.243154
+  duration_ms: 1.413745
   type: 'test'
   ...
 # Subtest: Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
 ok 138 - Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
   ---
-  duration_ms: 19.032105
+  duration_ms: 17.520793
   type: 'test'
   ...
 # Subtest: Monday live quote cannot rewrite finalized Friday close or Friday P/L
 ok 139 - Monday live quote cannot rewrite finalized Friday close or Friday P/L
   ---
-  duration_ms: 19.925398
+  duration_ms: 19.146662
   type: 'test'
   ...
 # Subtest: repeated Monday quote refreshes keep Friday history byte-for-byte stable
 ok 140 - repeated Monday quote refreshes keep Friday history byte-for-byte stable
   ---
-  duration_ms: 2.728729
+  duration_ms: 2.34724
   type: 'test'
   ...
 # Subtest: next trading day official daily history wins over rolling quote revisions for Monday and Friday
 ok 141 - next trading day official daily history wins over rolling quote revisions for Monday and Friday
   ---
-  duration_ms: 3.088939
+  duration_ms: 2.954865
   type: 'test'
   ...
 # Subtest: rolling quote still backfills a missing previous trading day without replacing an existing official row
 ok 142 - rolling quote still backfills a missing previous trading day without replacing an existing official row
   ---
-  duration_ms: 1.153077
+  duration_ms: 0.995271
   type: 'test'
   ...
 # Subtest: exchange previousClose backfills a missing prior session more accurately than the last 5m candle
 ok 143 - exchange previousClose backfills a missing prior session more accurately than the last 5m candle
   ---
-  duration_ms: 1.112391
+  duration_ms: 1.015725
   type: 'test'
   ...
 1..143
 # tests 143
 # suites 0
-# pass 137
-# fail 6
+# pass 143
+# fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2383.075788
+# duration_ms 2344.262794
 
 === asset sync tail ===
--  function hydrate(raw, errors = {}) {
-+
-+let operationQueue = Promise.resolve();
-+function serialize(task) {
-+  const run = operationQueue.then(task, task);
-+  operationQueue = run.then(() => undefined, () => undefined);
-+  return run;
-+}
-+
-+function hydrate(raw, errors = {}) {
-     const ipo = raw.ipoSnapshot || {};
-     const legacyMarket = raw.marketSnapshot || {};
-     const quote = raw.quoteSnapshot || legacyMarket;
-@@ -298,6 +320,7 @@ export function createPortfolioService({
-     if (!key || !Number.isInteger(lotCount) || lotCount <= 0) {
-       throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
-     }
-+    const normalizedFirstTradeDateOverride = optionalIsoDate(firstTradeDateOverride, 'İlk işlem tarihi');
-     const data = await repository.load();
-     if (data.holdings.some(item => cleanTicker(item.ticker) === key)) throw new Error(`${key} zaten portföyde.`);
- 
-@@ -306,7 +329,7 @@ export function createPortfolioService({
-     const stamp = now().toISOString();
-     const localDate = dateInIstanbul(now());
-     const ipoData = ipoResult.status === 'fulfilled' ? ipoResult.value : null;
--    const firstTradeDate = firstTradeDateOverride || ipoData?.firstTradeDate || null;
-+    const firstTradeDate = normalizedFirstTradeDateOverride || ipoData?.firstTradeDate || null;
-     let historyResult = null;
-     let historyError = null;
-     if (firstTradeDate) {
-@@ -320,7 +343,7 @@ export function createPortfolioService({
-       currentLots: lotCount,
-       addedAt: stamp,
-       ipoPriceOverride: positiveNumber(ipoPriceOverride),
--      firstTradeDateOverride: firstTradeDateOverride || null,
-+      firstTradeDateOverride: normalizedFirstTradeDateOverride,
-       sectorOverride: null,
-       sales: [],
-       quoteSnapshot: { ...quoteResult.value, fetchedAt: stamp },
-@@ -354,7 +377,7 @@ export function createPortfolioService({
-       raw.ipoPriceOverride = patch.ipoPriceOverride === null ? null : Number(patch.ipoPriceOverride);
-     }
-     if (typeof patch.firstTradeDateOverride === 'string' || patch.firstTradeDateOverride === null) {
--      raw.firstTradeDateOverride = patch.firstTradeDateOverride || null;
-+      raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');
-     }
-     if (typeof patch.sectorOverride === 'string' || patch.sectorOverride === null) {
-       raw.sectorOverride = patch.sectorOverride?.trim() || null;
-@@ -370,12 +393,13 @@ export function createPortfolioService({
-     if (index < 0) throw new Error('Kayıt bulunamadı.');
-     const raw = { ...data.holdings[index], sales: [...(data.holdings[index].sales || [])] };
-     const valid = validateSale(raw, lots, price);
-+    const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
-     const stamp = now().toISOString();
-     raw.sales.push({
-       id: uuid(),
-       lots: valid.lots,
-       price: valid.price,
--      date: date || dateInIstanbul(now()),
-+      date: saleDate,
-       createdAt: stamp,
-     });
-     raw.currentLots = Number(raw.currentLots || 0) - valid.lots;
-@@ -430,5 +454,14 @@ export function createPortfolioService({
-     return hydrate(raw, errors);
-   }
- 
--  return { lookup, getPortfolio, refreshHistory, addHolding, updateHolding, addSale, deleteHolding, refreshHolding };
-+  return {
-+  lookup,
-+  getPortfolio: (...args) => serialize(() => getPortfolio(...args)),
-+  refreshHistory: (...args) => serialize(() => refreshHistory(...args)),
-+  addHolding: (...args) => serialize(() => addHolding(...args)),
-+  updateHolding: (...args) => serialize(() => updateHolding(...args)),
-+  addSale: (...args) => serialize(() => addSale(...args)),
-+  deleteHolding: (...args) => serialize(() => deleteHolding(...args)),
-+  refreshHolding: (...args) => serialize(() => refreshHolding(...args)),
-+};
- }
-\ No newline at end of file
+
+> halka-arz-portfoy@1.0.0 android:sync
+> node scripts/sync-android-assets.mjs
+
+Android assets synced: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/public -> /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/assets/www
 
 === compile tail ===
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
@@ -265,10 +166,10 @@ Daemon will be stopped at the end of the build
 > Task :app:compileDebugJavaWithJavac
 Note: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/java/com/innative/halkaarz/MainActivity.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789050346478.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789051301178.json
 [Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 32s
+BUILD SUCCESSFUL in 30s
 16 actionable tasks: 16 executed
 
 === assemble tail ===
@@ -316,7 +217,7 @@ Daemon will be stopped at the end of the build
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789050378483.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789051332051.json
 
-BUILD SUCCESSFUL in 1m 1s
+BUILD SUCCESSFUL in 54s
 33 actionable tasks: 17 executed, 16 up-to-date
