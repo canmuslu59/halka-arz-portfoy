@@ -17,6 +17,12 @@ function positiveNumber(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function nullableFiniteNumber(value) {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function isValidIsoDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
@@ -47,17 +53,19 @@ function mergeHistoryRows(
 ) {
   const byDate = new Map();
   for (const row of baseRows) {
-    if (!row?.date || !Number.isFinite(Number(row.close))) continue;
-    byDate.set(row.date, { ...row, close:Number(row.close) });
+    const close = nullableFiniteNumber(row?.close);
+    if (!row?.date || close == null) continue;
+    byDate.set(row.date, { ...row, close });
   }
 
   const validRecentRows = recentRows
-    .filter(row => row?.date && Number.isFinite(Number(row.close)))
-    .map(row => ({ ...row, close:Number(row.close) }));
+    .map(row => ({ row, close: nullableFiniteNumber(row?.close) }))
+    .filter(({ row, close }) => row?.date && close != null)
+    .map(({ row, close }) => ({ ...row, close }));
   const priorRecentDate = latestMarketDate
     ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort().at(-1) || null
     : null;
-  const exchangePreviousClose = Number.isFinite(Number(previousClose)) ? Number(previousClose) : null;
+  const exchangePreviousClose = nullableFiniteNumber(previousClose);
 
   for (const row of validRecentRows) {
     const hasDailyRow = byDate.has(row.date);
@@ -161,7 +169,7 @@ function hydrate(raw, errors = {}) {
     const quoteHistory = Array.isArray(quote.history) ? quote.history : [];
     const quoteLatestMarketDate = quote.latestMarketDate || quoteHistory.at(-1)?.date || null;
     const today = dateInIstanbul(now());
-    const quotePreviousClose = Number.isFinite(Number(quote.previousClose)) ? Number(quote.previousClose) : null;
+    const quotePreviousClose = nullableFiniteNumber(quote.previousClose);
     const history = mergeHistoryRows(baseHistory, quoteHistory, {
       latestMarketDate: quoteLatestMarketDate,
       today,
@@ -184,7 +192,7 @@ function hydrate(raw, errors = {}) {
       offerDates: ipo.offerDates || null,
       sector: chosenSector.sector,
       sectorSource: chosenSector.source,
-      currentPrice: Number.isFinite(Number(quote.current)) ? Number(quote.current) : null,
+      currentPrice: nullableFiniteNumber(quote.current),
       previousClose: quotePreviousClose,
       latestMarketDate,
       marketTime: quote.marketTime || null,

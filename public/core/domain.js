@@ -75,12 +75,19 @@ export function profitPct(profit, cost) {
   return Number(cost) > 0 ? (Number(profit) / Number(cost)) * 100 : 0;
 }
 
+function nullableFiniteNumber(value) {
+  if (value == null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function calculateHolding(holding, { today = null } = {}) {
   const initialLots = Number(holding.initialLots ?? holding.currentLots ?? 0);
   const currentLots = Number(holding.currentLots ?? 0);
-  const ipoPrice = Number.isFinite(Number(holding.ipoPrice)) && Number(holding.ipoPrice) > 0 ? Number(holding.ipoPrice) : null;
-  const currentPrice = Number.isFinite(Number(holding.currentPrice)) ? Number(holding.currentPrice) : null;
-  const previousClose = Number.isFinite(Number(holding.previousClose)) ? Number(holding.previousClose) : null;
+  const ipoPriceValue = nullableFiniteNumber(holding.ipoPrice);
+  const ipoPrice = ipoPriceValue != null && ipoPriceValue > 0 ? ipoPriceValue : null;
+  const currentPrice = nullableFiniteNumber(holding.currentPrice);
+  const previousClose = nullableFiniteNumber(holding.previousClose);
   const sales = Array.isArray(holding.sales) ? holding.sales : [];
 
   const invested = ipoPrice == null ? null : initialLots * ipoPrice;
@@ -164,7 +171,8 @@ function historyStateOnDate(holding, date) {
   let close = null;
   for (const row of rows) {
     if (!row?.date || row.date > date) break;
-    if (row.date >= start && Number.isFinite(Number(row.close))) close = Number(row.close);
+    const rowClose = nullableFiniteNumber(row.close);
+    if (row.date >= start && rowClose != null) close = rowClose;
   }
   if (close == null && date === start) close = ipoPrice;
   if (close == null) return null;
