@@ -1,4 +1,4 @@
-name: Apply Server Persistence Hardening
+name: Apply Server HTTP Hardening
 
 on:
   push:
@@ -19,22 +19,22 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Patch server persistence with exact guards
-        run: python .ci/apply-server-persistence.py
+      - name: Patch server HTTP handling with exact guards
+        run: python .ci/apply-server-http-hardening.py
       - run: npm ci
       - name: Server syntax check
         run: node --check server.js
-      - name: Durable persistence contract
-        run: node --test test/server-persistence.test.js
-      - name: Existing server security regressions
+      - name: Server HTTP security contract
         run: node --test test/server-security.test.js
+      - name: Server persistence regression
+        run: node --test test/server-persistence.test.js
       - name: Full regression suite
         run: npm test
-      - name: Commit verified server persistence integration
+      - name: Commit verified server HTTP hardening
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server.js
           git diff --cached --check
-          git commit -m "fix: serialize and durably persist portfolio mutations"
+          git commit -m "fix: harden server request parsing and timeouts"
           git push
