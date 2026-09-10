@@ -130,14 +130,33 @@ class HttpError extends Error {
   constructor(statusCode, message) { super(message); this.statusCode = statusCode; }
 }
 async function readBody(req){
-  let raw='';
+  const chunks=[];
+  let bytes=0;
   for await(const chunk of req){
-    raw+=chunk;
-    if(raw.length>131072) throw new HttpError(413,'İstek çok büyük.');
+    const buffer=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+    bytes+=buffer.length;
+    if(bytes>131072) throw new HttpError(413,'İstek çok büyük.');
+    chunks.push(buffer);
   }
-  if(!raw) return {};
+  if(bytes===0) return {};
+  const raw=Buffer.concat(chunks,bytes).toString('utf8');
   try { return JSON.parse(raw); }
   catch { throw new HttpError(400,'Geçersiz JSON gövdesi.'); }
+}
+function requestUrl(req){
+  const rawHost=req.headers.host;
+  if(rawHost!=null){
+    const host=String(rawHost).trim();
+    if(!host) throw new HttpError(400,'Geçersiz Host başlığı.');
+    try {
+      const parsedHost=new URL(`http://${host}`);
+      if(parsedHost.username||parsedHost.password||parsedHost.pathname!=='/'||parsedHost.search||parsedHost.hash)throw new Error('invalid host');
+    } catch {
+      throw new HttpError(400,'Geçersiz Host başlığı.');
+    }
+  }
+  try { return new URL(req.url||'/','http://localhost'); }
+  catch { throw new HttpError(400,'Geçersiz istek yolu.'); }
 }
 function authorized(req){if(!APP_PIN)return true;return String(req.headers['x-app-pin']||'')===APP_PIN;}
 async function portfolioResponse(){
@@ -158,8 +177,8 @@ async function serveStatic(req,res,url){
 }
 
 const server=http.createServer(async(req,res)=>{
-  const url=new URL(req.url,`http://${req.headers.host||'localhost'}`); const method=req.method||'GET';
   try{
+    const url=requestUrl(req); const method=req.method||'GET';
     if(url.pathname==='/api/health'&&method==='GET')return json(res,200,{ok:true,auth:Boolean(APP_PIN),now:new Date().toISOString()});
     if(url.pathname.startsWith('/api/')&&!authorized(req))return json(res,401,{error:'PIN_REQUIRED',message:'Uygulama PIN kodu gerekli.'});
     let m;
@@ -221,4 +240,7 @@ const server=http.createServer(async(req,res)=>{
     if(await serveStatic(req,res,url))return; res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});res.end('Bulunamadı');
   }catch(e){const status=Number.isInteger(e?.statusCode)?e.statusCode:500;if(status>=500)console.error(e);json(res,status,{error:e?.message||'Sunucu hatası.'});}
 });
+server.headersTimeout=10_000;
+server.requestTimeout=15_000;
+server.keepAliveTimeout=5_000;
 server.listen(PORT,'0.0.0.0',()=>console.log(`Halka Arz Portföyü: http://localhost:${PORT}`));
