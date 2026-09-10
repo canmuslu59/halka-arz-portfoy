@@ -21,7 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply pending Code23 fixes
-        if: github.event.head_commit.message == 'ci: execute code23 fix applicator'
+        if: github.event.head_commit.message == 'run-code23-fixes'
         run: |
           node apply-code23-fixes.mjs
           npm run android:sync
