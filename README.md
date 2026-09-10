@@ -134,3 +134,9 @@ gradle -p android --no-daemon assembleDebug
 ```
 
 Debug APK yerel olarak `android/app/build/outputs/apk/debug/app-debug.apk` altında oluşur. Bu debug paketi Phase 1 doğrulaması içindir; Play release/AAB paketi değildir.
+
+## Phase 2 release adayı — v2.4.0 / Code22
+
+Temiz Phase 1 kaynak ağacından oluşturulan release adayı **versionCode 22 / versionName 2.4.0** kimliğini kullanır. `release/v2.4.0-code22` dalındaki `Build v2.4.0 Release Candidate` akışı tam test paketini, Android varlık eşitliğini ve release Java derlemesini doğruladıktan sonra **imzasız** bir Android App Bundle üretir.
+
+Play Store'a gönderilecek nihai AAB bu imzasız aday değildir. Güncellemenin Play tarafından kabul edilmesi için daha önceki yayınlarda kullanılan **mevcut upload/private signing key** ile imzalanması gerekir. Release anahtarı veya parolası kaynak depoya eklenmemeli ve yeni bir upload anahtarı oluşturularak eski anahtarın yerine kullanılmamalıdır.
