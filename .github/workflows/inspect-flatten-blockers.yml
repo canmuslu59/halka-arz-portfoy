@@ -70,13 +70,27 @@ jobs:
           set -o pipefail
           npm test 2>&1 | tee /tmp/npm-test-2.txt
 
-      - name: Compile Android Java
+      - name: Critical parser notification navigation contracts
+        id: critical
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test \
+            test/parsers.test.js \
+            test/android-background-parser-regression.test.js \
+            test/android-notification-hardening.test.js \
+            test/android-notification-background-behavior.test.js \
+            test/navigation-contract.test.js \
+            2>&1 | tee /tmp/critical-contracts.txt
+
+      - name: Compile Android release Java
         id: compile
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          gradle -p android --no-daemon compileDebugJavaWithJavac 2>&1 | tee /tmp/android-compile.txt
+          gradle -p android --no-daemon compileReleaseJavaWithJavac 2>&1 | tee /tmp/android-compile.txt
 
       - name: Assemble debug
         id: assemble
@@ -86,6 +100,19 @@ jobs:
           set -o pipefail
           gradle -p android --no-daemon assembleDebug 2>&1 | tee /tmp/android-assemble.txt
 
+      - name: Verify Phase 1 source hygiene and release boundary
+        id: hygiene
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff --check 2>&1 | tee /tmp/source-hygiene.txt
+          if find android -type f -name '*.aab' -print -quit | grep -q .; then
+            echo 'Phase 1 must not produce an AAB' | tee -a /tmp/source-hygiene.txt
+            find android -type f -name '*.aab' -print | tee -a /tmp/source-hygiene.txt
+            exit 1
+          fi
+
       - name: Persist audit diagnostic
         if: always()
         shell: bash
@@ -93,8 +120,10 @@ jobs:
           TESTS1: ${{ steps.tests1.outcome }}
           ASSETS: ${{ steps.assets.outcome }}
           TESTS2: ${{ steps.tests2.outcome }}
+          CRITICAL: ${{ steps.critical.outcome }}
           COMPILE: ${{ steps.compile.outcome }}
           ASSEMBLE: ${{ steps.assemble.outcome }}
+          HYGIENE: ${{ steps.hygiene.outcome }}
         run: |
           set -euo pipefail
           mkdir -p .ci/current-audit
@@ -104,8 +133,10 @@ jobs:
             echo "tests1=$TESTS1"
             echo "assets=$ASSETS"
             echo "tests2=$TESTS2"
+            echo "critical=$CRITICAL"
             echo "compile=$COMPILE"
             echo "assemble=$ASSEMBLE"
+            echo "hygiene=$HYGIENE"
             echo
             echo "=== npm test #1 failures/summary ==="
             grep -E '^(not ok|# fail|# pass|# tests|# suites|# duration_ms)|AssertionError|ERR_ASSERTION|error:' /tmp/npm-test-1.txt 2>/dev/null || true
@@ -116,11 +147,17 @@ jobs:
             echo "=== asset sync tail ==="
             tail -n 80 /tmp/android-sync.txt 2>/dev/null || true
             echo
-            echo "=== compile tail ==="
+            echo "=== critical contracts tail ==="
+            tail -n 100 /tmp/critical-contracts.txt 2>/dev/null || true
+            echo
+            echo "=== release compile tail ==="
             tail -n 80 /tmp/android-compile.txt 2>/dev/null || true
             echo
             echo "=== assemble tail ==="
             tail -n 80 /tmp/android-assemble.txt 2>/dev/null || true
+            echo
+            echo "=== source hygiene tail ==="
+            tail -n 80 /tmp/source-hygiene.txt 2>/dev/null || true
           } > .ci/current-audit/latest.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -137,13 +174,17 @@ jobs:
           TESTS1: ${{ steps.tests1.outcome }}
           ASSETS: ${{ steps.assets.outcome }}
           TESTS2: ${{ steps.tests2.outcome }}
+          CRITICAL: ${{ steps.critical.outcome }}
           COMPILE: ${{ steps.compile.outcome }}
           ASSEMBLE: ${{ steps.assemble.outcome }}
+          HYGIENE: ${{ steps.hygiene.outcome }}
         run: |
           set -euo pipefail
-          printf 'tests1=%s assets=%s tests2=%s compile=%s assemble=%s\n' "$TESTS1" "$ASSETS" "$TESTS2" "$COMPILE" "$ASSEMBLE"
+          printf 'tests1=%s assets=%s tests2=%s critical=%s compile=%s assemble=%s hygiene=%s\n' "$TESTS1" "$ASSETS" "$TESTS2" "$CRITICAL" "$COMPILE" "$ASSEMBLE" "$HYGIENE"
           test "$TESTS1" = success
           test "$ASSETS" = success
           test "$TESTS2" = success
+          test "$CRITICAL" = success
           test "$COMPILE" = success
           test "$ASSEMBLE" = success
+          test "$HYGIENE" = success
