@@ -1,4 +1,4 @@
-name: Apply Background Worker Retry Hardening
+name: Apply Server Persistence Hardening
 
 on:
   push:
@@ -19,32 +19,22 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Patch worker retry and IPO-only scheduling with exact guards
-        run: python .ci/apply-worker-retry.py
+      - name: Patch server persistence with exact guards
+        run: python .ci/apply-server-persistence.py
       - run: npm ci
-      - name: Worker retry source contract
-        run: node --test test/android-worker-retry-policy.test.js
-      - name: Worker retry behavioral policy
-        run: |
-          rm -rf /tmp/background-retry-policy-test
-          mkdir -p /tmp/background-retry-policy-test
-          javac -d /tmp/background-retry-policy-test android/app/src/main/java/com/innative/halkaarz/BackgroundRetryPolicy.java .ci/BackgroundRetryPolicyHarness.java
-          java -cp /tmp/background-retry-policy-test com.innative.halkaarz.BackgroundRetryPolicyHarness
-      - name: Push config no-op regression
-        run: node --test test/android-push-config-noop.test.js
-      - name: Native notification regression
-        run: node --test test/android-notification-hardening.test.js
+      - name: Server syntax check
+        run: node --check server.js
+      - name: Durable persistence contract
+        run: node --test test/server-persistence.test.js
+      - name: Existing server security regressions
+        run: node --test test/server-security.test.js
       - name: Full regression suite
         run: npm test
-      - name: Commit verified worker hardening
+      - name: Commit verified server persistence integration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java
+          git add server.js
           git diff --cached --check
-          git commit -m "fix: classify background retries and preserve IPO-only alerts"
+          git commit -m "fix: serialize and durably persist portfolio mutations"
           git push
