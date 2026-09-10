@@ -32,6 +32,8 @@ jobs:
       - name: Install Android SDK 36
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
       - run: npm ci
       - name: Apply deterministic source edits
         run: node scripts/apply-phase1-native-hardening.mjs
@@ -42,8 +44,7 @@ jobs:
           node --test test/android-notification-hardening.test.js
           node --test test/code22-regression.test.js
       - name: Compile Android Java
-        working-directory: android
-        run: ./gradlew :app:compileDebugJavaWithJavac --stacktrace
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
       - name: Commit verified source and remove temporary applicator
         run: |
           git config user.name 'github-actions[bot]'
