@@ -1,0 +1,67 @@
+name: Apply Permission Result API Migration
+
+on:
+  push:
+    branches:
+      - release/v2.4.0-code22
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, '[run-permission-result-api]')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply guarded migration
+        run: python3 .ci/apply-permission-result-api.py
+      - name: Verify full regression suite
+        run: npm test
+      - name: Verify Android web assets remain exact
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+      - name: Compile release Java with deprecation lint
+        run: |
+          cat >/tmp/deprecation.init.gradle <<'EOF'
+          import org.gradle.api.tasks.compile.JavaCompile
+          allprojects {
+            tasks.withType(JavaCompile).configureEach {
+              options.compilerArgs += ['-Xlint:deprecation']
+            }
+          }
+          EOF
+          gradle -p android --no-daemon --rerun-tasks --init-script /tmp/deprecation.init.gradle compileReleaseJavaWithJavac 2>&1 | tee /tmp/deprecation.log
+          if grep -E 'MainActivity\.java:.*\[deprecation\]' /tmp/deprecation.log; then
+            echo 'MainActivity still contains deprecated API usage.' >&2
+            exit 1
+          fi
+      - name: Remove one-shot tooling and commit verified migration
+        run: |
+          rm -f .ci/apply-permission-result-api.py .github/workflows/apply-permission-result-api.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/com/innative/halkaarz/MainActivity.java test/android-lifecycle-hardening.test.js .ci/apply-permission-result-api.py .github/workflows/apply-permission-result-api.yml
+          git diff --cached --check
+          git commit -m "fix: modernize notification permission result flow"
+          git push origin HEAD:release/v2.4.0-code22
