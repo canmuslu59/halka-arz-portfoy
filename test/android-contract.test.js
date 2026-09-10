@@ -17,7 +17,10 @@ test('MainActivity exposes storage and HTTPS bridge methods', async () => {
   assert.match(java, /@JavascriptInterface\s+public void writePortfolio\(/s);
   assert.doesNotMatch(java, /@JavascriptInterface\s+public String httpGet\(/s);
   assert.match(java, /@JavascriptInterface\s+public void httpGetAsync\(String urlText, String requestId\)/s);
-  assert.match(java, /Executors\.newCachedThreadPool/);
+  assert.doesNotMatch(java, /Executors\.newCachedThreadPool/);
+  assert.match(java, /new ThreadPoolExecutor\(/);
+  assert.match(java, /new ArrayBlockingQueue<>\(128\)/);
+  assert.match(java, /new ThreadPoolExecutor\.AbortPolicy\(\)/);
   assert.match(java, /__nativeHttpResolve/);
   assert.match(java, /__nativeHttpReject/);
   assert.match(java, /"https"\.equalsIgnoreCase/);
