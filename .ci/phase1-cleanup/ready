@@ -3,3 +3,4 @@ retry-after-staging-repair
 retry-with-hash-verified-reconstruction
 retry-decode-each-chunk
 capture-reconstruction-diagnostic
+final-hash-gated-recovery
