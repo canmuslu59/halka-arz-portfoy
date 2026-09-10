@@ -78,7 +78,8 @@ test('README documents direct-source Android verification without retired releas
   assert.doesNotMatch(readme, /\.github\/workflows\/android-apk\.yml/);
   assert.doesNotMatch(readme, /Actions\s*[→>-]+\s*Build Android APK/i);
   assert.match(readme, /npm run android:sync/);
-  assert.match(readme, /compileDebugJavaWithJavac/);
+  assert.match(readme, /compileReleaseJavaWithJavac/);
+  assert.doesNotMatch(readme, /compileDebugJavaWithJavac/);
   assert.match(readme, /Audit Current Clean Source/);
   assert.match(readme, /Phase1 TDD Contracts/);
 });
