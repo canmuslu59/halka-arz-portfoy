@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Build;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 import java.util.Map;
@@ -57,9 +58,14 @@ final class NotificationHelper {
         return channel;
     }
 
-    static void show(Context context, Map<String, String> data) {
+    static boolean show(Context context, Map<String, String> data) {
+        if (Build.VERSION.SDK_INT >= 33
+                && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false;
+
         ensureChannels(context);
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
         String kind = value(data, "kind", "portfolio");
         String ticker = value(data, "ticker", "");
         String title = value(data, "title", "Halka Arz Portföyüm");
@@ -70,6 +76,15 @@ final class NotificationHelper {
         else if ("floor".equals(kind)) channel = CHANNEL_FLOOR;
         else if ("portfolio".equals(kind)) channel = CHANNEL_RISE;
         else channel = CHANNEL_MARKET;
+
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel notificationChannel = manager.getNotificationChannel(channel);
+            if (notificationChannel == null || notificationChannel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                return false;
+            }
+        }
 
         Intent intent = new Intent(context, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -86,8 +101,12 @@ final class NotificationHelper {
                 .setAutoCancel(true)
                 .setContentIntent(pending)
                 .setPriority(NotificationCompat.PRIORITY_HIGH);
-        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (manager != null) manager.notify(requestCode, builder.build());
+        try {
+            manager.notify(requestCode, builder.build());
+            return true;
+        } catch (RuntimeException | SecurityException error) {
+            return false;
+        }
     }
 
     private static String value(Map<String, String> data, String key, String fallback) {
