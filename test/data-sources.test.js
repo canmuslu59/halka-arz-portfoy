@@ -33,6 +33,21 @@ test('IPO source finds ticker on Ahlatcı and follows detail link', async () => 
   assert.ok(urls.some(url => url.includes('/halka-arz/test')));
 });
 
+test('IPO lookup does not report a confirmed miss when the first archive page failed', async () => {
+  const sources = createDataSources({
+    getJson: async () => ({}),
+    getText: async url => {
+      if (url.includes('sayfa=1')) throw new Error('temporary upstream failure');
+      return '<table></table>';
+    },
+  });
+
+  await assert.rejects(
+    () => sources.getIpo('NEWIPO'),
+    /eksik|başarısız|alınamadı|ulaşılamadı/i,
+  );
+});
+
 
 test('history source requests daily Yahoo rows beginning near IPO date', async () => {
   let seen = '';
