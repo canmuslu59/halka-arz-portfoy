@@ -1,0 +1,419 @@
+HEAD=e9f16bd35b55cd3e3190cad9d85f3e2a7eb16829
+tests1=failure
+assets=failure
+tests2=failure
+compile=failure
+assemble=failure
+
+=== npm test #1 failures/summary ===
+not ok 6 - Android Gradle config uses requested app id and SDK levels
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 17 - Android 36 build pins compatible AGP and AndroidX Core versions
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 4 - test/backend-service.test.js
+  error: 'test failed'
+not ok 26 - Play update identity advances to versionCode 21 / versionName 2.3.9
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 32 - Code21 invalidates old IPO calendar cache and advances Play identity
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 35 - background worker has native IPO fetch, de-dup state and notification permission guard
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 111 - theme toggle is restored to topbar and removed from Settings
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 118 - home screen exposes app version so installed APK can be verified
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 121 - code18 keeps Play identity monotonic and preserves Android 15/16 edge-to-edge
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+not ok 123 - 1 percent threshold emits exactly the newly reached stock and portfolio levels
+  error: |-
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+# tests 134
+# suites 0
+# pass 124
+# fail 10
+# duration_ms 2205.821767
+
+=== npm test #1 tail ===
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:16:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: BIST daily upper/lower limits use valid price-step rounding
+ok 122 - BIST daily upper/lower limits use valid price-step rounding
+  ---
+  duration_ms: 0.344951
+  type: 'test'
+  ...
+# Subtest: 1 percent threshold emits exactly the newly reached stock and portfolio levels
+not ok 123 - 1 percent threshold emits exactly the newly reached stock and portfolio levels
+  ---
+  duration_ms: 1.443968
+  type: 'test'
+  location: '/home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:35:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   1
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 1
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/test/v236-code18.test.js:41:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: tavan and taban are each notified only once per ticker per Istanbul day
+ok 124 - tavan and taban are each notified only once per ticker per Istanbul day
+  ---
+  duration_ms: 0.419684
+  type: 'test'
+  ...
+# Subtest: closed/non-current sessions do not create false tavan or taban alerts
+ok 125 - closed/non-current sessions do not create false tavan or taban alerts
+  ---
+  duration_ms: 0.292001
+  type: 'test'
+  ...
+# Subtest: native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
+ok 126 - native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
+  ---
+  duration_ms: 0.664342
+  type: 'test'
+  ...
+# Subtest: market notification channel is new and high importance for update installs
+ok 127 - market notification channel is new and high importance for update installs
+  ---
+  duration_ms: 0.343618
+  type: 'test'
+  ...
+# Subtest: floating dock has scroll-aware fade and boundary recovery behavior
+ok 128 - floating dock has scroll-aware fade and boundary recovery behavior
+  ---
+  duration_ms: 1.282245
+  type: 'test'
+  ...
+# Subtest: Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
+ok 129 - Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
+  ---
+  duration_ms: 19.359799
+  type: 'test'
+  ...
+# Subtest: Monday live quote cannot rewrite finalized Friday close or Friday P/L
+ok 130 - Monday live quote cannot rewrite finalized Friday close or Friday P/L
+  ---
+  duration_ms: 20.511927
+  type: 'test'
+  ...
+# Subtest: repeated Monday quote refreshes keep Friday history byte-for-byte stable
+ok 131 - repeated Monday quote refreshes keep Friday history byte-for-byte stable
+  ---
+  duration_ms: 2.65796
+  type: 'test'
+  ...
+# Subtest: next trading day official daily history wins over rolling quote revisions for Monday and Friday
+ok 132 - next trading day official daily history wins over rolling quote revisions for Monday and Friday
+  ---
+  duration_ms: 3.169442
+  type: 'test'
+  ...
+# Subtest: rolling quote still backfills a missing previous trading day without replacing an existing official row
+ok 133 - rolling quote still backfills a missing previous trading day without replacing an existing official row
+  ---
+  duration_ms: 1.088863
+  type: 'test'
+  ...
+# Subtest: exchange previousClose backfills a missing prior session more accurately than the last 5m candle
+ok 134 - exchange previousClose backfills a missing prior session more accurately than the last 5m candle
+  ---
+  duration_ms: 1.087841
+  type: 'test'
+  ...
+1..134
+# tests 134
+# suites 0
+# pass 124
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2205.821767
+
+=== asset sync tail ===
+-  function hydrate(raw, errors = {}) {
++
++let operationQueue = Promise.resolve();
++function serialize(task) {
++  const run = operationQueue.then(task, task);
++  operationQueue = run.then(() => undefined, () => undefined);
++  return run;
++}
++
++function hydrate(raw, errors = {}) {
+     const ipo = raw.ipoSnapshot || {};
+     const legacyMarket = raw.marketSnapshot || {};
+     const quote = raw.quoteSnapshot || legacyMarket;
+@@ -298,6 +320,7 @@ export function createPortfolioService({
+     if (!key || !Number.isInteger(lotCount) || lotCount <= 0) {
+       throw new Error('Hisse kodu ve 0’dan büyük tam lot sayısı gerekli.');
+     }
++    const normalizedFirstTradeDateOverride = optionalIsoDate(firstTradeDateOverride, 'İlk işlem tarihi');
+     const data = await repository.load();
+     if (data.holdings.some(item => cleanTicker(item.ticker) === key)) throw new Error(`${key} zaten portföyde.`);
+ 
+@@ -306,7 +329,7 @@ export function createPortfolioService({
+     const stamp = now().toISOString();
+     const localDate = dateInIstanbul(now());
+     const ipoData = ipoResult.status === 'fulfilled' ? ipoResult.value : null;
+-    const firstTradeDate = firstTradeDateOverride || ipoData?.firstTradeDate || null;
++    const firstTradeDate = normalizedFirstTradeDateOverride || ipoData?.firstTradeDate || null;
+     let historyResult = null;
+     let historyError = null;
+     if (firstTradeDate) {
+@@ -320,7 +343,7 @@ export function createPortfolioService({
+       currentLots: lotCount,
+       addedAt: stamp,
+       ipoPriceOverride: positiveNumber(ipoPriceOverride),
+-      firstTradeDateOverride: firstTradeDateOverride || null,
++      firstTradeDateOverride: normalizedFirstTradeDateOverride,
+       sectorOverride: null,
+       sales: [],
+       quoteSnapshot: { ...quoteResult.value, fetchedAt: stamp },
+@@ -354,7 +377,7 @@ export function createPortfolioService({
+       raw.ipoPriceOverride = patch.ipoPriceOverride === null ? null : Number(patch.ipoPriceOverride);
+     }
+     if (typeof patch.firstTradeDateOverride === 'string' || patch.firstTradeDateOverride === null) {
+-      raw.firstTradeDateOverride = patch.firstTradeDateOverride || null;
++      raw.firstTradeDateOverride = optionalIsoDate(patch.firstTradeDateOverride, 'İlk işlem tarihi');
+     }
+     if (typeof patch.sectorOverride === 'string' || patch.sectorOverride === null) {
+       raw.sectorOverride = patch.sectorOverride?.trim() || null;
+@@ -370,12 +393,13 @@ export function createPortfolioService({
+     if (index < 0) throw new Error('Kayıt bulunamadı.');
+     const raw = { ...data.holdings[index], sales: [...(data.holdings[index].sales || [])] };
+     const valid = validateSale(raw, lots, price);
++    const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
+     const stamp = now().toISOString();
+     raw.sales.push({
+       id: uuid(),
+       lots: valid.lots,
+       price: valid.price,
+-      date: date || dateInIstanbul(now()),
++      date: saleDate,
+       createdAt: stamp,
+     });
+     raw.currentLots = Number(raw.currentLots || 0) - valid.lots;
+@@ -430,5 +454,14 @@ export function createPortfolioService({
+     return hydrate(raw, errors);
+   }
+ 
+-  return { lookup, getPortfolio, refreshHistory, addHolding, updateHolding, addSale, deleteHolding, refreshHolding };
++  return {
++  lookup,
++  getPortfolio: (...args) => serialize(() => getPortfolio(...args)),
++  refreshHistory: (...args) => serialize(() => refreshHistory(...args)),
++  addHolding: (...args) => serialize(() => addHolding(...args)),
++  updateHolding: (...args) => serialize(() => updateHolding(...args)),
++  addSale: (...args) => serialize(() => addSale(...args)),
++  deleteHolding: (...args) => serialize(() => deleteHolding(...args)),
++  refreshHolding: (...args) => serialize(() => refreshHolding(...args)),
++};
+ }
+\ No newline at end of file
+
+=== compile tail ===
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=36
+to this project's gradle.properties.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig
+> Task :app:javaPreCompileDebug
+> Task :app:checkDebugAarMetadata FAILED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789048998672.json
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:checkDebugAarMetadata'.
+> Configuration `:app:debugRuntimeClasspath` contains AndroidX dependencies, but the `android.useAndroidX` property is not enabled, which may cause runtime issues.
+  Set `android.useAndroidX=true` in the `gradle.properties` file and retry.
+  The following AndroidX dependencies are detected:
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> androidx.annotation:annotation:1.10.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> androidx.annotation:annotation:1.10.0 -> androidx.annotation:annotation-jvm:1.10.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.annotation:annotation-experimental:1.4.1
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-base:18.1.0 -> androidx.collection:collection:1.6.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-base:18.1.0 -> androidx.collection:collection:1.6.0 -> androidx.collection:collection-jvm:1.6.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.firebase:firebase-common:21.0.0 -> androidx.concurrent:concurrent-futures:1.1.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.core:core-viewtree:1.0.0
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0 -> androidx.interpolator:interpolator:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-common:2.6.2
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.activity:activity-ktx:1.13.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.core:core-ktx:1.18.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2 -> androidx.arch.core:core-common:2.2.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2 -> androidx.arch.core:core-runtime:2.2.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.profileinstaller:profileinstaller:1.4.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1 -> androidx.tracing:tracing:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1 -> androidx.tracing:tracing:2.0.0 -> androidx.tracing:tracing-android:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.tracing:tracing-ktx:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.lifecycle:lifecycle-livedata:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.lifecycle:lifecycle-service:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.savedstate:savedstate:1.2.1
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.savedstate:savedstate:1.2.1 -> androidx.savedstate:savedstate-ktx:1.2.1
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.compose.runtime:runtime-annotation:1.9.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.compose.runtime:runtime-annotation:1.9.0 -> androidx.compose.runtime:runtime-annotation-android:1.9.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.viewpager:viewpager:1.0.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.viewpager:viewpager:1.0.0 -> androidx.customview:customview:1.0.0
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0 -> androidx.versionedparcelable:versionedparcelable:1.1.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.concurrent:concurrent-futures-ktx:1.1.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.room:room-common:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.sqlite:sqlite:2.4.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.sqlite:sqlite-framework:2.4.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.documentfile:documentfile:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.localbroadcastmanager:localbroadcastmanager:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.print:print:1.0.0
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 32s
+3 actionable tasks: 3 executed
+
+=== assemble tail ===
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=36
+to this project's gradle.properties.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata FAILED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789049032108.json
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:checkDebugAarMetadata'.
+> Configuration `:app:debugRuntimeClasspath` contains AndroidX dependencies, but the `android.useAndroidX` property is not enabled, which may cause runtime issues.
+  Set `android.useAndroidX=true` in the `gradle.properties` file and retry.
+  The following AndroidX dependencies are detected:
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> androidx.annotation:annotation:1.10.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> androidx.annotation:annotation:1.10.0 -> androidx.annotation:annotation-jvm:1.10.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.annotation:annotation-experimental:1.4.1
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-base:18.1.0 -> androidx.collection:collection:1.6.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-base:18.1.0 -> androidx.collection:collection:1.6.0 -> androidx.collection:collection-jvm:1.6.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.firebase:firebase-common:21.0.0 -> androidx.concurrent:concurrent-futures:1.1.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.core:core-viewtree:1.0.0
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0 -> androidx.interpolator:interpolator:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-common:2.6.2
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.activity:activity-ktx:1.13.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.core:core-ktx:1.18.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2 -> androidx.arch.core:core-common:2.2.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2 -> androidx.arch.core:core-runtime:2.2.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.profileinstaller:profileinstaller:1.4.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1 -> androidx.tracing:tracing:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.startup:startup-runtime:1.1.1 -> androidx.tracing:tracing:2.0.0 -> androidx.tracing:tracing-android:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.tracing:tracing-ktx:2.0.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.lifecycle:lifecycle-livedata:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-livedata-core:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.lifecycle:lifecycle-service:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.savedstate:savedstate:1.2.1
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0 -> androidx.lifecycle:lifecycle-viewmodel:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2 -> androidx.lifecycle:lifecycle-runtime-ktx:2.6.2 -> androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 -> androidx.savedstate:savedstate:1.2.1 -> androidx.savedstate:savedstate-ktx:1.2.1
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.compose.runtime:runtime-annotation:1.9.0
+  :app:debugRuntimeClasspath -> androidx.activity:activity:1.13.0 -> androidx.navigationevent:navigationevent:1.0.0 -> androidx.navigationevent:navigationevent-android:1.0.0 -> androidx.compose.runtime:runtime-annotation:1.9.0 -> androidx.compose.runtime:runtime-annotation-android:1.9.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.loader:loader:1.0.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.viewpager:viewpager:1.0.0
+  :app:debugRuntimeClasspath -> androidx.fragment:fragment:1.9.0 -> androidx.viewpager:viewpager:1.0.0 -> androidx.customview:customview:1.0.0
+  :app:debugRuntimeClasspath -> androidx.core:core:1.18.0 -> androidx.versionedparcelable:versionedparcelable:1.1.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.concurrent:concurrent-futures-ktx:1.1.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.room:room-common:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.sqlite:sqlite:2.4.0
+  :app:debugRuntimeClasspath -> androidx.work:work-runtime:2.10.1 -> androidx.room:room-ktx:2.6.1 -> androidx.room:room-common:2.6.1 -> androidx.room:room-runtime:2.6.1 -> androidx.sqlite:sqlite-framework:2.4.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.documentfile:documentfile:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.localbroadcastmanager:localbroadcastmanager:1.0.0
+  :app:debugRuntimeClasspath -> com.google.firebase:firebase-messaging:24.1.1 -> com.google.android.gms:play-services-stats:17.0.2 -> androidx.legacy:legacy-support-core-utils:1.0.0 -> androidx.print:print:1.0.0
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 12s
+3 actionable tasks: 1 executed, 2 up-to-date
