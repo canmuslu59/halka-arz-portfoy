@@ -1,4 +1,4 @@
-name: Export Current Clean Source
+name: Audit Current Clean Source
 
 on:
   workflow_dispatch:
@@ -12,27 +12,62 @@ permissions:
   contents: read
 
 jobs:
-  export:
+  audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
           ref: refactor/code22-clean-source-work2
-      - name: Export exact checked-in source
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Full tests #1
+        run: npm test
+
+      - name: Synchronize Android web assets
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
-          tar --exclude='.git' --exclude='node_modules' -czf /tmp/clean-source.tar.gz .
-          sha256sum /tmp/clean-source.tar.gz > /tmp/clean-source.sha256
-          cat /tmp/clean-source.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: clean-code22-source
-          path: |
-            /tmp/clean-source.tar.gz
-            /tmp/clean-source.sha256
-          if-no-files-found: error
-          retention-days: 7
+          git diff --exit-code -- public android/app/src/main/assets/www
+
+      - name: Full tests #2
+        run: npm test
+
+      - name: Compile Android Java
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
+
+      - name: Assemble debug
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Source hygiene snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "HEAD=$(git rev-parse HEAD)"
+          git status --short
+          git diff --check
