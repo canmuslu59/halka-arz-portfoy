@@ -1,0 +1,14 @@
+target sha256: 74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac
+staged parts: part00(10016), part00a(8984), part00b(9000), part01(13620)
+part00: normalized_chars=10016 mod4=0 head=H4sIAAAAAAAAA9Q7S3vbRpI5 tail=dpHj5/uE[...truncated...
+part00: standalone_decode=INVALID error=Error('Only base64 data is allowed')
+part00a: normalized_chars=8984 mod4=0 head=rzJbq5af4WkUqdadaYu6VJsv tail=jLRYN1n8HGPoY5spAy1FNQLj
+part00a: standalone_decode=OK bytes=6738 sha256=dddbc987dcd734bbd8e9bb39916bd2786b3f440e4fc4f17714e119e02de401a4 headhex=af325bab969fe16914a9d69d698bba54 tailhex=583759fc1c63e8639b29032d453502e3 gzip_magic=False
+part00b: normalized_chars=9000 mod4=0 head=zbP4/Vx6D9Y3M5yy4JMrC6tA tail=fyz9P5b+H0v/j6X/x9L/Y+n/
+part00b: standalone_decode=OK bytes=6750 sha256=a70f1114b06d9fd81766cd4aa31de5da4b944a9514ec8bd5f83128211bdeaa64 headhex=cdb3f8fd5c7a0fd637339cb2e0932b0b tailhex=fd3f96fe1f4bff8fa5ffc7d2ff63e9ff gzip_magic=False
+part01: normalized_chars=13620 mod4=0 head=sfT/WPp/LP0/lv4fS/+Ppf/H tail=5Wf5+ck//z/1wJclAFgCAA==
+part01: standalone_decode=OK bytes=10213 sha256=933e3dcb2a489cdc6be23931fcf4c3a53d47e0cd73c2272b8bbe47a9f4de2243 headhex=b1f4ff58fa7f2cfd3f96fe1f4bff8fa5 tailhex=e567f9f9c93fff3ff5c0972500580200 gzip_magic=False
+binary suffix->prefix overlaps:
+  part00b -> part01: 23 bytes
+attempts=64 joined_base64_decodable=9 binary_sequences_tested=15
+No staged reconstruction matched expected SHA-256
