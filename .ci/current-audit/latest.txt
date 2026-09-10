@@ -1,5 +1,5 @@
-EVENT_SHA=42d441bd0fade19fe00ea51928f57ef9f60482dc
-CHECKED_OUT_HEAD=42d441bd0fade19fe00ea51928f57ef9f60482dc
+EVENT_SHA=9f538cd8bca44d6ca8902cb173b4c7774c251fd1
+CHECKED_OUT_HEAD=9f538cd8bca44d6ca8902cb173b4c7774c251fd1
 tests1=success
 assets=success
 tests2=success
@@ -13,118 +13,118 @@ hygiene=success
 # suites 0
 # pass 182
 # fail 0
-# duration_ms 3645.149706
+# duration_ms 3574.358325
 
 === npm test #1 tail ===
-  duration_ms: 2.230591
+  duration_ms: 1.925764
   type: 'test'
   ...
 # Subtest: add holding flow keeps a stable form reference across await and always opens blank
 ok 165 - add holding flow keeps a stable form reference across await and always opens blank
   ---
-  duration_ms: 1.70919
+  duration_ms: 1.746709
   type: 'test'
   ...
 # Subtest: home screen exposes app version so installed APK can be verified
 ok 166 - home screen exposes app version so installed APK can be verified
   ---
-  duration_ms: 1.489762
+  duration_ms: 1.719018
   type: 'test'
   ...
 # Subtest: UI shows real market-data timestamp instead of only local refresh completion time
 ok 167 - UI shows real market-data timestamp instead of only local refresh completion time
   ---
-  duration_ms: 3.379779
+  duration_ms: 2.712427
   type: 'test'
   ...
 # Subtest: UI polls quotes frequently while BIST is open rather than once per minute
 ok 168 - UI polls quotes frequently while BIST is open rather than once per minute
   ---
-  duration_ms: 2.018706
+  duration_ms: 1.584044
   type: 'test'
   ...
 # Subtest: Android shell and bundled UI follow the current published Play identity
 ok 169 - Android shell and bundled UI follow the current published Play identity
   ---
-  duration_ms: 2.156383
+  duration_ms: 2.075694
   type: 'test'
   ...
 # Subtest: BIST daily upper/lower limits use valid price-step rounding
 ok 170 - BIST daily upper/lower limits use valid price-step rounding
   ---
-  duration_ms: 0.294788
+  duration_ms: 0.285033
   type: 'test'
   ...
 # Subtest: 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
 ok 171 - 1 percent threshold emits the newly reached portfolio level without ordinary stock alerts
   ---
-  duration_ms: 1.210182
+  duration_ms: 1.194515
   type: 'test'
   ...
 # Subtest: tavan and taban are each notified only once per ticker per Istanbul day
 ok 172 - tavan and taban are each notified only once per ticker per Istanbul day
   ---
-  duration_ms: 0.550685
+  duration_ms: 0.541745
   type: 'test'
   ...
 # Subtest: closed/non-current sessions do not create false tavan or taban alerts
 ok 173 - closed/non-current sessions do not create false tavan or taban alerts
   ---
-  duration_ms: 0.197648
+  duration_ms: 0.196928
   type: 'test'
   ...
 # Subtest: native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
 ok 174 - native fallback evaluates only fresh quotes, waits for permission, and routes limit taps to the stock
   ---
-  duration_ms: 0.69831
+  duration_ms: 0.698327
   type: 'test'
   ...
 # Subtest: market notification channel is new and high importance for update installs
 ok 175 - market notification channel is new and high importance for update installs
   ---
-  duration_ms: 0.301752
+  duration_ms: 0.303718
   type: 'test'
   ...
 # Subtest: floating dock has scroll-aware fade and boundary recovery behavior
 ok 176 - floating dock has scroll-aware fade and boundary recovery behavior
   ---
-  duration_ms: 1.281805
+  duration_ms: 1.275808
   type: 'test'
   ...
 # Subtest: Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
 ok 177 - Saturday refresh keeps finalized Friday daily close even if rolling 5m Friday candle differs
   ---
-  duration_ms: 19.720986
+  duration_ms: 19.449686
   type: 'test'
   ...
 # Subtest: Monday live quote cannot rewrite finalized Friday close or Friday P/L
 ok 178 - Monday live quote cannot rewrite finalized Friday close or Friday P/L
   ---
-  duration_ms: 20.430226
+  duration_ms: 20.215367
   type: 'test'
   ...
 # Subtest: repeated Monday quote refreshes keep Friday history byte-for-byte stable
 ok 179 - repeated Monday quote refreshes keep Friday history byte-for-byte stable
   ---
-  duration_ms: 2.745468
+  duration_ms: 2.754856
   type: 'test'
   ...
 # Subtest: next trading day official daily history wins over rolling quote revisions for Monday and Friday
 ok 180 - next trading day official daily history wins over rolling quote revisions for Monday and Friday
   ---
-  duration_ms: 3.125445
+  duration_ms: 3.137362
   type: 'test'
   ...
 # Subtest: rolling quote still backfills a missing previous trading day without replacing an existing official row
 ok 181 - rolling quote still backfills a missing previous trading day without replacing an existing official row
   ---
-  duration_ms: 1.153697
+  duration_ms: 1.14316
   type: 'test'
   ...
 # Subtest: exchange previousClose backfills a missing prior session more accurately than the last 5m candle
 ok 182 - exchange previousClose backfills a missing prior session more accurately than the last 5m candle
   ---
-  duration_ms: 1.115656
+  duration_ms: 1.116209
   type: 'test'
   ...
 1..182
@@ -135,7 +135,7 @@ ok 182 - exchange previousClose backfills a missing prior session more accuratel
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3645.149706
+# duration_ms 3574.358325
 
 === asset sync tail ===
 
@@ -149,91 +149,91 @@ Android assets synced: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/pub
 # Subtest: Android back is handled only for genuine app history above root
 ok 16 - Android back is handled only for genuine app history above root
   ---
-  duration_ms: 2.2036
+  duration_ms: 2.547869
   type: 'test'
   ...
 # Subtest: new navigation never inherits stale sheet/detail fields unless explicitly requested
 ok 17 - new navigation never inherits stale sheet/detail fields unless explicitly requested
   ---
-  duration_ms: 2.072967
+  duration_ms: 1.868978
   type: 'test'
   ...
 # Subtest: SPA wires tab, sheet, popstate and native back through navigation state helpers
 ok 18 - SPA wires tab, sheet, popstate and native back through navigation state helpers
   ---
-  duration_ms: 3.9936
+  duration_ms: 3.455908
   type: 'test'
   ...
 # Subtest: numTR handles Turkish decimal and thousands separators
 ok 19 - numTR handles Turkish decimal and thousands separators
   ---
-  duration_ms: 1.176438
+  duration_ms: 1.182554
   type: 'test'
   ...
 # Subtest: isoFromTurkishDate parses Turkish month names
 ok 20 - isoFromTurkishDate parses Turkish month names
   ---
-  duration_ms: 0.637326
+  duration_ms: 0.63607
   type: 'test'
   ...
 # Subtest: parseYahooChart returns current, previous close and history
 ok 21 - parseYahooChart returns current, previous close and history
   ---
-  duration_ms: 15.792943
+  duration_ms: 15.527792
   type: 'test'
   ...
 # Subtest: parseYahooChart rejects missing chart result
 ok 22 - parseYahooChart rejects missing chart result
   ---
-  duration_ms: 0.518384
+  duration_ms: 0.537095
   type: 'test'
   ...
 # Subtest: Ahlatcı parsers extract IPO price and first trade date
 ok 23 - Ahlatcı parsers extract IPO price and first trade date
   ---
-  duration_ms: 3.946893
+  duration_ms: 3.963799
   type: 'test'
   ...
 # Subtest: parseAhlatciList returns null when ticker is not in table
 ok 24 - parseAhlatciList returns null when ticker is not in table
   ---
-  duration_ms: 0.228224
+  duration_ms: 0.207599
   type: 'test'
   ...
 # Subtest: parseYahooChart derives previous close from the trading day before latest market date
 ok 25 - parseYahooChart derives previous close from the trading day before latest market date
   ---
-  duration_ms: 0.508235
+  duration_ms: 0.608589
   type: 'test'
   ...
 # Subtest: parseFintablesSector extracts company sector label
 ok 26 - parseFintablesSector extracts company sector label
   ---
-  duration_ms: 0.685876
+  duration_ms: 0.872994
   type: 'test'
   ...
 # Subtest: parseYahooChart uses latest completed row as previous close when today candle is not present yet
 ok 27 - parseYahooChart uses latest completed row as previous close when today candle is not present yet
   ---
-  duration_ms: 0.604093
+  duration_ms: 0.639297
   type: 'test'
   ...
 # Subtest: parseFintablesSector prefers actual sector links and ignores page navigation spam
 ok 28 - parseFintablesSector prefers actual sector links and ignores page navigation spam
   ---
-  duration_ms: 0.718637
+  duration_ms: 0.689831
   type: 'test'
   ...
 # Subtest: parseYahooChart prefers exchange previousClose when daily series skips the prior trading day
 ok 29 - parseYahooChart prefers exchange previousClose when daily series skips the prior trading day
   ---
-  duration_ms: 0.595297
+  duration_ms: 0.655828
   type: 'test'
   ...
 # Subtest: parseYahooChart collapses intraday candles into one row per Istanbul trading date and uses freshest tick
 ok 30 - parseYahooChart collapses intraday candles into one row per Istanbul trading date and uses freshest tick
   ---
-  duration_ms: 2.307954
+  duration_ms: 2.217591
   type: 'test'
   ...
 1..30
@@ -244,7 +244,7 @@ ok 30 - parseYahooChart collapses intraday candles into one row per Istanbul tra
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 354.366901
+# duration_ms 349.58288
 
 === release compile tail ===
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
@@ -270,10 +270,10 @@ Daemon will be stopped at the end of the build
 > Task :app:compileReleaseJavaWithJavac
 Note: /home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/app/src/main/java/com/innative/halkaarz/MainActivity.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789065573258.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/compile-1789065837036.json
 [Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 34s
+BUILD SUCCESSFUL in 37s
 16 actionable tasks: 16 executed
 
 === assemble tail ===
@@ -325,10 +325,10 @@ Note: Recompile with -Xlint:deprecation for details.
 > Task :app:packageDebug
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789065606906.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1789065873062.json
 [Incubating] Problems report is available at: file:///home/runner/work/halka-arz-portfoy/halka-arz-portfoy/android/build/reports/problems/problems-report.html
 
-BUILD SUCCESSFUL in 1m 9s
+BUILD SUCCESSFUL in 1m 8s
 33 actionable tasks: 33 executed
 
 === source hygiene tail ===
