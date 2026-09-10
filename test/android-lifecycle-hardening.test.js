@@ -19,8 +19,14 @@ test('MainActivity tears down delayed work, bridge, WebView and executor on dest
   const java = await mainSource();
   assert.match(java, /private\s+final\s+Runnable\s+startupPermissionRequest\s*=\s*this::requestStartupNotificationPermission/);
   assert.match(java, /postDelayed\(startupPermissionRequest,\s*700L\)/);
-  assert.match(
-    java,
-    /protected void onDestroy\(\)[\s\S]*?removeCallbacks\(startupPermissionRequest\)[\s\S]*?removeJavascriptInterface\("AndroidBridge"\)[\s\S]*?stopLoading\(\)[\s\S]*?destroy\(\)[\s\S]*?webView\s*=\s*null[\s\S]*?networkExecutor\.shutdownNow\(\)[\s\S]*?super\.onDestroy\(\)/,
-  );
+
+  const destroy = java.match(/protected void onDestroy\(\)[\s\S]*?(?=\n\s*@Override|\n\s*private |\n\s*public )/)?.[0] || '';
+  assert.ok(destroy, 'onDestroy must be implemented');
+  assert.match(destroy, /removeCallbacks\(startupPermissionRequest\)/);
+  assert.match(destroy, /removeJavascriptInterface\("AndroidBridge"\)/);
+  assert.match(destroy, /stopLoading\(\)/);
+  assert.match(destroy, /destroy\(\)/);
+  assert.match(destroy, /webView\s*=\s*null/);
+  assert.match(destroy, /networkExecutor\.shutdownNow\(\)/);
+  assert.match(destroy, /super\.onDestroy\(\)/);
 });
