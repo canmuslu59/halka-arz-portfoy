@@ -104,7 +104,7 @@ final class NotificationHelper {
         try {
             manager.notify(requestCode, builder.build());
             return true;
-        } catch (RuntimeException | SecurityException error) {
+        } catch (RuntimeException error) {
             return false;
         }
     }

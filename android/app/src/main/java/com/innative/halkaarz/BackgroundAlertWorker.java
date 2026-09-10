@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
@@ -44,6 +45,9 @@ public class BackgroundAlertWorker extends Worker {
         Context context = getApplicationContext();
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return Result.success();
+        }
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return Result.success();
         }
 
@@ -100,12 +104,14 @@ public class BackgroundAlertWorker extends Worker {
                 double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
 
                 if (quote.current >= ceiling - ceilingTolerance && !tickerLimits.optBoolean("ceiling", false)) {
-                    showLimitNotification(context, "ceiling", ticker);
-                    tickerLimits.put("ceiling", true);
+                    if (showLimitNotification(context, "ceiling", ticker)) {
+                        tickerLimits.put("ceiling", true);
+                    }
                 }
                 if (quote.current <= floor + floorTolerance && !tickerLimits.optBoolean("floor", false)) {
-                    showLimitNotification(context, "floor", ticker);
-                    tickerLimits.put("floor", true);
+                    if (showLimitNotification(context, "floor", ticker)) {
+                        tickerLimits.put("floor", true);
+                    }
                 }
                 limits.put(ticker, tickerLimits);
 
@@ -120,8 +126,9 @@ public class BackgroundAlertWorker extends Worker {
                     for (int index = 1; index <= reached; index++) {
                         double level = roundHalf(index * threshold);
                         if (portfolioDelivered.contains(level)) continue;
-                        showPortfolioNotification(context, level);
-                        portfolioDelivered.add(level);
+                        if (showPortfolioNotification(context, level)) {
+                            portfolioDelivered.add(level);
+                        }
                     }
                 }
             }
@@ -169,7 +176,7 @@ public class BackgroundAlertWorker extends Worker {
         return array;
     }
 
-    private static void showLimitNotification(Context context, String kind, String ticker) {
+    private static boolean showLimitNotification(Context context, String kind, String ticker) {
         Map<String, String> data = new HashMap<>();
         data.put("kind", kind);
         data.put("ticker", ticker);
@@ -180,16 +187,16 @@ public class BackgroundAlertWorker extends Worker {
             data.put("title", ticker + " taban yaptı");
             data.put("body", ticker + " bugün taban fiyatına ulaştı.");
         }
-        NotificationHelper.show(context, data);
+        return NotificationHelper.show(context, data);
     }
 
-    private static void showPortfolioNotification(Context context, double level) {
+    private static boolean showPortfolioNotification(Context context, double level) {
         Map<String, String> data = new HashMap<>();
         data.put("kind", "portfolio");
         data.put("ticker", "");
         data.put("title", "Portföy yükselişi");
         data.put("body", "Toplam portföy bugün +%" + formatLevel(level) + " seviyesini geçti.");
-        NotificationHelper.show(context, data);
+        return NotificationHelper.show(context, data);
     }
 
 
@@ -199,29 +206,46 @@ public class BackgroundAlertWorker extends Worker {
         try {
             JSONArray old = new JSONArray(prefs.getString(IPO_STATE_KEY, "[]"));
             for (int i = 0; i < old.length(); i++) {
-                String ticker = normalizeTicker(old.optString(i, ""));
-                if (!ticker.isEmpty()) seen.add(ticker);
+                String value = old.optString(i, "").trim();
+                if (!value.isEmpty()) seen.add(value);
             }
         } catch (Exception ignored) {}
 
         boolean changed = false;
         for (IpoCalendarParser.Entry entry : IpoCalendarParser.parse(html)) {
-            if (entry.ticker.isEmpty() || seen.contains(entry.ticker)) continue;
-            showIpoNotification(context, entry.ticker, entry.company, entry.offerDates);
-            seen.add(entry.ticker);
-            changed = true;
+            if (entry.ticker.isEmpty()) continue;
+            String eventKey = ipoEventKey(entry.ticker, entry.offerDates);
+            if (seen.contains(eventKey)) continue;
+
+            // Migrate the old ticker-only identity without replaying an already seen offering.
+            if (seen.remove(entry.ticker)) {
+                seen.add(eventKey);
+                changed = true;
+                continue;
+            }
+
+            if (showIpoNotification(context, entry.ticker, entry.company, entry.offerDates)) {
+                seen.add(eventKey);
+                changed = true;
+            }
         }
         if (changed) prefs.edit().putString(IPO_STATE_KEY, toJsonArrayStrings(seen).toString()).apply();
     }
 
-    private static void showIpoNotification(Context context, String ticker, String company, String dates) {
+    private static String ipoEventKey(String ticker, String offerDates) {
+        String normalizedTicker = normalizeTicker(ticker);
+        String normalizedDates = String.valueOf(offerDates == null ? "" : offerDates).trim().replaceAll("\\s+", " ");
+        return normalizedTicker + "|" + normalizedDates;
+    }
+
+    private static boolean showIpoNotification(Context context, String ticker, String company, String dates) {
         Map<String, String> data = new HashMap<>();
         data.put("kind", "ipo");
         data.put("ticker", ticker);
         data.put("title", "Halka arz: " + ticker);
         String cleanCompany = company == null || company.trim().isEmpty() ? ticker : company.trim();
         data.put("body", cleanCompany + (dates.isEmpty() ? " halka arz takvimine eklendi." : " için talep tarihleri: " + dates + "."));
-        NotificationHelper.show(context, data);
+        return NotificationHelper.show(context, data);
     }
 
     private static JSONArray toJsonArrayStrings(Set<String> values) {
