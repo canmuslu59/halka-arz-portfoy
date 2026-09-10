@@ -101,36 +101,36 @@ Bedelsiz sermaye artırımı, temettü, ek alım, komisyon/vergi gibi olaylar bu
 
 Uygulama kişisel portföy takibi içindir; yatırım tavsiyesi üretmez. Ücretsiz piyasa kaynakları gecikmeli veya eksik veri sunabilir.
 
+## Android doğrudan kaynak yapısı
 
-## Android APK sürümü
+`android/` klasörü, Node.js sunucusuna ihtiyaç duymayan bağımsız Android uygulamasının doğrudan kaynak kodudur. Android kaynakları artık eski sürüm delta/transform dosyaları çalıştırılarak yeniden oluşturulmaz. Üretim web kaynağı `public/` klasörüdür; Android içindeki `android/app/src/main/assets/www/` kopyası `npm run android:sync` ile bu kaynaktan senkronize edilir.
 
-`android/` klasörü, Node.js sunucusuna ihtiyaç duymayan bağımsız Android uygulamasıdır. Portföy cihazdaki `SharedPreferences` alanında saklanır; Android otomatik yedeklemesi kapalıdır. Uygulama, BIST ve halka arz verisini doğrudan HTTPS üzerinden yeniler ve internet olmadığında son kaydedilmiş verileri göstermeye devam eder.
+Portföy Android cihazdaki yerel depolamada tutulur ve Android otomatik yedeklemesi kapalıdır. Uygulama piyasa ve halka arz verilerini gerekli HTTPS veri kaynaklarından yeniler; ağ sorunu olduğunda mevcut son geçerli verileri korumaya çalışır. Web ve Android portföyleri arasında otomatik kullanıcı-verisi senkronizasyonu yoktur.
 
-### GitHub Actions ile APK üretme
+### Phase 1 doğrulaması
 
-Projeyi bir GitHub deposuna gönderdiğinizde `.github/workflows/android-apk.yml` otomatik olarak debug APK oluşturur. GitHub'da **Actions → Build Android APK → Run workflow** yolunu kullanın. Build tamamlandığında **halka-arz-portfoy-apk** adlı artifact içindeki `halka-arz-portfoy.apk` dosyasını telefona indirip kurabilirsiniz.
+Bu aşamada son yayımlanmış Play kimliği korunur: **versionCode 21 / versionName 2.3.9**. Phase 1 doğrulaması Play Store'a gönderilecek imzalı release veya AAB üretmez.
 
-Workflow; Node.js testlerini çalıştırır, Android SDK 35 ve build-tools 35.0.0 kurar, web varlıklarını Android uygulamasına senkronlar ve Gradle 8.11.1 ile `assembleDebug` çalıştırır. V2 ile birlikte debug APK, projedeki sabit `halkaarz-debug.keystore` ile imzalanır; böylece bu sürümden sonraki APK dosyaları mevcut uygulamanın üstüne güncelleme olarak kurulabilir. Bu anahtar kişisel/sideload kullanım içindir; Play Store yayını için ayrı ve gizli bir release anahtarı kullanılmalıdır.
+GitHub Actions içindeki **Phase1 TDD Contracts** odaklı davranış kontratlarını; **Audit Current Clean Source** ise doğrudan kaynak ağacını uçtan uca doğrular. Full audit iki test geçişini, `public/` ile Android web varlıklarının birebir eşitliğini, Android Java derlemesini ve debug derleme kontrolünü içerir. Play için imzalı nihai paketleme ayrı release aşamasında yapılır.
 
-### Android Studio / yerel Gradle ile derleme
+### Yerel Android doğrulaması
 
-Android SDK 35, build-tools 35.0.0, Java 17 ve Gradle 8.11.1 kurulu bir bilgisayarda:
+CI ile aynı doğrulama ortamı için Node.js 22, Java 17, Android SDK 36 ve Gradle 8.11.1 kullanılır. Kaynak ve Android web varlıklarını doğrulamak için:
 
 ```bash
 npm ci
 npm test
 npm run android:sync
+diff -qr public android/app/src/main/assets/www
+gradle -p android --no-daemon compileDebugJavaWithJavac
+```
+
+Windows'ta `diff -qr` yerine Git ile senkronizasyon sonrasında `android/app/src/main/assets/www` altında beklenmeyen değişiklik olmadığını kontrol edebilirsiniz.
+
+Cihazda geliştirme amaçlı debug APK gerekiyorsa ayrıca:
+
+```bash
 gradle -p android --no-daemon assembleDebug
 ```
 
-APK şu konumda oluşur:
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-### Samsung S22 Ultra'ya kurma
-
-APK'yı telefona aktarın ve dosyayı açın. Android isterse APK'yı açtığınız uygulama için **Bilinmeyen uygulamaları yükle** iznini verin. Ardından **Yükle** seçeneğine dokunun. Uygulama 360–430 px mobil genişlikler, ekran çentiği/safe-area ve S22 Ultra sınıfı ekranlar için responsive hazırlanmıştır.
-
-> Veriler yalnızca cihazda tutulur; web sürümüyle otomatik senkronizasyon yoktur. Önceki V1 APK geçici GitHub debug anahtarıyla imzalandıysa V2 ilk kurulumunda imza uyuşmazlığı nedeniyle eski uygulamayı kaldırmak gerekebilir. V2 kurulduktan sonra sabit imza anahtarı sayesinde sonraki güncellemeler üstüne kurulabilir. Eski uygulamayı kaldırmadan önce hisse kodu/lot ve varsa satış kayıtlarını not edin.
+Debug APK yerel olarak `android/app/build/outputs/apk/debug/app-debug.apk` altında oluşur. Bu debug paketi Phase 1 doğrulaması içindir; Play release/AAB paketi değildir.
