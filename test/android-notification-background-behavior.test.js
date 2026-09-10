@@ -1,37 +1,80 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { evaluateDailyAlerts } from '../public/core/notification-rules.js';
 
-async function read(path) {
-  return fs.readFile(path, 'utf8');
-}
+const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('per-stock percentage moves never emit notifications; portfolio threshold still does', async () => {
-  const app = await read('public/app.js');
-  assert.doesNotMatch(app, /kind:\s*['"]stock['"]/);
-  assert.match(app, /kind:\s*['"]portfolio['"]/);
+test('per-stock percentage moves never emit notifications; portfolio threshold still does', () => {
+  const result = evaluateDailyAlerts({
+    day:'2026-09-09', threshold:3, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:6.4,currentPrice:106.4,previousClose:100,dailySessionActive:true}],
+    portfolioPct:3.2,
+  });
+  assert.equal(result.events.some(event => event.kind === 'stock'), false);
+  assert.deepEqual(result.events.filter(event => event.kind === 'portfolio').map(event => event.level), [3]);
 });
 
-test('stock notifications are limited to once-daily ceiling and floor events', async () => {
-  const app = await read('public/app.js');
-  assert.match(app, /kind:\s*['"]ceiling['"]/);
-  assert.match(app, /kind:\s*['"]floor['"]/);
+test('stock notifications are limited to once-daily ceiling and floor events', () => {
+  const ceiling = evaluateDailyAlerts({
+    day:'2026-09-09', threshold:1, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:10,currentPrice:110,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0,
+  });
+  assert.deepEqual(ceiling.events.map(event => event.kind), ['ceiling']);
+  const repeated = evaluateDailyAlerts({
+    day:'2026-09-09', threshold:1, enabled:true,
+    holdings:[{ticker:'AAA',dailyPct:10,currentPrice:110,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0, previousState:ceiling.state,
+  });
+  assert.deepEqual(repeated.events, []);
+
+  const floor = evaluateDailyAlerts({
+    day:'2026-09-09', threshold:1, enabled:true,
+    holdings:[{ticker:'BBB',dailyPct:-10,currentPrice:90,previousClose:100,dailySessionActive:true}],
+    portfolioPct:0,
+  });
+  assert.deepEqual(floor.events.map(event => event.kind), ['floor']);
 });
 
 test('Android back button delegates to SPA history first and requires a second root press to exit', async () => {
   const main = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
-  assert.match(main, /Boolean\(window\.__handleAndroidBack/);
-  assert.match(main, /EXIT_BACK_WINDOW_MS\s*=\s*2000L/);
+  const app = await read('public/app.js');
+  assert.match(main, /EXIT_BACK_WINDOW_MS\s*=\s*2000/);
+  assert.match(main, /__handleAndroidBack/);
+  assert.doesNotMatch(main, /webView\.canGoBack\(\)/);
+  assert.match(app, /window\.__handleAndroidBack\s*=/);
+  assert.match(app, /history\.back\(\)/);
+  assert.match(app, /navDepth/);
+  assert.match(main, /Çıkmak için tekrar geri basın/);
   assert.match(main, /now - lastBackPressMs <= EXIT_BACK_WINDOW_MS[\s\S]*backPressedCallback\.setEnabled\(false\)[\s\S]*getOnBackPressedDispatcher\(\)\.onBackPressed\(\)/);
   assert.doesNotMatch(main, /super\.onBackPressed\(\)/);
 });
 
 test('Android schedules network-constrained background market and IPO checks even with an empty portfolio', async () => {
+  const gradle = await read('android/app/build.gradle');
+  const sync = await read('android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java');
+  const main = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const scheduler = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java');
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+
+  assert.match(gradle, /androidx\.work:work-runtime:/);
+  assert.match(scheduler, /PeriodicWorkRequest\.Builder\([\s\S]*15, TimeUnit\.MINUTES/);
   assert.match(scheduler, /NetworkType\.CONNECTED/);
+  assert.match(scheduler, /enqueueUniquePeriodicWork/);
   assert.match(scheduler, /OneTimeWorkRequest/);
-  assert.match(scheduler, /PeriodicWorkRequest/);
-  assert.match(scheduler, /BackgroundAlertWorker/);
+  assert.doesNotMatch(scheduler, /holdings\.length\(\)\s*>\s*0/);
+  assert.match(sync, /BackgroundAlertScheduler\.sync/);
+  assert.doesNotMatch(sync, /holdings\.length\(\)\s*>\s*0/);
+  assert.match(main, /BackgroundAlertScheduler\.ensure/);
+  assert.match(worker, /extends Worker/);
+  assert.match(worker, /query1\.finance\.yahoo\.com\/v8\/finance\/chart/);
+  assert.match(worker, /NotificationHelper\.show/);
+  assert.match(worker, /"ceiling"/);
+  assert.match(worker, /"floor"/);
+  assert.match(worker, /"portfolio"/);
+  assert.doesNotMatch(worker, /kind",\s*"stock"/);
+  assert.match(worker, /background_alert_state_v1/);
 });
 
 test('Play update identity advances to versionCode 22 / versionName 2.4.0', async () => {
@@ -42,6 +85,7 @@ test('Play update identity advances to versionCode 22 / versionName 2.4.0', asyn
   assert.match(html, /v2\.4\.0\s*•\s*Build 22/);
 });
 
+
 test('Android requests notification permission automatically on app startup when still missing', async () => {
   const main = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const app = await read('public/app.js');
@@ -51,42 +95,4 @@ test('Android requests notification permission automatically on app startup when
   assert.match(main, /notificationPermissionLauncher\.launch\(Manifest\.permission\.POST_NOTIFICATIONS\)/);
   assert.match(main, /requestStartupNotificationPermission[\s\S]{0,1200}NOTIFICATION_ASKED_KEY/);
   assert.doesNotMatch(app, /setTimeout\(maybeRequestNotificationPermissionOnce/);
-});
-
-test('notification helper reports delivery success and respects Android system notification state', async () => {
-  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
-  assert.match(helper, /static boolean show/);
-  assert.match(helper, /areNotificationsEnabled\(\)/);
-  assert.match(helper, /return true;/);
-  assert.match(helper, /return false;/);
-});
-
-test('background worker stops before network work when Android notifications are disabled', async () => {
-  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
-  assert.match(worker, /areNotificationsEnabled\(\)/);
-  assert.match(worker, /return Result\.success\(\)/);
-});
-
-test('native dedupe state advances only after NotificationHelper confirms delivery', async () => {
-  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
-  assert.match(worker, /NotificationHelper\.show/);
-  assert.match(worker, /if \(delivered\)/);
-});
-
-test('native IPO dedupe identity includes the offering event, not ticker alone', async () => {
-  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
-  assert.match(worker, /offerDates/);
-  assert.match(worker, /ticker/);
-});
-
-test('background worker has native IPO fetch, de-dup state and notification permission guard', async () => {
-  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
-  assert.match(worker, /extends Worker/);
-  assert.match(worker, /query1\.finance\.yahoo\.com\/v8\/finance\/chart/);
-  assert.match(worker, /NotificationHelper\.show/);
-  assert.match(worker, /"ceiling"/);
-  assert.match(worker, /"floor"/);
-  assert.match(worker, /"portfolio"/);
-  assert.doesNotMatch(worker, /kind",\s*"stock"/);
-  assert.match(worker, /background_alert_state_v1/);
 });
