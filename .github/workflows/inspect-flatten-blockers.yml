@@ -7,6 +7,7 @@ on:
       - refactor/code22-clean-source-work2
     paths:
       - .github/workflows/inspect-flatten-blockers.yml
+      - .ci/current-audit/trigger
 
 permissions:
   contents: write
