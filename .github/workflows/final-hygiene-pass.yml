@@ -1,0 +1,99 @@
+name: Final Phase1 Hygiene Pass
+
+on:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - '.github/workflows/final-hygiene-pass.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Guard hygiene assumptions
+        run: |
+          test -f test/code19-behavior.test.js
+          test -f test/code21-behavior.test.js
+          test -f test/code22-regression.test.js
+          test -f test/v236-code18.test.js
+          test -f android/app/halkaarz-debug.keystore
+          if git grep -n 'halkaarz-debug.keystore' -- ':!.github/workflows/final-hygiene-pass.yml'; then
+            echo 'debug keystore is still referenced by active source/docs'
+            exit 1
+          fi
+      - name: Normalize test names and remove unused debug key
+        run: |
+          git mv test/code19-behavior.test.js test/android-notification-background-behavior.test.js
+          git mv test/code21-behavior.test.js test/data-cache-notification-behavior.test.js
+          git mv test/code22-regression.test.js test/android-background-parser-regression.test.js
+          git mv test/v236-code18.test.js test/ui-market-notification-regression.test.js
+          rm android/app/halkaarz-debug.keystore
+          cat > .gitignore <<'EOF'
+          # Dependencies and generated output
+          node_modules/
+          android/.gradle/
+          android/**/build/
+          android/local.properties
+
+          # Signing material must stay local/private
+          *.keystore
+          *.jks
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/phase1-tdd.yml')
+          text = workflow.read_text()
+          old = "      - 'test/code19-behavior.test.js'"
+          new = "      - 'test/android-notification-background-behavior.test.js'\n      - 'test/data-cache-notification-behavior.test.js'\n      - 'test/android-background-parser-regression.test.js'\n      - 'test/ui-market-notification-regression.test.js'"
+          if text.count(old) != 1:
+              raise SystemExit('Phase1 TDD old behavior-test path did not match exactly once')
+          workflow.write_text(text.replace(old, new))
+
+          regression = Path('test/ui-market-notification-regression.test.js')
+          text = regression.read_text()
+          old = "test('historical edge-to-edge regression follows the current published Play identity', () => {"
+          new = "test('Android shell and bundled UI follow the current published Play identity', () => {"
+          if text.count(old) != 1:
+              raise SystemExit('historical test title did not match exactly once')
+          regression.write_text(text.replace(old, new))
+          PY
+      - name: Verify version-agnostic test surface
+        run: |
+          test ! -e test/code19-behavior.test.js
+          test ! -e test/code21-behavior.test.js
+          test ! -e test/code22-regression.test.js
+          test ! -e test/v236-code18.test.js
+          test ! -e android/app/halkaarz-debug.keystore
+          test -f .gitignore
+          ! git grep -n -E 'test/(code19-behavior|code21-behavior|code22-regression|v236-code18)\.test\.js' -- ':!.github/workflows/final-hygiene-pass.yml'
+      - run: npm ci
+      - name: Full regression suite
+        run: npm test
+      - name: Verify Android assets remain exact
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+      - name: Verify patch hygiene
+        run: git diff --check
+      - name: Commit verified hygiene changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'chore: normalize regression names and remove unused debug key'
+          git push origin HEAD:refactor/code22-clean-source-work2
