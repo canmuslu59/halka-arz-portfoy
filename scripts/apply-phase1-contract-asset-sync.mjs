@@ -10,6 +10,12 @@ function replaceOnce(text, before, after, label) {
 const indexPath = 'public/index.html';
 let html = fs.readFileSync(indexPath, 'utf8');
 html = replaceOnce(html, 'v2.4.0 • Build 22', 'v2.3.9 • Build 21', 'Phase1 visible build identity');
+html = replaceOnce(
+  html,
+  '<small class="build-info">Halka Arz Portföyüm<br />v2.3.9 • Build 21</small>',
+  '<small id="appVersion" class="build-info">Halka Arz Portföyüm<br />v2.3.9 • Build 21</small>',
+  'appVersion DOM hook'
+);
 fs.writeFileSync(indexPath, html);
 
 const legacyPath = 'test/v236-code18.test.js';
@@ -31,4 +37,9 @@ legacy = replaceOnce(
 );
 fs.writeFileSync(legacyPath, legacy);
 
-console.log('Updated Phase1 visible identity and historical regression contract.');
+const uiPath = 'test/ui-contract.test.js';
+let ui = fs.readFileSync(uiPath, 'utf8');
+ui = replaceOnce(ui, 'assert.match(html, /v2\\.0\\.5/);', 'assert.match(html, /v2\\.3\\.9 • Build 21/);', 'current visible version UI contract');
+fs.writeFileSync(uiPath, ui);
+
+console.log('Updated Phase1 visible identity, DOM hook and historical regression contracts.');
