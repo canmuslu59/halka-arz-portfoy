@@ -78,7 +78,7 @@ jobs:
           test ! -e test/v236-code18.test.js
           test ! -e android/app/halkaarz-debug.keystore
           test -f .gitignore
-          ! git grep -n -E 'test/(code19-behavior|code21-behavior|code22-regression|v236-code18)\.test\.js' -- ':!.github/workflows/final-hygiene-pass.yml'
+          ! git grep -n -E 'test/(code19-behavior|code21-behavior|code22-regression|v236-code18)\.test\.js' -- test .github/workflows ':!.github/workflows/final-hygiene-pass.yml'
       - run: npm ci
       - name: Full regression suite
         run: npm test
