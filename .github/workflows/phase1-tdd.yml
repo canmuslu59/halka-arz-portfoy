@@ -7,9 +7,11 @@ on:
     paths:
       - 'test/android-contract.test.js'
       - 'test/android-build-hardening.test.js'
+      - 'test/android-network-policy.test.js'
       - 'test/android-notification-hardening.test.js'
       - 'test/android-push-config-noop.test.js'
       - 'test/backend-service.test.js'
+      - '.ci/NativeHttpPolicyHarness.java'
       - 'backend/service.js'
       - 'backend/alert-engine.js'
       - 'public/core/notification-rules.js'
@@ -19,6 +21,7 @@ on:
       - 'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java'
       - 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java'
       - 'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
+      - 'android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java'
       - 'android/app/src/main/java/com/innative/halkaarz/MainActivity.java'
       - '.github/workflows/phase1-tdd.yml'
   workflow_dispatch:
@@ -35,11 +38,23 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm ci
       - name: Android build contract
         run: node --test test/android-build-hardening.test.js
       - name: Android bridge contract
         run: node --test test/android-contract.test.js
+      - name: Native HTTP source policy contract
+        run: node --test test/android-network-policy.test.js
+      - name: Native HTTP behavioral policy harness
+        run: |
+          rm -rf /tmp/native-http-policy-test
+          mkdir -p /tmp/native-http-policy-test
+          javac -d /tmp/native-http-policy-test android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java .ci/NativeHttpPolicyHarness.java
+          java -cp /tmp/native-http-policy-test com.innative.halkaarz.NativeHttpPolicyHarness
       - name: Push backend service contract
         run: node --test test/backend-service.test.js
       - name: Native notification hardening contract
