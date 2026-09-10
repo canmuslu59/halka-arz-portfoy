@@ -30,11 +30,13 @@ export function createDataSources({ getJson, getText }) {
     const key = cleanTicker(ticker);
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
     let found = null;
+    let scanIncomplete = false;
     try {
       const firstPage = await getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1');
       found = parseAhlatciList(firstPage, key);
     } catch {
-      // Continue with archive pages; a single page failure must not block lookup.
+      scanIncomplete = true;
+      // Continue with archive pages; another page may still contain the requested ticker.
     }
 
     if (!found) {
@@ -42,10 +44,17 @@ export function createDataSources({ getJson, getText }) {
         Array.from({ length: 11 }, (_, index) => getText(`https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=${index + 2}`)),
       );
       for (const page of pages) {
-        if (page.status !== 'fulfilled') continue;
+        if (page.status !== 'fulfilled') {
+          scanIncomplete = true;
+          continue;
+        }
         found = parseAhlatciList(page.value, key);
         if (found) break;
       }
+    }
+
+    if (!found && scanIncomplete) {
+      throw new Error('Halka arz arşivi eksik tarandı; veri kaynağına tam ulaşılamadı.');
     }
 
     if (found?.detailUrl) {
