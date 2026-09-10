@@ -283,6 +283,7 @@ function hydrate(raw, errors = {}) {
       if (firstTradeDate) {
         const historyIsFresh = !force
           && nextRaw.historySnapshot?.fetchedLocalDate === localDate
+          && nextRaw.historySnapshot?.startDate === firstTradeDate
           && Array.isArray(nextRaw.historySnapshot?.history);
         if (!historyIsFresh) {
           try {
