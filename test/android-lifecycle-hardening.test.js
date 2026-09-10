@@ -30,3 +30,16 @@ test('MainActivity tears down delayed work, bridge, WebView and executor on dest
   assert.match(destroy, /networkExecutor\.shutdownNow\(\)/);
   assert.match(destroy, /super\.onDestroy\(\)/);
 });
+
+test('startup notification permission is automatic only before the first answer while settings can retry manually', async () => {
+  const java = await mainSource();
+  const startup = java.match(/private void requestStartupNotificationPermission\(\) \{[\s\S]*?\n    \}/)?.[0] || '';
+  assert.ok(startup, 'startup notification permission method must exist');
+  assert.match(startup, /getSharedPreferences\(PREFS, Context\.MODE_PRIVATE\)/);
+  assert.match(startup, /getBoolean\(NOTIFICATION_ASKED_KEY, false\)/);
+  assert.match(startup, /NOTIFICATION_ASKED_KEY[\s\S]*?return;/);
+
+  const bridgeRequest = java.match(/public void requestNotificationPermission\(\) \{[\s\S]*?\n        \}/)?.[0] || '';
+  assert.ok(bridgeRequest, 'manual notification permission bridge must exist');
+  assert.match(bridgeRequest, /requestPermissions\(new String\[\]\{Manifest\.permission\.POST_NOTIFICATIONS\}, NOTIFICATION_PERMISSION_REQUEST\)/);
+});
