@@ -47,6 +47,7 @@ public class MainActivity extends Activity {
     private static final String BACKUP_KEY = "portfolio_json_v1_backup";
     private static final String NOTIFICATION_ASKED_KEY = "notification_permission_asked_v1";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_REDIRECTS = 5;
     private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
     private static final ExecutorService NETWORK_EXECUTOR = new ThreadPoolExecutor(
@@ -297,23 +298,38 @@ public class MainActivity extends Activity {
         JSONObject envelope = new JSONObject();
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(urlText);
-            if (!"https".equalsIgnoreCase(url.getProtocol())) throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setRequestMethod("GET");
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
-            connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
-            connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
-            int status = connection.getResponseCode();
-            InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
-            String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
-            if (status < 200 || status >= 300) {
-                envelope.put("ok", false); envelope.put("status", status); envelope.put("error", "HTTP " + status);
-            } else {
-                envelope.put("ok", true); envelope.put("status", status); envelope.put("body", body);
+            URL url = NativeHttpPolicy.requireAllowed(urlText);
+            int redirectCount = 0;
+            while (true) {
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(12000);
+                connection.setRequestMethod("GET");
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
+                connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
+                connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
+                int status = connection.getResponseCode();
+
+                if (isRedirectStatus(status)) {
+                    if (redirectCount >= MAX_REDIRECTS) throw new IllegalStateException("Çok fazla yönlendirme.");
+                    String location = connection.getHeaderField("Location");
+                    URL nextUrl = NativeHttpPolicy.resolveRedirect(url, location);
+                    connection.disconnect();
+                    connection = null;
+                    url = nextUrl;
+                    redirectCount += 1;
+                    continue;
+                }
+
+                InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
+                String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
+                if (status < 200 || status >= 300) {
+                    envelope.put("ok", false); envelope.put("status", status); envelope.put("error", "HTTP " + status);
+                } else {
+                    envelope.put("ok", true); envelope.put("status", status); envelope.put("body", body);
+                }
+                break;
             }
         } catch (Exception error) {
             try {
@@ -324,6 +340,14 @@ public class MainActivity extends Activity {
             if (connection != null) connection.disconnect();
         }
         return envelope.toString();
+    }
+
+    private static boolean isRedirectStatus(int status) {
+        return status == HttpURLConnection.HTTP_MOVED_PERM
+                || status == HttpURLConnection.HTTP_MOVED_TEMP
+                || status == HttpURLConnection.HTTP_SEE_OTHER
+                || status == 307
+                || status == 308;
     }
 
     private static class LocalAssetClient extends WebViewClient {
