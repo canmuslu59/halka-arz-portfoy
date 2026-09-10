@@ -1,4 +1,4 @@
-name: Apply Navigation Integration
+name: Apply Android Lifecycle Hardening
 
 on:
   push:
@@ -19,62 +19,85 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Patch navigation integration with exact guards
+      - name: Patch MainActivity lifecycle with exact guards
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path('public/app.js')
+          path = Path('android/app/src/main/java/com/innative/halkaarz/MainActivity.java')
           text = path.read_text(encoding='utf-8')
           replacements = [
               (
-                  "import { createProAccess } from './core/pro-access.js';\n",
-                  "import { createProAccess } from './core/pro-access.js';\nimport { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';\n",
+                  '''    private static final ExecutorService NETWORK_EXECUTOR = new ThreadPoolExecutor(
+            4,
+            4,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(128),
+            new ThreadPoolExecutor.AbortPolicy()
+    );''',
+                  '''    private final ExecutorService networkExecutor = new ThreadPoolExecutor(
+            4,
+            4,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(128),
+            new ThreadPoolExecutor.AbortPolicy()
+    );
+    private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;''',
               ),
               (
-                  "window.__handleAndroidBack = () => {\n  const depth = Number(window.history.state?.navDepth || 0);\n  if (depth > 0) {\n    window.history.back();\n    return true;\n  }\n  return false;\n};",
-                  "window.__handleAndroidBack = () => {\n  if (!canHandleAppBack(window.history.state)) return false;\n  window.history.back();\n  return true;\n};",
+                  '        webView.postDelayed(this::requestStartupNotificationPermission, 700L);',
+                  '        webView.postDelayed(startupPermissionRequest, 700L);',
               ),
               (
-                  "window.history.pushState({ appRoot:true, view:next, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...(selectedTicker ? { selectedTicker } : {}) }, '', `${location.pathname}${location.search}${hash}`);",
-                  "window.history.pushState(nextNavigationState(window.history.state, { view:next, ...(selectedTicker ? { selectedTicker } : {}) }), '', `${location.pathname}${location.search}${hash}`);",
+                  '                NETWORK_EXECUTOR.execute(() -> {',
+                  '                networkExecutor.execute(() -> {',
               ),
               (
-                  "window.history.pushState({ appRoot:true, view:state.view, sheet:id, navDepth:Number(window.history.state?.navDepth || 0) + 1, ...navigation }, '', hash);",
-                  "window.history.pushState(nextNavigationState(window.history.state, { view:state.view, sheet:id, ...navigation }), '', hash);",
-              ),
-              (
-                  "if (!window.history.state?.appRoot) window.history.replaceState({ appRoot:true, view:'portfolio', navDepth:0 }, '', `${location.pathname}${location.search}`);",
-                  "if (!window.history.state?.appRoot) window.history.replaceState(createRootNavigationState('portfolio'), '', `${location.pathname}${location.search}`);",
-              ),
-              (
-                  "else if (!Number.isFinite(Number(window.history.state?.navDepth))) window.history.replaceState({ ...window.history.state, navDepth:0 }, '', location.href);",
-                  "else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(window.history.state.navDepth) < 0) window.history.replaceState(createRootNavigationState(window.history.state?.view || 'portfolio'), '', location.href);",
+                  '''    @Override
+    protected void onNewIntent(Intent intent) {''',
+                  '''    @Override
+    protected void onDestroy() {
+        WebView currentWebView = webView;
+        webView = null;
+        networkExecutor.shutdownNow();
+        if (currentWebView != null) {
+            currentWebView.removeCallbacks(startupPermissionRequest);
+            currentWebView.removeJavascriptInterface("AndroidBridge");
+            currentWebView.stopLoading();
+            currentWebView.destroy();
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {''',
               ),
           ]
 
           for old, new in replacements:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'guard failed: expected exactly one source match, got {count}: {old[:80]!r}')
+                  raise SystemExit(f'guard failed: expected exactly one source match, got {count}: {old[:90]!r}')
               text = text.replace(old, new, 1)
 
           path.write_text(text, encoding='utf-8')
           PY
       - run: npm ci
+      - name: Android lifecycle contract
+        run: node --test test/android-lifecycle-hardening.test.js
+      - name: Android bridge contract
+        run: node --test test/android-contract.test.js
       - name: Navigation contract
         run: node --test test/navigation-contract.test.js
-      - name: Full tests before asset sync
+      - name: Full regression suite
         run: npm test
-      - name: Sync Android web assets
-        run: npm run android:sync
-      - name: Full tests after asset sync
-        run: npm test
-      - name: Commit verified direct-source integration
+      - name: Commit verified lifecycle hardening
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/app.js android/app/src/main/assets/www
+          git add android/app/src/main/java/com/innative/halkaarz/MainActivity.java
           git diff --cached --check
-          git commit -m "refactor: centralize navigation history state"
+          git commit -m "fix: bind native network work to Activity lifecycle"
           git push
