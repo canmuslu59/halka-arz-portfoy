@@ -17,13 +17,17 @@
   <header class="topbar">
     <div class="shell topbar-inner">
       <div>
-        <div class="eyebrow">BIST • HALKA ARZ <span id="appVersion" class="app-version">v2.0.5</span></div>
-        <h1>Portföyüm</h1>
+        <div class="eyebrow">BIST • HALKA ARZ</div>
+        <h1 id="screenTitle">Portföyüm</h1>
       </div>
       <div class="topbar-actions">
         <div id="marketStatus" class="market-status closed" aria-live="polite">
           <strong>KAPALI</strong><span>Seans bilgisi yükleniyor</span>
         </div>
+        <button id="themeToggle" class="icon-btn theme-toggle" aria-label="Açık temaya geç" title="Tema">
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8 8 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg>
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+        </button>
         <button id="refreshBtn" class="icon-btn" aria-label="Verileri güncelle" title="Güncelle">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
         </button>
@@ -32,6 +36,7 @@
   </header>
 
   <main class="shell main">
+    <section id="portfolioView" class="app-view">
     <section class="hero-card" aria-labelledby="portfolioValueLabel">
       <div class="hero-topline">
         <span id="portfolioValueLabel" class="muted">Toplam portföy büyüklüğü</span>
@@ -40,28 +45,23 @@
       <div id="totalWealth" class="hero-value">₺0,00</div>
       <div class="hero-return-row">
         <span id="totalProfitBadge" class="pill neutral">₺0,00 · %0,00</span>
-        <span class="muted small">halka arzdan beri</span>
       </div>
       <div class="hero-grid">
         <div>
           <span class="metric-label">Bugün</span>
-          <strong id="dailyProfit">₺0,00</strong>
-          <small id="dailyPct">%0,00</small>
+          <div class="metric-value-row"><strong id="dailyProfit">₺0,00</strong><span id="dailyPct" class="metric-inline-value">%0,00</span></div>
         </div>
         <div>
           <span class="metric-label">Yatırılan</span>
           <strong id="invested">₺0,00</strong>
-          <small>ilk maliyet</small>
         </div>
         <div>
           <span class="metric-label">Aktif değer</span>
           <strong id="activeValue">₺0,00</strong>
-          <small>eldeki hisseler</small>
         </div>
         <div>
           <span class="metric-label">Satış nakdi</span>
           <strong id="salesProceeds">₺0,00</strong>
-          <small>gerçekleşen satış</small>
         </div>
       </div>
     </section>
@@ -84,13 +84,11 @@
         <div id="chartTooltip" class="chart-tooltip" hidden></div>
         <div id="chartEmpty" class="empty-chart">Hisse eklediğinde performans grafiği burada oluşacak.</div>
       </div>
-      <p class="chart-help">Grafiğe dokun: gün, portföy büyüklüğü ve kâr/zararı gör.</p>
     </section>
 
     <section class="section analytics-card">
       <div class="section-head">
         <div><span class="eyebrow">GÜNLÜK GELİŞİM</span><h2>Gün gün kâr / zarar</h2></div>
-        <span class="muted small">en yeni üstte</span>
       </div>
       <div id="dailyHistory" class="daily-history"></div>
     </section>
@@ -98,7 +96,6 @@
     <section id="sectorAllocation" class="section analytics-card">
       <div class="section-head">
         <div><span class="eyebrow">DAĞILIM</span><h2>Sektörler</h2></div>
-        <span class="muted small">aktif değer</span>
       </div>
       <div class="sector-layout">
         <div id="sectorDonut" class="sector-donut" aria-label="Sektör dağılımı"><span>—</span></div>
@@ -128,10 +125,84 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">↗</div>
         <h3>İlk hissenizi ekleyin</h3>
-        <p>Yalnızca BIST kodunu ve lot sayısını girin. Halka arz fiyatı, tarih ve güncel fiyat otomatik bulunur.</p>
       </div>
     </section>
+    </section>
+
+    <section id="calendarView" class="app-view" hidden>
+      <section class="view-hero">
+        <div>
+          <span class="eyebrow">ÜCRETSİZ</span>
+          <h2>Halka Arz Takvimi</h2>
+        </div>
+        <button id="calendarRefreshBtn" class="secondary-btn compact-btn" type="button">Yenile</button>
+      </section>
+      <div class="calendar-toolbar">
+        <span id="calendarStatus" class="muted small">Takvim henüz yüklenmedi.</span>
+        <select id="calendarFilter" class="select" aria-label="Halka arz durumunu filtrele">
+          <option value="all">Tümü</option>
+          <option value="active">Talepte</option>
+          <option value="upcoming">Yaklaşan</option>
+          <option value="completed">Tamamlanan</option>
+        </select>
+      </div>
+      <div id="calendarList" class="calendar-grid">
+        <div class="calendar-empty">Henüz veri yok.</div>
+      </div>
+    </section>
+
+    <section id="proView" class="app-view" hidden>
+      <section class="view-hero pro-hero">
+        <div>
+          <span class="eyebrow">GELİŞMİŞ</span>
+          <h2>Halka Arz Pro</h2>
+        </div>
+        <span class="pro-badge">7 gün ücretsiz</span>
+      </section>
+      <div id="proContent" class="pro-content">
+        <div class="calendar-empty">Hazırlanıyor…</div>
+      </div>
+    </section>
+
+    <section id="settingsView" class="app-view" hidden>
+      <section class="settings-stack">
+        <article class="settings-card">
+          <div class="settings-row settings-row-head">
+            <div><span class="eyebrow">BİLDİRİMLER</span><h2>Borsa hareketleri</h2></div>
+            <label class="switch" aria-label="Borsa hareket bildirimlerini aç veya kapat">
+              <input id="notificationEnabled" type="checkbox" checked />
+              <span></span>
+            </label>
+          </div>
+          <div class="setting-block">
+            <div class="setting-label-row"><label for="notificationThreshold">Portföy artış eşiği</label><strong id="notificationThresholdValue">%3</strong></div>
+            <input id="notificationThreshold" class="range" type="range" min="1" max="10" step="0.5" value="3" />
+            <div class="range-labels"><span>%1</span><span>%10</span></div>
+          </div>
+          <div class="permission-row">
+            <div><strong>Telefon bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
+            <button id="requestNotificationPermission" class="secondary-btn compact-btn" type="button">İzin ver</button>
+          </div>
+        </article>
+
+        <article class="settings-card about-card">
+          <div><span class="eyebrow">HAKKINDA</span><h2>Halka Arz Portföyüm</h2></div>
+          <div class="about-links">
+            <a href="./privacy.html">Gizlilik</a>
+            <span>Portföy takip uygulaması • yatırım tavsiyesi değildir.</span>
+          </div>
+          <small class="build-info">Halka Arz Portföyüm<br />v2.4.0 • Build 22</small>
+        </article>
+      </section>
+    </section>
   </main>
+
+  <nav id="bottomNav" class="bottom-nav" aria-label="Ana menü">
+    <button id="portfolioTab" class="nav-tab active" data-view="portfolio" type="button"><span>▦</span><b>Portföy</b></button>
+    <button id="calendarTab" class="nav-tab" data-view="calendar" type="button"><span>◫</span><b>Takvim</b></button>
+    <button id="proTab" class="nav-tab" data-view="pro" type="button"><span>✦</span><b>Gelişmiş</b></button>
+    <button id="settingsTab" class="nav-tab" data-view="settings" type="button"><span>⚙</span><b>Ayarlar</b></button>
+  </nav>
 
   <button id="addFab" class="fab" aria-label="Hisse ekle">
     <span>+</span><b>Hisse ekle</b>

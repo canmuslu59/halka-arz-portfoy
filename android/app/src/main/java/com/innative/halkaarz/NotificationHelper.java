@@ -1,0 +1,97 @@
+package com.innative.halkaarz;
+
+import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.net.Uri;
+import android.os.Build;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
+
+import java.util.Map;
+
+final class NotificationHelper {
+    private static final String CHANNEL_MARKET = "market_moves_v2";
+    private static final String CHANNEL_RISE = "market_rise_v1";
+    private static final String CHANNEL_CEILING = "market_ceiling_coin_v1";
+    private static final String CHANNEL_FLOOR = "market_floor_v1";
+    private static final String CHANNEL_IPO = "new_ipos";
+
+    private NotificationHelper() {}
+
+    static void ensureChannels(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) return;
+
+        NotificationChannel market = new NotificationChannel(CHANNEL_MARKET, "Borsa hareketleri", NotificationManager.IMPORTANCE_HIGH);
+        market.setDescription("Diğer borsa hareket bildirimleri");
+        NotificationChannel rise = customSoundChannel(context, CHANNEL_RISE, "Portföy artışları", "Toplam portföy artış bildirimleri", com.innative.halkaarz.R.raw.notification_rise);
+        NotificationChannel ceiling = customSoundChannel(context, CHANNEL_CEILING, "Tavan bildirimleri", "Tavan fiyatına ulaşan hisseler", com.innative.halkaarz.R.raw.notification_ceiling_coin);
+        NotificationChannel floor = customSoundChannel(context, CHANNEL_FLOOR, "Taban bildirimleri", "Taban fiyatına ulaşan hisseler", com.innative.halkaarz.R.raw.notification_floor);
+        NotificationChannel ipo = new NotificationChannel(CHANNEL_IPO, "Yeni halka arzlar", NotificationManager.IMPORTANCE_DEFAULT);
+        ipo.setDescription("Yeni açıklanan halka arz bildirimleri");
+        manager.createNotificationChannel(market);
+        manager.createNotificationChannel(rise);
+        manager.createNotificationChannel(ceiling);
+        manager.createNotificationChannel(floor);
+        manager.createNotificationChannel(ipo);
+    }
+
+    private static NotificationChannel customSoundChannel(Context context, String id, String name, String description, int soundRes) {
+        NotificationChannel channel = new NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription(description);
+        String entry = context.getResources().getResourceEntryName(soundRes);
+        Uri sound = Uri.parse("android.resource://" + context.getPackageName() + "/raw/" + entry);
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        channel.setSound(sound, attrs);
+        return channel;
+    }
+
+    static void show(Context context, Map<String, String> data) {
+        ensureChannels(context);
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+        String kind = value(data, "kind", "portfolio");
+        String ticker = value(data, "ticker", "");
+        String title = value(data, "title", "Halka Arz Portföyüm");
+        String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
+        String channel;
+        if ("ipo".equals(kind)) channel = CHANNEL_IPO;
+        else if ("ceiling".equals(kind)) channel = CHANNEL_CEILING;
+        else if ("floor".equals(kind)) channel = CHANNEL_FLOOR;
+        else if ("portfolio".equals(kind)) channel = CHANNEL_RISE;
+        else channel = CHANNEL_MARKET;
+
+        Intent intent = new Intent(context, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra("push_kind", kind)
+                .putExtra("push_ticker", ticker);
+        int requestCode = (kind + ":" + ticker + ":" + body).hashCode();
+        PendingIntent pending = PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channel)
+                .setSmallIcon(com.innative.halkaarz.R.drawable.ic_launcher)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setContentIntent(pending)
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.notify(requestCode, builder.build());
+    }
+
+    private static String value(Map<String, String> data, String key, String fallback) {
+        String value = data == null ? null : data.get(key);
+        return value == null || value.trim().isEmpty() ? fallback : value;
+    }
+}

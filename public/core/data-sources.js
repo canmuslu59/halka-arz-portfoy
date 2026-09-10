@@ -1,5 +1,5 @@
 import { cleanTicker } from './domain.js';
-import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseFintablesSector } from './parsers.js';
+import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseAhlatciCalendar, parseFintablesSector } from './parsers.js';
 
 export function createDataSources({ getJson, getText }) {
   if (typeof getJson !== 'function' || typeof getText !== 'function') {
@@ -65,6 +65,23 @@ export function createDataSources({ getJson, getText }) {
     };
   }
 
+  async function getIpoCalendar() {
+    const html = await getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1');
+    return parseAhlatciCalendar(html);
+  }
+
+  async function getIpoDetail(itemOrTicker) {
+    const item = itemOrTicker && typeof itemOrTicker === 'object'
+      ? { ...itemOrTicker, ticker:cleanTicker(itemOrTicker.ticker) }
+      : { ticker:cleanTicker(itemOrTicker) };
+    if (!item.ticker) throw new Error('Geçerli bir halka arz kodu girin.');
+    if (item.detailUrl) {
+      const html = await getText(item.detailUrl);
+      return parseAhlatciDetail(html, item);
+    }
+    return getIpo(item.ticker);
+  }
+
   async function getSector(ticker) {
     const key = cleanTicker(ticker);
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
@@ -76,5 +93,5 @@ export function createDataSources({ getJson, getText }) {
     }
   }
 
-  return { getQuote, getMarket:getQuote, getHistory, getIpo, getSector };
+  return { getQuote, getMarket:getQuote, getHistory, getIpo, getIpoCalendar, getIpoDetail, getSector };
 }

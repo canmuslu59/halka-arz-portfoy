@@ -15,7 +15,11 @@ test('MainActivity exposes storage and HTTPS bridge methods', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   assert.match(java, /@JavascriptInterface\s+public String readPortfolio\(/s);
   assert.match(java, /@JavascriptInterface\s+public void writePortfolio\(/s);
-  assert.match(java, /@JavascriptInterface\s+public String httpGet\(/s);
+  assert.doesNotMatch(java, /@JavascriptInterface\s+public String httpGet\(/s);
+  assert.match(java, /@JavascriptInterface\s+public void httpGetAsync\(String urlText, String requestId\)/s);
+  assert.match(java, /Executors\.newCachedThreadPool/);
+  assert.match(java, /__nativeHttpResolve/);
+  assert.match(java, /__nativeHttpReject/);
   assert.match(java, /"https"\.equalsIgnoreCase/);
   assert.match(java, /setConnectTimeout\(12000\)/);
   assert.match(java, /setReadTimeout\(12000\)/);
@@ -26,8 +30,10 @@ test('Android Gradle config uses requested app id and SDK levels', async () => {
   const gradle = await read('android/app/build.gradle');
   assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
   assert.match(gradle, /minSdk 26/);
-  assert.match(gradle, /targetSdk 35/);
-  assert.match(gradle, /compileSdk 35/);
+  assert.match(gradle, /targetSdk 36/);
+  assert.match(gradle, /compileSdk 36/);
+  assert.match(gradle, /versionCode 21/);
+  assert.match(gradle, /versionName ['"]2\.3\.9['"]/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
@@ -50,13 +56,13 @@ test('Android storage stays device-local and source avoids newer String APIs', a
   assert.doesNotMatch(java, /\.isBlank\(/);
 });
 
-test('GitHub Actions workflow builds and uploads the debug APK', async () => {
+test('GitHub Actions workflow builds and uploads the Play AAB', async () => {
   const yaml = await read('.github/workflows/android-apk.yml');
   assert.match(yaml, /actions\/setup-java@v4/);
   assert.match(yaml, /android-actions\/setup-android@v3/);
-  assert.match(yaml, /platforms;android-35/);
-  assert.match(yaml, /build-tools;35\.0\.0/);
-  assert.match(yaml, /assembleDebug/);
+  assert.match(yaml, /platforms;android-36/);
+  assert.match(yaml, /build-tools;36\.0\.0/);
+  assert.match(yaml, /bundleRelease/);
   assert.match(yaml, /actions\/upload-artifact@v4/);
 });
 
@@ -67,41 +73,64 @@ test('native bridge avoids Charset overload unavailable on older Android APIs', 
   assert.match(java, /toString\("UTF-8"\)/);
 });
 
-test('Android bridge performs HTTPS asynchronously on a bounded executor', async () => {
-  const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
-  assert.match(java, /ExecutorService/);
-  assert.match(java, /newFixedThreadPool\([234]\)/);
-  assert.match(java, /@JavascriptInterface\s+public void httpGetAsync\(/s);
-  assert.match(java, /__nativeHttpResolve/);
-  assert.match(java, /__nativeHttpReject/);
-  assert.match(java, /evaluateJavascript/);
-});
 
-test('Android root back requires a second press within two seconds', async () => {
-  const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
-  assert.match(java, /lastBackPress/);
-  assert.match(java, /2000/);
-  assert.match(java, /__showBackExitHint/);
-  assert.match(java, /webView\.canGoBack\(\)/);
-});
-
-test('Android debug APK uses a repository-stable signing key for future in-place updates', async () => {
+test('Android 13+ notification permission and Firebase messaging service are declared', async () => {
+  const xml = await read('android/app/src/main/AndroidManifest.xml');
   const gradle = await read('android/app/build.gradle');
-  await fs.access('android/app/halkaarz-debug.keystore');
-  assert.match(gradle, /signingConfigs\s*\{/);
-  assert.match(gradle, /halkaarz-debug\.keystore/);
-  assert.match(gradle, /keyAlias ['"]halkaarz['"]/);
-  assert.match(gradle, /signingConfig signingConfigs\.stableDebug/);
-  assert.match(gradle, /versionCode 7/);
-  assert.match(gradle, /versionName ['"]2\.0\.5['"]/);
+  assert.match(xml, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(xml, /PushMessagingService/);
+  assert.match(xml, /com\.google\.firebase\.MESSAGING_EVENT/);
+  assert.match(gradle, /firebase-messaging:24\.1\.1/);
 });
 
-test('Android invalidates stale local web assets without relying on generated BuildConfig', async () => {
+test('native layer uses edge-to-edge insets and removes deprecated system bar colors', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
-  assert.doesNotMatch(java, /BuildConfig\.VERSION_CODE/);
-  assert.match(java, /getPackageManager\(\)\.getPackageInfo/);
-  assert.match(java, /clearCache\(true\)/);
-  assert.match(java, /ASSET_VERSION/);
-  assert.match(java, /Cache-Control/);
-  assert.match(java, /no-store/);
+  const theme = await read('android/app/src/main/res/values/themes.xml');
+  assert.doesNotMatch(java, /setStatusBarColor/);
+  assert.doesNotMatch(java, /setNavigationBarColor/);
+  assert.doesNotMatch(theme, /statusBarColor/);
+  assert.doesNotMatch(theme, /navigationBarColor/);
+  assert.match(java, /WindowCompat\.enableEdgeToEdge/);
+  assert.match(java, /WindowInsetsCompat\.Type\.systemBars/);
+  assert.match(java, /--android-safe-top/);
+  assert.match(java, /--android-safe-bottom/);
+  assert.match(java, /--android-safe-left/);
+  assert.match(java, /--android-safe-right/);
+  assert.match(java, /WindowInsetsControllerCompat/);
+});
+
+test('native bridge exposes notification permission and anonymous push sync methods', async () => {
+  const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  const sync = await read('android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java');
+  assert.match(java, /@JavascriptInterface\s+public String getNotificationPermissionStatus\(/s);
+  assert.match(java, /@JavascriptInterface\s+public void requestNotificationPermission\(/s);
+  assert.match(java, /@JavascriptInterface\s+public void syncPushConfig\(/s);
+  assert.match(sync, /UUID\.randomUUID/);
+});
+
+test('FCM service and notification helper route stock, portfolio and IPO taps', async () => {
+  const service = await read('android/app/src/main/java/com/innative/halkaarz/PushMessagingService.java');
+  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+  assert.match(service, /extends FirebaseMessagingService/);
+  assert.match(service, /onNewToken/);
+  assert.match(service, /onMessageReceived/);
+  assert.match(helper, /kind/);
+  assert.match(helper, /ticker/);
+  assert.match(helper, /ipo/);
+  assert.match(helper, /portfolio/);
+});
+
+test('Android push sync wraps alert preferences under config for backend registration contract', async () => {
+  const push = await read('android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java');
+  assert.match(push, /JSONObject\s+configObject\s*=\s*new JSONObject\(config\)/);
+  assert.match(push, /body\.put\("config",\s*configObject\)/);
+});
+
+test('Android 36 build pins compatible AGP and AndroidX Core versions', async () => {
+  const rootGradle = await read('android/build.gradle');
+  const appGradle = await read('android/app/build.gradle');
+  assert.match(rootGradle, /com\.android\.application['"] version ['"]8\.10\.1['"]/);
+  assert.match(appGradle, /androidx\.core:core:1\.17\.0/);
+  assert.match(appGradle, /com\.google\.firebase:firebase-messaging:24\.1\.1/);
+  assert.doesNotMatch(appGradle, /androidx\.core:core:1\.19\.0/);
 });

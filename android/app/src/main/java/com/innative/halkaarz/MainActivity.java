@@ -1,12 +1,14 @@
 package com.innative.halkaarz;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
@@ -15,6 +17,14 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
+
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import org.json.JSONObject;
 
@@ -33,48 +43,72 @@ public class MainActivity extends Activity {
     private static final String PREFS = "halka_arz_portfoy";
     private static final String PORTFOLIO_KEY = "portfolio_json_v1";
     private static final String BACKUP_KEY = "portfolio_json_v1_backup";
-    private static final String ASSET_VERSION_KEY = "web_asset_version";
+    private static final String NOTIFICATION_ASKED_KEY = "notification_permission_asked_v1";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-    private static final long DOUBLE_BACK_MS = 2000L;
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;
+    private static final long EXIT_BACK_WINDOW_MS = 2000L;
+    private static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
 
-    private final ExecutorService networkExecutor = Executors.newFixedThreadPool(4);
     private WebView webView;
-    private long lastBackPressAt = 0L;
+    private JSONObject pendingPushRoute;
+    private int safeTopCssPx;
+    private int safeBottomCssPx;
+    private int safeLeftCssPx;
+    private int safeRightCssPx;
+    private long lastBackPressMs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(7, 11, 21));
-        getWindow().setNavigationBarColor(Color.rgb(7, 11, 21));
-
+        WindowCompat.enableEdgeToEdge(getWindow());
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
+        applyInsets(webView);
+        setSystemBarIcons(false);
         configureWebView(webView);
-        SharedPreferences appPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        int currentAssetVersion = getAppVersionCode();
-        int previousAssetVersion = appPrefs.getInt(ASSET_VERSION_KEY, -1);
-        if (previousAssetVersion != currentAssetVersion) {
-            webView.clearCache(true);
-            appPrefs.edit().putInt(ASSET_VERSION_KEY, currentAssetVersion).apply();
-        }
         setContentView(webView);
+        capturePushRoute(getIntent());
+        NotificationHelper.ensureChannels(this);
+        BackgroundAlertScheduler.ensure(this);
+        PushConfigSync.installId(this);
+        PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
+        webView.postDelayed(this::requestStartupNotificationPermission, 700L);
     }
 
-    private int getAppVersionCode() {
-        try {
-            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            return packageInfo.versionCode;
-        } catch (PackageManager.NameNotFoundException error) {
-            return -1;
-        }
+    private void requestStartupNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
     }
 
-    @Override
-    protected void onDestroy() {
-        networkExecutor.shutdownNow();
-        if (webView != null) webView.destroy();
-        super.onDestroy();
+    private void applyInsets(WebView view) {
+        ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            float density = Math.max(1f, getResources().getDisplayMetrics().density);
+            safeTopCssPx = Math.round(bars.top / density);
+            safeBottomCssPx = Math.round(bars.bottom / density);
+            safeLeftCssPx = Math.round(bars.left / density);
+            safeRightCssPx = Math.round(bars.right / density);
+            deliverSafeInsets();
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(view);
+    }
+
+    private void deliverSafeInsets() {
+        if (webView == null) return;
+        String script = "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
+                + "document.documentElement.style.setProperty('--android-safe-bottom','" + safeBottomCssPx + "px');"
+                + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
+                + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');";
+        webView.post(() -> webView.evaluateJavascript(script, null));
+    }
+
+    private void setSystemBarIcons(boolean lightTheme) {
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.setAppearanceLightStatusBars(lightTheme);
+        controller.setAppearanceLightNavigationBars(lightTheme);
     }
 
     private void configureWebView(WebView view) {
@@ -89,125 +123,86 @@ public class MainActivity extends Activity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);
-
         view.addJavascriptInterface(new AndroidBridge(this), "AndroidBridge");
-        view.setWebViewClient(new LocalAssetClient(this));
+        view.setWebViewClient(new LocalAssetClient(this) {
+            @Override
+            public void onPageFinished(WebView webView, String url) {
+                super.onPageFinished(webView, url);
+                deliverSafeInsets();
+                deliverPendingPushRoute();
+            }
+        });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        capturePushRoute(intent);
+        deliverPendingPushRoute();
+    }
+
+    private void capturePushRoute(Intent intent) {
+        if (intent == null || !intent.hasExtra("push_kind")) return;
+        try {
+            JSONObject route = new JSONObject();
+            route.put("kind", intent.getStringExtra("push_kind"));
+            route.put("ticker", intent.getStringExtra("push_ticker"));
+            pendingPushRoute = route;
+        } catch (Exception ignored) {}
+    }
+
+    private void deliverPendingPushRoute() {
+        if (webView == null || pendingPushRoute == null) return;
+        JSONObject route = pendingPushRoute;
+        pendingPushRoute = null;
+        webView.post(() -> webView.evaluateJavascript("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");", null));
     }
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            lastBackPressAt = 0L;
-            webView.goBack();
+        if (webView != null) {
+            webView.evaluateJavascript("Boolean(window.__handleAndroidBack && window.__handleAndroidBack())", value -> {
+                if ("true".equalsIgnoreCase(String.valueOf(value))) {
+                    lastBackPressMs = 0L;
+                    return;
+                }
+                handleExitBackPress();
+            });
             return;
         }
-        long current = System.currentTimeMillis();
-        if (current - lastBackPressAt <= DOUBLE_BACK_MS) {
+        handleExitBackPress();
+    }
+
+    private void handleExitBackPress() {
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressMs <= EXIT_BACK_WINDOW_MS) {
             super.onBackPressed();
             return;
         }
-        lastBackPressAt = current;
-        if (webView != null) {
-            webView.evaluateJavascript("window.__showBackExitHint && window.__showBackExitHint();", null);
-        }
+        lastBackPressMs = now;
+        Toast.makeText(this, "Çıkmak için tekrar geri basın", Toast.LENGTH_SHORT).show();
     }
 
-    private void postNativeResolve(String requestId, String envelope) {
-        if (webView == null) return;
-        String script = "window.__nativeHttpResolve && window.__nativeHttpResolve(" +
-                JSONObject.quote(requestId) + "," + JSONObject.quote(envelope) + ");";
-        webView.post(() -> webView.evaluateJavascript(script, null));
-    }
-
-    private void postNativeReject(String requestId, String message) {
-        if (webView == null) return;
-        String script = "window.__nativeHttpReject && window.__nativeHttpReject(" +
-                JSONObject.quote(requestId) + "," + JSONObject.quote(message) + ");";
-        webView.post(() -> webView.evaluateJavascript(script, null));
-    }
-
-    private static String performHttpGet(String urlText) throws Exception {
-        JSONObject envelope = new JSONObject();
-        HttpURLConnection connection = null;
-        try {
-            URL url = new URL(urlText);
-            if (!"https".equalsIgnoreCase(url.getProtocol())) {
-                throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
+            if (webView != null) {
+                webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
             }
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setRequestMethod("GET");
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
-            connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
-            connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
-            int status = connection.getResponseCode();
-            InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
-            String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
-            if (status < 200 || status >= 300) {
-                envelope.put("ok", false);
-                envelope.put("status", status);
-                envelope.put("error", "HTTP " + status);
-            } else {
-                envelope.put("ok", true);
-                envelope.put("status", status);
-                envelope.put("body", body);
-            }
-            return envelope.toString();
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
-    }
-
-    private static class LocalAssetClient extends WebViewClient {
-        private final Context context;
-
-        LocalAssetClient(Context context) {
-            this.context = context.getApplicationContext();
-        }
-
-        @Override
-        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-            Uri uri = request.getUrl();
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || !"app.local".equalsIgnoreCase(uri.getHost())) {
-                return super.shouldInterceptRequest(view, request);
-            }
-            return openAsset(uri.getPath());
-        }
-
-        private WebResourceResponse openAsset(String requestPath) {
-            String path = requestPath == null || requestPath.equals("/") ? "index.html" : requestPath.replaceFirst("^/", "");
-            if (path.contains("..")) return null;
-            try {
-                InputStream input = context.getAssets().open("www/" + path);
-                WebResourceResponse response = new WebResourceResponse(mimeType(path), "UTF-8", input);
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-                response.setResponseHeaders(headers);
-                return response;
-            } catch (Exception ignored) {
-                return null;
-            }
-        }
-
-        private static String mimeType(String path) {
-            if (path.endsWith(".js")) return "application/javascript";
-            if (path.endsWith(".css")) return "text/css";
-            if (path.endsWith(".html")) return "text/html";
-            if (path.endsWith(".json") || path.endsWith(".webmanifest")) return "application/json";
-            if (path.endsWith(".svg")) return "image/svg+xml";
-            String ext = MimeTypeMap.getFileExtensionFromUrl(path);
-            String detected = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
-            return detected != null ? detected : "application/octet-stream";
+            BackgroundAlertScheduler.ensure(this);
         }
     }
 
     private class AndroidBridge {
         private final SharedPreferences prefs;
+        private final MainActivity activity;
 
-        AndroidBridge(Context context) {
-            prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        AndroidBridge(MainActivity activity) {
+            this.activity = activity;
+            prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         }
 
         @JavascriptInterface
@@ -229,54 +224,137 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public String httpGet(String urlText) {
+        public String getNotificationPermissionStatus() {
+            if (Build.VERSION.SDK_INT < 33) return "not_required";
+            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return "granted";
+            return prefs.getBoolean(NOTIFICATION_ASKED_KEY, false) ? "denied" : "prompt";
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            if (Build.VERSION.SDK_INT < 33) return;
+            activity.runOnUiThread(() -> {
+                prefs.edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
+                activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQUEST);
+            });
+        }
+
+        @JavascriptInterface
+        public void syncPushConfig(String json) {
+            PushConfigSync.saveConfig(activity, json);
+        }
+
+        @JavascriptInterface
+        public void showLocalNotification(String json) {
             try {
-                return performHttpGet(urlText);
-            } catch (Exception error) {
-                return errorEnvelope(error);
-            }
+                JSONObject parsed = new JSONObject(json == null ? "{}" : json);
+                Map<String, String> data = new HashMap<>();
+                data.put("kind", parsed.optString("kind", "portfolio"));
+                data.put("ticker", parsed.optString("ticker", ""));
+                data.put("title", parsed.optString("title", "Halka Arz Portföyüm"));
+                data.put("body", parsed.optString("body", "Portföyünüzde yeni bir hareket var."));
+                NotificationHelper.show(activity, data);
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public void setSystemTheme(String theme) {
+            activity.runOnUiThread(() -> setSystemBarIcons("light".equalsIgnoreCase(theme)));
         }
 
         @JavascriptInterface
         public void httpGetAsync(String urlText, String requestId) {
-            networkExecutor.execute(() -> {
-                try {
-                    postNativeResolve(requestId, performHttpGet(urlText));
-                } catch (Exception error) {
-                    postNativeReject(requestId, error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
-                }
-            });
+            final String safeRequestId = requestId == null ? "" : requestId;
+            try {
+                NETWORK_EXECUTOR.execute(() -> {
+                    String envelope = performHttpGet(urlText);
+                    if (webView == null) return;
+                    String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
+                            + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(envelope) + ");";
+                    webView.post(() -> webView.evaluateJavascript(callback, null));
+                });
+            } catch (Exception error) {
+                if (webView == null) return;
+                String message = error.getMessage() == null ? "Ağ isteği başlatılamadı." : error.getMessage();
+                String callback = "window.__nativeHttpReject && window.__nativeHttpReject("
+                        + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(message) + ");";
+                webView.post(() -> webView.evaluateJavascript(callback, null));
+            }
         }
 
-        private String errorEnvelope(Exception error) {
+    }
+
+    private static String performHttpGet(String urlText) {
+        JSONObject envelope = new JSONObject();
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(urlText);
+            if (!"https".equalsIgnoreCase(url.getProtocol())) throw new IllegalArgumentException("Yalnız HTTPS bağlantısına izin verilir.");
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(12000);
+            connection.setRequestMethod("GET");
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
+            connection.setRequestProperty("Accept", "application/json,text/plain,text/html,*/*");
+            connection.setRequestProperty("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8");
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
+            String body = stream == null ? "" : readUtf8(stream, MAX_RESPONSE_BYTES);
+            if (status < 200 || status >= 300) {
+                envelope.put("ok", false); envelope.put("status", status); envelope.put("error", "HTTP " + status);
+            } else {
+                envelope.put("ok", true); envelope.put("status", status); envelope.put("body", body);
+            }
+        } catch (Exception error) {
             try {
-                JSONObject envelope = new JSONObject();
-                envelope.put("ok", false);
-                envelope.put("status", 0);
+                envelope.put("ok", false); envelope.put("status", 0);
                 envelope.put("error", error.getMessage() == null ? "Ağ isteği başarısız." : error.getMessage());
-                return envelope.toString();
-            } catch (Exception ignored) {
-                return "{\"ok\":false,\"status\":0,\"error\":\"Ağ isteği başarısız.\"}";
-            }
+            } catch (Exception ignored) { return "{\"ok\":false,\"status\":0,\"error\":\"Ağ isteği başarısız.\"}"; }
+        } finally {
+            if (connection != null) connection.disconnect();
         }
+        return envelope.toString();
+    }
 
-        private boolean isValidJsonObject(String value) {
-            if (value == null || value.trim().isEmpty()) return false;
+    private static class LocalAssetClient extends WebViewClient {
+        private final Context context;
+        LocalAssetClient(Context context) { this.context = context.getApplicationContext(); }
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            Uri uri = request.getUrl();
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || !"app.local".equalsIgnoreCase(uri.getHost())) return super.shouldInterceptRequest(view, request);
+            return openAsset(uri.getPath());
+        }
+        private WebResourceResponse openAsset(String requestPath) {
+            String path = requestPath == null || requestPath.equals("/") ? "index.html" : requestPath.replaceFirst("^/", "");
+            if (path.contains("..")) return null;
             try {
-                new JSONObject(value);
-                return true;
-            } catch (Exception ignored) {
-                return false;
-            }
+                InputStream input = context.getAssets().open("www/" + path);
+                return new WebResourceResponse(mimeType(path), "UTF-8", input);
+            } catch (Exception ignored) { return null; }
+        }
+        private static String mimeType(String path) {
+            if (path.endsWith(".js")) return "application/javascript";
+            if (path.endsWith(".css")) return "text/css";
+            if (path.endsWith(".html")) return "text/html";
+            if (path.endsWith(".json") || path.endsWith(".webmanifest")) return "application/json";
+            if (path.endsWith(".svg")) return "image/svg+xml";
+            String ext = MimeTypeMap.getFileExtensionFromUrl(path);
+            String detected = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            return detected != null ? detected : "application/octet-stream";
         }
     }
 
+    private static boolean isValidJsonObject(String value) {
+        if (value == null || value.trim().isEmpty()) return false;
+        try { new JSONObject(value); return true; }
+        catch (Exception ignored) { return false; }
+    }
+
     private static String readUtf8(InputStream input, int maxBytes) throws Exception {
-        try (BufferedInputStream buffered = new BufferedInputStream(input);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            byte[] chunk = new byte[8192];
-            int total = 0;
-            int read;
+        try (BufferedInputStream buffered = new BufferedInputStream(input); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] chunk = new byte[8192]; int total = 0; int read;
             while ((read = buffered.read(chunk)) != -1) {
                 total += read;
                 if (total > maxBytes) throw new IllegalStateException("Yanıt çok büyük.");
