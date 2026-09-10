@@ -17,6 +17,12 @@ on:
       - 'test/data-cache-notification-behavior.test.js'
       - 'test/android-background-parser-regression.test.js'
       - 'test/ui-market-notification-regression.test.js'
+      - 'test/android-storage-recovery.test.js'
+      - 'test/ipo-parser-fixtures.test.js'
+      - 'test/service-worker-cache.test.js'
+      - 'test/fixtures/ahlatci-active-upcoming.html'
+      - 'test/fixtures/ahlatci-archive.html'
+      - 'test/fixtures/ahlatci-detail.html'
       - 'test/navigation-contract.test.js'
       - 'test/refresh-coordinator.test.js'
       - 'test/backend-service.test.js'
@@ -33,6 +39,7 @@ on:
       - 'public/core/navigation.js'
       - 'public/core/refresh-coordinator.js'
       - 'public/core/notification-rules.js'
+      - 'public/sw.js'
       - 'public/app.js'
       - 'android/build.gradle'
       - 'android/gradle.properties'
@@ -102,3 +109,5 @@ jobs:
         run: node --test test/android-notification-hardening.test.js
       - name: Push config duplicate no-op contract
         run: node --test test/android-push-config-noop.test.js
+      - name: Completion parser storage PWA contracts
+        run: node --test test/ipo-parser-fixtures.test.js test/android-storage-recovery.test.js test/service-worker-cache.test.js
