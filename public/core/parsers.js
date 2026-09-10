@@ -202,8 +202,14 @@ export function parseAhlatciCalendar(html) {
 
   for (let cardIndex = 0; cardIndex < cardLinks.length; cardIndex++) {
     const { link, start } = cardLinks[cardIndex];
-    const windowEnd = cardLinks[cardIndex + 1]?.start ?? activeScope.length;
-    const cardHtml = activeScope.slice(start, windowEnd);
+    const provisionalEnd = cardLinks[cardIndex + 1]?.start ?? activeScope.length;
+    const cardWindow = activeScope.slice(start, provisionalEnd);
+    const articleClose = cardWindow.match(/<\/article\s*>/i);
+    const sectionHeading = cardWindow.search(/<h2\b/i);
+    const relativeEnd = articleClose?.index >= 0
+      ? articleClose.index + articleClose[0].length
+      : sectionHeading > link[0].length ? sectionHeading : cardWindow.length;
+    const cardHtml = cardWindow.slice(0, relativeEnd);
     const cardText = textFromHtml(cardHtml);
     if (!/Talep\s+Tarih(?:leri|i)/i.test(cardText) || !/(?:Halka\s+Arz\s+Fiyatı|\bFiyat\b)/i.test(cardText)) continue;
 
