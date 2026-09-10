@@ -17,6 +17,8 @@ async function freePort() {
 async function startFixture({ pin = '', portfolioText = null, siblingSecret = false } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'halkaarz-server-'));
   await copyFile(new URL('../server.js', import.meta.url), path.join(dir, 'server.js'));
+  await mkdir(path.join(dir, 'backend'), { recursive:true });
+  await copyFile(new URL('../backend/portfolio-store.js', import.meta.url), path.join(dir, 'backend', 'portfolio-store.js'));
   await mkdir(path.join(dir, 'public'), { recursive:true });
   await writeFile(path.join(dir, 'public', 'index.html'), '<h1>ok</h1>');
   if (portfolioText != null) {
