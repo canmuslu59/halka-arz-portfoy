@@ -35,8 +35,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://app.local/index.html";
@@ -47,7 +49,14 @@ public class MainActivity extends Activity {
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
     private static final int NOTIFICATION_PERMISSION_REQUEST = 2301;
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
-    private static final ExecutorService NETWORK_EXECUTOR = Executors.newCachedThreadPool();
+    private static final ExecutorService NETWORK_EXECUTOR = new ThreadPoolExecutor(
+            4,
+            4,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(128),
+            new ThreadPoolExecutor.AbortPolicy()
+    );
 
     private WebView webView;
     private JSONObject pendingPushRoute;
