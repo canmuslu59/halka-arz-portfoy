@@ -198,7 +198,7 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
 
     const snapshot = await store.read();
     const registrations = Object.values(snapshot?.installations || {})
-      .filter(item => item && item.enabled !== false && item.ipoEnabled !== false);
+      .filter(item => item && item.ipoEnabled !== false);
     let sent = 0;
     let failed = 0;
 
