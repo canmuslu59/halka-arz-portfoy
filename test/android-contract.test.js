@@ -73,6 +73,16 @@ test('historical transform-driven Play workflows are retired from the direct-sou
   }
 });
 
+test('README documents direct-source Android verification without retired release workflows', async () => {
+  const readme = await read('README.md');
+  assert.doesNotMatch(readme, /\.github\/workflows\/android-apk\.yml/);
+  assert.doesNotMatch(readme, /Actions\s*[→>-]+\s*Build Android APK/i);
+  assert.match(readme, /npm run android:sync/);
+  assert.match(readme, /compileDebugJavaWithJavac/);
+  assert.match(readme, /Audit Current Clean Source/);
+  assert.match(readme, /Phase1 TDD Contracts/);
+});
+
 
 test('native bridge avoids Charset overload unavailable on older Android APIs', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
