@@ -95,3 +95,46 @@ test('first trading date cannot be moved after an already recorded sale', async 
   assert.equal(portfolio.holdings[0].firstTradeDate, '2026-08-20');
   assert.equal(portfolio.holdings[0].sales[0].date, '2026-08-22');
 });
+
+test('manual first trading date cannot be in the future when adding a holding', async () => {
+  const repository = memoryRepository();
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => quote(),
+    getHistory: async () => quote(),
+    getIpo: async () => ipo(),
+    getSector: async () => ({ ticker:'TEST', sector:'Test' }),
+    now: () => new Date('2026-08-28T10:00:00.000Z'),
+    uuid: () => 'id-1',
+  });
+
+  await assert.rejects(
+    () => service.addHolding({ ticker:'TEST', lots:10, firstTradeDateOverride:'2026-08-29' }),
+    /ilk işlem.*gelecekte|gelecekte.*ilk işlem/i,
+  );
+
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(portfolio.holdings.length, 0);
+});
+
+test('manual first trading date cannot be moved into the future when editing a holding', async () => {
+  const repository = memoryRepository();
+  const service = createPortfolioService({
+    repository,
+    getQuote: async () => quote(),
+    getHistory: async () => quote(),
+    getIpo: async () => ipo(),
+    getSector: async () => ({ ticker:'TEST', sector:'Test' }),
+    now: () => new Date('2026-08-28T10:00:00.000Z'),
+    uuid: (() => { let i = 0; return () => `id-${++i}`; })(),
+  });
+
+  const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
+  await assert.rejects(
+    () => service.updateHolding(holding.id, { firstTradeDateOverride:'2026-08-29' }),
+    /ilk işlem.*gelecekte|gelecekte.*ilk işlem/i,
+  );
+
+  const portfolio = await service.getPortfolio({ refresh:false });
+  assert.equal(portfolio.holdings[0].firstTradeDate, '2026-08-20');
+});
