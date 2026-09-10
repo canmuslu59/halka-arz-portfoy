@@ -13,6 +13,7 @@ on:
       - 'test/android-lifecycle-hardening.test.js'
       - 'test/android-worker-retry-policy.test.js'
       - 'test/navigation-contract.test.js'
+      - 'test/refresh-coordinator.test.js'
       - 'test/backend-service.test.js'
       - 'test/server-persistence.test.js'
       - 'test/server-security.test.js'
@@ -23,6 +24,7 @@ on:
       - 'backend/portfolio-store.js'
       - 'server.js'
       - 'public/core/navigation.js'
+      - 'public/core/refresh-coordinator.js'
       - 'public/core/notification-rules.js'
       - 'public/app.js'
       - 'android/build.gradle'
@@ -69,6 +71,8 @@ jobs:
           java -cp /tmp/native-http-policy-test com.innative.halkaarz.NativeHttpPolicyHarness
       - name: Navigation state contract
         run: node --test test/navigation-contract.test.js
+      - name: Refresh coordination contract
+        run: node --test test/refresh-coordinator.test.js
       - name: Android lifecycle contract
         run: node --test test/android-lifecycle-hardening.test.js
       - name: Background worker retry source contract
