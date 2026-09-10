@@ -20,11 +20,11 @@ jobs:
           ref: refactor/code22-clean-source-work2
           fetch-depth: 0
 
-      - name: Reconstruct and verify staged patch
+      - name: Recover and verify staged patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY' 2>&1 | tee /tmp/phase1-reconstruction-diagnostic.txt
+          python3 - <<'PY' 2>&1 | tee /tmp/phase1-recovery.txt
           import base64
           import hashlib
           import itertools
@@ -32,93 +32,117 @@ jobs:
 
           root = Path('.ci/phase1-cleanup')
           target = '74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac'
-          parts = sorted(p for p in root.iterdir() if p.is_file() and p.name.startswith('part'))
-          normalized = {p.name: ''.join(p.read_text(encoding='ascii').split()) for p in parts}
-          decoded = {}
-          print('target sha256:', target)
-          print('staged parts:', ', '.join(f'{p.name}({p.stat().st_size})' for p in parts))
 
-          for p in parts:
-              raw = normalized[p.name]
-              print(f'{p.name}: normalized_chars={len(raw)} mod4={len(raw)%4} head={raw[:24]} tail={raw[-24:]}')
-              try:
-                  data = base64.b64decode(raw, validate=True)
-                  decoded[p.name] = data
-                  print(
-                      f'{p.name}: standalone_decode=OK bytes={len(data)} '
-                      f'sha256={hashlib.sha256(data).hexdigest()} '
-                      f'headhex={data[:16].hex()} tailhex={data[-16:].hex()} '
-                      f'gzip_magic={data.startswith(bytes.fromhex("1f8b"))}'
-                  )
-              except Exception as exc:
-                  print(f'{p.name}: standalone_decode=INVALID error={exc!r}')
+          raw0 = ''.join((root / 'part00').read_text(encoding='ascii').split())
+          invalid = next((i for i, ch in enumerate(raw0) if ch not in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='), None)
+          if invalid is None:
+              raise SystemExit('part00 unexpectedly has no invalid marker')
+          prefix_text = raw0[:invalid]
+          prefix_text = prefix_text[:len(prefix_text) - (len(prefix_text) % 4)]
+          prefix = base64.b64decode(prefix_text, validate=True)
+          if not prefix.startswith(bytes.fromhex('1f8b')):
+              raise SystemExit('recovered part00 prefix is not gzip data')
 
-          def overlap(left: bytes, right: bytes) -> int:
-              limit = min(len(left), len(right))
-              for n in range(limit, 0, -1):
+          chunks = {'p0': prefix}
+          for name in ('part00a', 'part00b', 'part01'):
+              text = ''.join((root / name).read_text(encoding='ascii').split())
+              chunks[name] = base64.b64decode(text, validate=True)
+
+          print('part00 invalid index:', invalid)
+          print('part00 marker tail:', repr(raw0[invalid:]))
+          for name, data in chunks.items():
+              print(name, 'bytes=', len(data), 'sha256=', hashlib.sha256(data).hexdigest())
+
+          def overlaps(left, right):
+              max_n = min(len(left), len(right))
+              vals = [0]
+              for n in range(1, max_n + 1):
                   if left[-n:] == right[:n]:
-                      return n
-              return 0
+                      vals.append(n)
+              return vals
 
-          print('binary suffix->prefix overlaps:')
-          for a in parts:
-              for b in parts:
-                  if a == b or a.name not in decoded or b.name not in decoded:
+          names = list(chunks)
+          print('pairwise maximum overlaps:')
+          for a in names:
+              for b in names:
+                  if a == b:
                       continue
-                  n = overlap(decoded[a.name], decoded[b.name])
-                  if n:
-                      print(f'  {a.name} -> {b.name}: {n} bytes')
+                  vals = overlaps(chunks[a], chunks[b])
+                  if vals[-1]:
+                      print(f'  {a} -> {b}: {vals[-1]} bytes')
 
-          attempts = 0
-          joined_valid = 0
-          binary_valid = 0
-          for size in range(1, len(parts) + 1):
-              for seq in itertools.permutations(parts, size):
-                  attempts += 1
-                  names = '+'.join(p.name for p in seq)
+          def assemble(seq):
+              states = [(chunks[seq[0]], [])]
+              for nxt in seq[1:]:
+                  new_states = []
+                  for current, used in states:
+                      for n in overlaps(current, chunks[nxt]):
+                          new_states.append((current + chunks[nxt][n:], used + [n]))
+                  states = new_states
+              return states
 
-                  text = ''.join(normalized[p.name] for p in seq)
-                  try:
-                      payload = base64.b64decode(text, validate=True)
-                      joined_valid += 1
-                      digest = hashlib.sha256(payload).hexdigest()
-                      if digest == target:
-                          Path('/tmp/phase1.tar.gz').write_bytes(payload)
-                          print('verified mode: joined-base64')
-                          print('verified staging sequence:', names)
-                          raise SystemExit(0)
-                  except Exception:
-                      pass
+          candidate_sequences = []
+          middle = ['part00a', 'part00b']
+          for r in range(0, len(middle) + 1):
+              for mid in itertools.permutations(middle, r):
+                  candidate_sequences.append(('p0',) + mid + ('part01',))
+          # Also test the natural sequence without forcing part01 last, for diagnosis.
+          for perm in itertools.permutations(['part00a', 'part00b', 'part01']):
+              seq = ('p0',) + perm
+              if seq not in candidate_sequences:
+                  candidate_sequences.append(seq)
 
-                  if all(p.name in decoded for p in seq):
-                      binary_valid += 1
-                      payload = b''.join(decoded[p.name] for p in seq)
-                      digest = hashlib.sha256(payload).hexdigest()
-                      if digest == target:
-                          Path('/tmp/phase1.tar.gz').write_bytes(payload)
-                          print('verified mode: decode-each-then-concatenate')
-                          print('verified staging sequence:', names)
-                          raise SystemExit(0)
+          tested = 0
+          for seq in candidate_sequences:
+              for payload, used_overlaps in assemble(seq):
+                  tested += 1
+                  digest = hashlib.sha256(payload).hexdigest()
+                  if digest == target:
+                      Path('/tmp/phase1.tar.gz').write_bytes(payload)
+                      print('RECOVERED expected archive')
+                      print('sequence:', ' -> '.join(seq))
+                      print('boundary overlaps:', used_overlaps)
+                      print('bytes:', len(payload))
+                      print('sha256:', digest)
+                      raise SystemExit(0)
 
-          print(f'attempts={attempts} joined_base64_decodable={joined_valid} binary_sequences_tested={binary_valid}')
-          raise SystemExit('No staged reconstruction matched expected SHA-256')
+          # Text-stream candidate: valid p0 base64 prefix followed by staged text chunks.
+          texts = {
+              'part00a': ''.join((root / 'part00a').read_text(encoding='ascii').split()),
+              'part00b': ''.join((root / 'part00b').read_text(encoding='ascii').split()),
+              'part01': ''.join((root / 'part01').read_text(encoding='ascii').split()),
+          }
+          for perm in itertools.permutations(['part00a', 'part00b', 'part01']):
+              text = prefix_text + ''.join(texts[x] for x in perm)
+              try:
+                  payload = base64.b64decode(text, validate=True)
+              except Exception:
+                  continue
+              tested += 1
+              if hashlib.sha256(payload).hexdigest() == target:
+                  Path('/tmp/phase1.tar.gz').write_bytes(payload)
+                  print('RECOVERED expected archive as joined base64 stream')
+                  print('sequence: p0text ->', ' -> '.join(perm))
+                  raise SystemExit(0)
+
+          raise SystemExit(f'Expected archive could not be recovered after {tested} hash-gated candidates')
           PY
           echo "74962f5ff60321e618469cb1492d23fbe3547cc40119d6b78cc697432948d9ac  /tmp/phase1.tar.gz" | sha256sum -c -
           tar -tzf /tmp/phase1.tar.gz >/tmp/phase1-files.txt
           echo "Patch archive entries: $(wc -l </tmp/phase1-files.txt)"
           tar -xzf /tmp/phase1.tar.gz -C .
 
-      - name: Persist reconstruction diagnostic on failure
+      - name: Persist recovery diagnostic on failure
         if: failure()
         shell: bash
         run: |
           set -euo pipefail
-          cp /tmp/phase1-reconstruction-diagnostic.txt .ci/phase1-cleanup/reconstruction-diagnostic.txt
+          cp /tmp/phase1-recovery.txt .ci/phase1-cleanup/recovery-final.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/phase1-cleanup/reconstruction-diagnostic.txt
+          git add .ci/phase1-cleanup/recovery-final.txt
           if ! git diff --cached --quiet; then
-            git commit -m "ci: capture phase1 reconstruction diagnostic"
+            git commit -m "ci: capture final phase1 staging recovery diagnostic"
             git push origin HEAD:refactor/code22-clean-source-work2
           fi
 
