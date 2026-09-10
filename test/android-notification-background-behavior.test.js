@@ -96,3 +96,12 @@ test('Android requests notification permission automatically on app startup when
   assert.match(main, /requestStartupNotificationPermission[\s\S]{0,1200}NOTIFICATION_ASKED_KEY/);
   assert.doesNotMatch(app, /setTimeout\(maybeRequestNotificationPermissionOnce/);
 });
+
+test('background alert worker stays independent of MainActivity and WebView', async () => {
+  const scheduler = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java');
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  assert.match(scheduler, /PeriodicWorkRequest\.Builder\(BackgroundAlertWorker\.class, 15, TimeUnit\.MINUTES\)/);
+  assert.match(scheduler, /enqueueUniquePeriodicWork/);
+  assert.match(worker, /NotificationHelper\.show\(context, data\)/);
+  assert.doesNotMatch(worker, /MainActivity|WebView/);
+});

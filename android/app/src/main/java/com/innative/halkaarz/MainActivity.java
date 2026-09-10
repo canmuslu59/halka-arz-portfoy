@@ -284,7 +284,7 @@ public class MainActivity extends ComponentActivity {
         }
 
         @JavascriptInterface
-        public void showLocalNotification(String json) {
+        public boolean showLocalNotification(String json) {
             try {
                 JSONObject parsed = new JSONObject(json == null ? "{}" : json);
                 Map<String, String> data = new HashMap<>();
@@ -292,8 +292,10 @@ public class MainActivity extends ComponentActivity {
                 data.put("ticker", parsed.optString("ticker", ""));
                 data.put("title", parsed.optString("title", "Halka Arz Portföyüm"));
                 data.put("body", parsed.optString("body", "Portföyünüzde yeni bir hareket var."));
-                NotificationHelper.show(activity, data);
-            } catch (Exception ignored) {}
+                return NotificationHelper.show(activity, data);
+            } catch (Exception ignored) {
+                return false;
+            }
         }
 
         @JavascriptInterface

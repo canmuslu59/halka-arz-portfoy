@@ -1,6 +1,8 @@
 const FIXED_CLOSED = new Set(['01-01','04-23','05-01','05-19','07-15','08-30','10-29']);
 const CLOSED_2026 = new Set(['2026-03-20','2026-03-21','2026-03-22','2026-05-27','2026-05-28','2026-05-29','2026-05-30']);
+const CLOSED_2027 = new Set(['2027-03-09','2027-03-10','2027-03-11','2027-05-16','2027-05-17','2027-05-18','2027-05-19']);
 const HALF_2026 = new Set(['2026-03-19','2026-05-26','2026-10-28']);
+const HALF_2027 = new Set(['2027-03-08','2027-05-15']);
 
 function partsInIstanbul(date) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -31,11 +33,11 @@ function isWeekend(iso) {
 }
 
 function isFullHoliday(iso) {
-  return FIXED_CLOSED.has(iso.slice(5)) || CLOSED_2026.has(iso);
+  return FIXED_CLOSED.has(iso.slice(5)) || CLOSED_2026.has(iso) || CLOSED_2027.has(iso);
 }
 
 function isHalfDay(iso) {
-  return HALF_2026.has(iso) || iso.slice(5) === '10-28';
+  return HALF_2026.has(iso) || HALF_2027.has(iso) || iso.slice(5) === '10-28';
 }
 
 function tradingDay(iso) {

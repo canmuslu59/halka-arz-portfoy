@@ -1,4 +1,5 @@
 export const DEFAULT_TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
+export const REVIEW_ACCESS_MS = 24 * 60 * 60 * 1000;
 export const REVIEW_ACCESS_CODE = 'GPLAY-REVIEW-HA11-2026';
 const START_KEY = 'halka_arz_pro_trial_started_at_v1';
 const REVIEW_KEY = 'halka_arz_pro_review_access_v1';
@@ -18,7 +19,8 @@ export function createProAccess(storage, { now = () => Date.now(), trialMs = DEF
   }
 
   function hasReviewAccess() {
-    return storage.getItem(REVIEW_KEY) === '1';
+    const grantedAt = asFiniteTimestamp(storage.getItem(REVIEW_KEY));
+    return Boolean(grantedAt && Math.max(0, now() - grantedAt) < REVIEW_ACCESS_MS);
   }
 
   function getState() {
@@ -40,7 +42,7 @@ export function createProAccess(storage, { now = () => Date.now(), trialMs = DEF
 
   function enableReviewAccess(code) {
     if (normalizeReviewCode(code) !== REVIEW_ACCESS_CODE) return false;
-    storage.setItem(REVIEW_KEY, '1');
+    storage.setItem(REVIEW_KEY, String(now()));
     return true;
   }
 

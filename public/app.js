@@ -127,7 +127,7 @@ function renderIpoCalendar(data = state.calendar) {
     return;
   }
   list.innerHTML = items.map(item => `
-    <article class="calendar-card">
+    <article class="calendar-card" data-ipo-ticker="${esc(item.ticker)}">
       <div class="calendar-card-head">
         <div class="calendar-card-title"><strong>${esc(item.ticker)}</strong><span>${esc(item.company || 'Şirket bilgisi bekleniyor')}</span></div>
         <span class="ipo-status ${esc(item.status || 'unknown')}">${IPO_STATUS_LABELS[item.status] || IPO_STATUS_LABELS.unknown}</span>
@@ -145,7 +145,15 @@ function renderIpoCalendar(data = state.calendar) {
       </div>
     </article>
   `).join('');
-  $$('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));
+  const focusTicker = String(safeGetLocal('pushFocusIpo') || '').toUpperCase();
+  if (focusTicker) {
+    const target = [...list.querySelectorAll('[data-ipo-ticker]')].find(card => String(card.dataset.ipoTicker || '').toUpperCase() === focusTicker);
+    if (target) {
+      safeSetLocal('pushFocusIpo', '');
+      setTimeout(() => target.scrollIntoView({ behavior:'smooth', block:'center' }), 0);
+    }
+  }
+  $('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));
 }
 
 async function loadIpoCalendar({ force = false } = {}) {
@@ -455,10 +463,15 @@ function evaluateLocalAlerts(portfolio) {
     portfolioPct:Number(portfolio.totals?.dailyPct || 0),
     previousState,
   });
-  safeSetLocal(LOCAL_ALERT_STATE_KEY, JSON.stringify(result.state));
+  let deliveredCount = 0;
   for (const event of result.events) {
     const payload = notificationPayloadForEvent(event);
-    try { window.AndroidBridge?.showLocalNotification?.(JSON.stringify(payload)); } catch {}
+    try {
+      if (window.AndroidBridge?.showLocalNotification?.(JSON.stringify(payload))) deliveredCount += 1;
+    } catch {}
+  }
+  if (result.events.length === 0 || deliveredCount === result.events.length) {
+    safeSetLocal(LOCAL_ALERT_STATE_KEY, JSON.stringify(result.state));
   }
 }
 
@@ -486,8 +499,8 @@ window.__handlePushRoute = route => {
   const kind = String(route?.kind || 'portfolio');
   const ticker = String(route?.ticker || '').toUpperCase();
   if (kind === 'ipo') {
-    switchView('calendar');
     if (ticker) safeSetLocal('pushFocusIpo', ticker);
+    switchView('calendar');
     return;
   }
   switchView('portfolio');
@@ -1101,4 +1114,4 @@ setInterval(() => {
   else { closedQuoteTick += 1; if (closedQuoteTick % 4 === 0) loadPortfolio({ quiet:true }); }
 }, 15_000);
 setInterval(() => { if (!document.hidden) renderMarketStatus(); }, 30_000);
-setInterval(() => { if (!document.hidden && state.view === 'calendar') loadIpoCalendar(); }, 300_000);
+setInterval(() => { if (!document.hidden && state.view === 'calendar') loadIpoCalendar({ force:true }); }, 300_000);

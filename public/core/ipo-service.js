@@ -26,7 +26,11 @@ export function parseOfferWindow(text) {
   if (match) {
     const firstMonth = monthNo(match[2]);
     const secondMonth = monthNo(match[4]);
-    if (firstMonth && secondMonth) return { start:iso(match[5], firstMonth, match[1]), end:iso(match[5], secondMonth, match[3]) };
+    if (firstMonth && secondMonth) {
+      const endYear = Number(match[5]);
+      const startYear = firstMonth > secondMonth ? endYear - 1 : endYear;
+      return { start:iso(startYear, firstMonth, match[1]), end:iso(endYear, secondMonth, match[3]) };
+    }
   }
   match = value.match(/(\d{1,2})\s*-\s*(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(20\d{2})/i);
   if (match) {
