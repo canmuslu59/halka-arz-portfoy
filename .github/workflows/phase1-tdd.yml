@@ -7,6 +7,7 @@ on:
     paths:
       - 'test/android-build-hardening.test.js'
       - 'test/android-notification-hardening.test.js'
+      - 'test/android-push-config-noop.test.js'
       - 'test/backend-service.test.js'
       - 'backend/service.js'
       - 'backend/alert-engine.js'
@@ -16,6 +17,8 @@ on:
       - 'android/app/build.gradle'
       - 'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java'
       - 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java'
+      - 'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
+      - 'android/app/src/main/java/com/innative/halkaarz/MainActivity.java'
       - '.github/workflows/phase1-tdd.yml'
   workflow_dispatch:
 
@@ -38,3 +41,5 @@ jobs:
         run: node --test test/backend-service.test.js
       - name: Native notification hardening contract
         run: node --test test/android-notification-hardening.test.js
+      - name: Push config duplicate no-op contract
+        run: node --test test/android-push-config-noop.test.js
