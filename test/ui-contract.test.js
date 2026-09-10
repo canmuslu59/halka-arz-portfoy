@@ -55,7 +55,7 @@ test('add holding flow keeps a stable form reference across await and always ope
 test('home screen exposes app version so installed APK can be verified', async () => {
   const html = await read('public/index.html');
   assert.match(html, /id=["']appVersion["']/);
-  assert.match(html, /v2\.4\.0 • Build 22/);
+  assert.match(html, /v2\.4\.1 • Build 23/);
 });
 
 test('UI shows real market-data timestamp instead of only local refresh completion time', async () => {
