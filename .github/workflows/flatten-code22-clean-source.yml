@@ -2,6 +2,11 @@ name: Flatten Code22 Clean Source
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - refactor/code22-clean-source-work2
+    paths:
+      - .github/workflows/flatten-code22-clean-source.yml
 
 permissions:
   contents: write
