@@ -44,7 +44,7 @@ final class PushConfigSync {
             if (nextConfig.equals(previousConfig)) return;
 
             prefs.edit().putString(CONFIG_KEY, nextConfig).apply();
-            BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true));
+            BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true) || safe.optBoolean("ipoEnabled", true));
             syncAsync(context);
         } catch (Exception ignored) {}
     }

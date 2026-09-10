@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationManagerCompat;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class BackgroundAlertWorker extends Worker {
+    private static final String TAG = "BackgroundAlertWorker";
     private static final String STATE_KEY = "background_alert_state_v1";
     private static final String IPO_STATE_KEY = "background_ipo_seen_v1";
     private static final String IPO_CALENDAR_URL = "https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1";
@@ -57,12 +59,20 @@ public class BackgroundAlertWorker extends Worker {
 
         try {
             JSONObject config = new JSONObject(configRaw);
-            if (!config.optBoolean("enabled", true)) return Result.success();
-            JSONArray holdings = config.optJSONArray("holdings");
-            if (holdings == null) holdings = new JSONArray();
+            boolean marketEnabled = config.optBoolean("enabled", true);
             boolean ipoEnabled = config.optBoolean("ipoEnabled", true);
+            if (!marketEnabled && !ipoEnabled) return Result.success();
+
+            JSONArray holdings = marketEnabled ? config.optJSONArray("holdings") : new JSONArray();
+            if (holdings == null) holdings = new JSONArray();
+            boolean retryNeeded = false;
             if (ipoEnabled) {
-                try { checkIpoCalendar(context, prefs); } catch (Exception ignored) {}
+                try {
+                    checkIpoCalendar(context, prefs);
+                } catch (Exception error) {
+                    Log.w(TAG, "IPO calendar check failed", error);
+                    retryNeeded |= BackgroundRetryPolicy.shouldRetry(error);
+                }
             }
 
             double threshold = clampThreshold(config.optDouble("threshold", 3.0));
@@ -76,7 +86,7 @@ public class BackgroundAlertWorker extends Worker {
             double currentValue = 0.0;
             int activeCount = 0;
             int validTodayCount = 0;
-            int fetchedCount = 0;
+            boolean quoteRetryNeeded = false;
 
             for (int i = 0; i < holdings.length(); i++) {
                 JSONObject item = holdings.optJSONObject(i);
@@ -89,8 +99,9 @@ public class BackgroundAlertWorker extends Worker {
                 Quote quote;
                 try {
                     quote = fetchQuote(ticker);
-                    fetchedCount += 1;
-                } catch (Exception ignored) {
+                } catch (Exception error) {
+                    Log.w(TAG, "Quote fetch failed for " + ticker, error);
+                    quoteRetryNeeded |= BackgroundRetryPolicy.shouldRetry(error);
                     continue;
                 }
                 if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)) continue;
@@ -138,10 +149,12 @@ public class BackgroundAlertWorker extends Worker {
             state.put("portfolio", toJsonArray(portfolioDelivered));
             prefs.edit().putString(STATE_KEY, state.toString()).apply();
 
-            if (activeCount > 0 && fetchedCount == 0) return Result.retry();
+            if (quoteRetryNeeded) retryNeeded = true;
+            if (retryNeeded) return Result.retry();
             return Result.success();
-        } catch (Exception ignored) {
-            return Result.retry();
+        } catch (Exception error) {
+            Log.e(TAG, "Background alert worker failed", error);
+            return BackgroundRetryPolicy.shouldRetry(error) ? Result.retry() : Result.success();
         }
     }
 
@@ -264,7 +277,7 @@ public class BackgroundAlertWorker extends Worker {
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/152 Mobile Safari/537.36");
             connection.setRequestProperty("Accept", "text/html,*/*");
             int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) throw new IllegalStateException("HTTP " + status);
+            if (status < 200 || status >= 300) throw new BackgroundRetryPolicy.HttpStatusException(status);
             return readUtf8(connection.getInputStream(), maxBytes);
         } finally { if (connection != null) connection.disconnect(); }
     }
@@ -291,7 +304,7 @@ public class BackgroundAlertWorker extends Worker {
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36");
             connection.setRequestProperty("Accept", "application/json,text/plain,*/*");
             int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) throw new IllegalStateException("HTTP " + status);
+            if (status < 200 || status >= 300) throw new BackgroundRetryPolicy.HttpStatusException(status);
             String body = readUtf8(connection.getInputStream(), MAX_RESPONSE_BYTES);
             JSONObject root = new JSONObject(body);
             JSONObject result = root.optJSONObject("chart") == null ? null : root.optJSONObject("chart").optJSONArray("result") == null

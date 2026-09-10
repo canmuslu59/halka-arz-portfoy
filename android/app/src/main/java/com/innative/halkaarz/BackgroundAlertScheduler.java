@@ -28,7 +28,7 @@ final class BackgroundAlertScheduler {
         if (raw == null || raw.trim().isEmpty()) { sync(app, false); return; }
         try {
             JSONObject config = new JSONObject(raw);
-            sync(app, config.optBoolean("enabled", true));
+            sync(app, config.optBoolean("enabled", true) || config.optBoolean("ipoEnabled", true));
         } catch (Exception ignored) { sync(app, false); }
     }
 
