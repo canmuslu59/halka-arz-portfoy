@@ -1,0 +1,38 @@
+name: Inspect Code22 Test Conflicts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct exact Code22 test tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .ci/code18-delta/part* > /tmp/a.b64; base64 -d /tmp/a.b64 > /tmp/a.tar.gz; tar -xzf /tmp/a.tar.gz -C .
+          cat .ci/code19-delta/part* > /tmp/b.b64; base64 -d /tmp/b.b64 > /tmp/b.tar.gz; tar -xzf /tmp/b.tar.gz -C .
+          python .ci/code20-transform.py
+          python .ci/code21-transform.py
+          python .ci/code22-transform.py
+          cp .ci/code22-regression.test.js test/code22-regression.test.js
+          echo '--- ALL TESTS BEFORE NPM CI ---'
+          find test -maxdepth 1 -type f -name '*.test.js' -printf '%f\n' | sort
+          echo '--- CONFLICT MATCHES ---'
+          grep -RniE 'Android back handling goes back first|notification taps route stock kinds|native-backed local alerts|background scheduler only runs' test || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Inspect after npm ci
+        shell: bash
+        run: |
+          echo '--- ALL TESTS AFTER NPM CI ---'
+          find test -maxdepth 1 -type f -name '*.test.js' -printf '%f\n' | sort
+          echo '--- MATCHES WITH CONTEXT ---'
+          grep -RniE -B8 -A20 'Android back handling goes back first|notification taps route stock kinds|native-backed local alerts|background scheduler only runs' test || true
