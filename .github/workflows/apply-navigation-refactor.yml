@@ -37,7 +37,7 @@ jobs:
               exit 1
             fi
           done
-          refs="$(grep -RIl --exclude='apply-phase1-cleanup.yml' 'phase1-cleanup' .github/workflows || true)"
+          refs="$(grep -RIl --exclude='apply-navigation-refactor.yml' --exclude='apply-phase1-cleanup.yml' 'phase1-cleanup' .github/workflows || true)"
           if [ -n "$refs" ]; then
             echo "Retained workflow still references .ci/phase1-cleanup:"
             echo "$refs"
