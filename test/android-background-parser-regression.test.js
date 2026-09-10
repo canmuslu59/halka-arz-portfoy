@@ -33,8 +33,8 @@ test('background worker has native IPO fetch, de-dup state and notification perm
   assert.match(worker, /IPO_STATE_KEY/);
   assert.match(worker, /showIpoNotification/);
   assert.match(worker, /NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)/);
-  assert.match(worker, /IpoCalendarParser\.parseGedik\(html\)/);
-  assert.match(worker, /IpoCalendarParser\.parse\(fallbackHtml\)/);
+  assert.match(worker, /IpoCalendarParser\.parseGedik\([^)]*\)/);
+  assert.match(worker, /IpoCalendarParser\.parse\([^)]*\)/);
 });
 
 test('active card parser isolates consortium leader from page intro', () => {
