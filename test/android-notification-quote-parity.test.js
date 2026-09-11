@@ -30,3 +30,17 @@ test('background quote parser carries candle high and low into tavan/taban evalu
   assert.match(worker, /quote\.sessionHigh\s*>=\s*ceiling\s*-\s*ceilingTolerance/);
   assert.match(worker, /quote\.sessionLow\s*<=\s*floor\s*\+\s*floorTolerance/);
 });
+
+test('native parser aggregates every current-session candle so an earlier limit touch survives a later move away', async () => {
+  const worker = await readWorker();
+  assert.match(worker, /double\s+sessionHigh\s*=\s*Double\.NaN/,
+    'native quote parsing must start a session-wide high accumulator');
+  assert.match(worker, /double\s+sessionLow\s*=\s*Double\.NaN/,
+    'native quote parsing must start a session-wide low accumulator');
+  assert.match(worker, /if\s*\(tickDate\.equals\(effectiveMarketDate\)\)\s*\{/,
+    'only candles from the effective current trading session may contribute to limit-touch extrema');
+  assert.match(worker, /sessionHigh\s*=\s*Double\.isFinite\(sessionHigh\)\s*\?\s*Math\.max\(sessionHigh,\s*high\)\s*:\s*high/,
+    'an earlier candle high must remain visible after later candles move below the limit');
+  assert.match(worker, /sessionLow\s*=\s*Double\.isFinite\(sessionLow\)\s*\?\s*Math\.min\(sessionLow,\s*low\)\s*:\s*low/,
+    'an earlier candle low must remain visible after later candles move above the limit');
+});
