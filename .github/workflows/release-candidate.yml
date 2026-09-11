@@ -1,11 +1,10 @@
-# Code24 release verification
-name: Build v2.4.2 Release Candidate
+# Code25 release verification
+name: Build v2.4.3 Release Candidate
 
 on:
   push:
     branches:
-      - release/v2.4.2-code24
-      - audit/code25-notification-deepcheck-20260911
+      - release/v2.4.3-code25
   workflow_dispatch:
 
 permissions:
@@ -63,13 +62,13 @@ jobs:
       - name: Verify unsigned AAB
         run: |
           test -s android/app/build/outputs/bundle/release/app-release.aab
-          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.2-code24-unsigned.aab
-          sha256sum halka-arz-portfoyum-v2.4.2-code24-unsigned.aab > v2.4.2-code24-aab-sha256.txt
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.3-code25-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.4.3-code25-unsigned.aab > v2.4.3-code25-aab-sha256.txt
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: v2.4.2-code24-unsigned-aab
+          name: v2.4.3-code25-unsigned-aab
           path: |
-            halka-arz-portfoyum-v2.4.2-code24-unsigned.aab
-            v2.4.2-code24-aab-sha256.txt
+            halka-arz-portfoyum-v2.4.3-code25-unsigned.aab
+            v2.4.3-code25-aab-sha256.txt
           if-no-files-found: error
           retention-days: 30
