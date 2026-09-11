@@ -55,6 +55,15 @@ test('cross-producer portfolio dedupe uses semantic threshold level instead of l
     'final delivery identity for portfolio alerts must use level, not display body text');
 });
 
+test('foreground Android bridge preserves portfolio threshold level before final native dedupe', async () => {
+  const main = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
+  const bridge = methodBody(main, 'public boolean showLocalNotification(String json)', 'public void setSystemTheme(String theme)');
+  assert.match(bridge, /parsed\.optString\("level",\s*""\)/,
+    'foreground payload level must be read from JavaScript JSON');
+  assert.match(bridge, /data\.put\("level",/,
+    'foreground payload level must reach NotificationHelper so WorkManager and foreground share one semantic identity');
+});
+
 test('cross-producer IPO dedupe ignores producer-specific wording and keys by ticker within the Istanbul day', async () => {
   const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
   assert.match(helper, /"ipo"\.equals\(kind\)[\s\S]*deliveryKey\s*=\s*kind\s*\+\s*"\|"\s*\+\s*ticker/,
