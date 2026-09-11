@@ -117,12 +117,12 @@ public class BackgroundAlertWorker extends Worker {
                 double ceilingTolerance = Math.max(0.005, tickSize(ceiling) / 2.0 + 1e-8);
                 double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
 
-                if (quote.current >= ceiling - ceilingTolerance && !tickerLimits.optBoolean("ceiling", false)) {
+                if (quote.sessionHigh >= ceiling - ceilingTolerance && !tickerLimits.optBoolean("ceiling", false)) {
                     if (showLimitNotification(context, "ceiling", ticker)) {
                         tickerLimits.put("ceiling", true);
                     }
                 }
-                if (quote.current <= floor + floorTolerance && !tickerLimits.optBoolean("floor", false)) {
+                if (quote.sessionLow <= floor + floorTolerance && !tickerLimits.optBoolean("floor", false)) {
                     if (showLimitNotification(context, "floor", ticker)) {
                         tickerLimits.put("floor", true);
                     }
@@ -412,9 +412,13 @@ public class BackgroundAlertWorker extends Worker {
         JSONArray quoteArray = indicators == null ? null : indicators.optJSONArray("quote");
         JSONObject quote = quoteArray == null ? null : quoteArray.optJSONObject(0);
         JSONArray closes = quote == null ? null : quote.optJSONArray("close");
+        JSONArray highs = quote == null ? null : quote.optJSONArray("high");
+        JSONArray lows = quote == null ? null : quote.optJSONArray("low");
 
         long latestTickEpoch = 0L;
         double latestTickClose = Double.NaN;
+        double latestTickHigh = Double.NaN;
+        double latestTickLow = Double.NaN;
         if (closes != null && timestamps != null) {
             int count = Math.min(closes.length(), timestamps.length());
             for (int i = 0; i < count; i++) {
@@ -424,6 +428,8 @@ public class BackgroundAlertWorker extends Worker {
                 if (epoch > latestTickEpoch) {
                     latestTickEpoch = epoch;
                     latestTickClose = close;
+                    latestTickHigh = highs == null ? Double.NaN : finite(highs.optDouble(i, Double.NaN));
+                    latestTickLow = lows == null ? Double.NaN : finite(lows.optDouble(i, Double.NaN));
                 }
             }
         }
@@ -456,7 +462,9 @@ public class BackgroundAlertWorker extends Worker {
         if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;
         if (!Double.isFinite(previousClose)) previousClose = latestTickClose;
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
-        return new Quote(current, previousClose, effectiveMarketDate.toString());
+        double sessionHigh = Double.isFinite(latestTickHigh) ? latestTickHigh : current;
+        double sessionLow = Double.isFinite(latestTickLow) ? latestTickLow : current;
+        return new Quote(current, previousClose, sessionHigh, sessionLow, effectiveMarketDate.toString());
     }
 
     private static double finite(double value) {
@@ -529,11 +537,15 @@ public class BackgroundAlertWorker extends Worker {
     private static final class Quote {
         final double current;
         final double previousClose;
+        final double sessionHigh;
+        final double sessionLow;
         final String marketDate;
 
-        Quote(double current, double previousClose, String marketDate) {
+        Quote(double current, double previousClose, double sessionHigh, double sessionLow, String marketDate) {
             this.current = current;
             this.previousClose = previousClose;
+            this.sessionHigh = sessionHigh;
+            this.sessionLow = sessionLow;
             this.marketDate = marketDate;
         }
     }

@@ -125,6 +125,7 @@ export function parseYahooChart(json, ticker) {
   const exactLatestIndex = latestMarketDate ? rows.findLastIndex(row => row.date === latestMarketDate) : rows.length - 1;
   const latestCompletedBeforeMarket = latestMarketDate ? rows.findLast(row => row.date < latestMarketDate) : null;
   const latestRow = exactLatestIndex >= 0 ? rows[exactLatestIndex] : rows.at(-1) || null;
+  const sessionRow = exactLatestIndex >= 0 ? rows[exactLatestIndex] : null;
   const previousRow = exactLatestIndex > 0
     ? rows[exactLatestIndex - 1]
     : exactLatestIndex < 0
@@ -149,6 +150,8 @@ export function parseYahooChart(json, ticker) {
     currency: meta.currency || 'TRY',
     current,
     previousClose,
+    sessionHigh: Number.isFinite(sessionRow?.high) ? sessionRow.high : null,
+    sessionLow: Number.isFinite(sessionRow?.low) ? sessionRow.low : null,
     latestMarketDate,
     marketTime: marketEpoch ? new Date(marketEpoch * 1000).toISOString() : null,
     exchangeName: meta.fullExchangeName || meta.exchangeName || 'BIST',

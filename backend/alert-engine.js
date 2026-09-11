@@ -31,7 +31,14 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     }
 
     valid += 1;
-    holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:true });
+    holdings.push({
+      ticker,
+      currentPrice:current,
+      previousClose,
+      sessionHigh:finite(quote?.sessionHigh),
+      sessionLow:finite(quote?.sessionLow),
+      dailySessionActive:true,
+    });
     previousValue += previousClose * lots;
     currentValue += current * lots;
   }

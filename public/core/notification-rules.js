@@ -57,16 +57,18 @@ export function evaluateDailyAlerts({
     const currentPrice = finite(holding?.currentPrice, NaN);
     const previousClose = finite(holding?.previousClose, NaN);
     if (!(currentPrice > 0) || !(previousClose > 0)) continue;
+    const sessionHigh = finite(holding?.sessionHigh, currentPrice);
+    const sessionLow = finite(holding?.sessionLow, currentPrice);
     const ceiling = ceilingPrice(previousClose);
     const floor = floorPrice(previousClose);
     const ceilingStep = bistTickSize(ceiling) || 0.01;
     const floorStep = bistTickSize(floor) || 0.01;
     const limitState = { ...(state.limits[ticker] || {}) };
-    if (ceiling != null && currentPrice >= ceiling - Math.max(0.005, ceilingStep / 2 + 1e-8) && !limitState.ceiling) {
+    if (ceiling != null && sessionHigh >= ceiling - Math.max(0.005, ceilingStep / 2 + 1e-8) && !limitState.ceiling) {
       limitState.ceiling = true;
       events.push({ kind:'ceiling', ticker, currentPrice, limitPrice:ceiling, day:String(day || '') });
     }
-    if (floor != null && currentPrice <= floor + Math.max(0.005, floorStep / 2 + 1e-8) && !limitState.floor) {
+    if (floor != null && sessionLow <= floor + Math.max(0.005, floorStep / 2 + 1e-8) && !limitState.floor) {
       limitState.floor = true;
       events.push({ kind:'floor', ticker, currentPrice, limitPrice:floor, day:String(day || '') });
     }

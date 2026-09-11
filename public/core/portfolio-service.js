@@ -194,6 +194,8 @@ function hydrate(raw, errors = {}) {
       sectorSource: chosenSector.source,
       currentPrice: nullableFiniteNumber(quote.current),
       previousClose: quotePreviousClose,
+      sessionHigh: nullableFiniteNumber(quote.sessionHigh),
+      sessionLow: nullableFiniteNumber(quote.sessionLow),
       latestMarketDate,
       marketTime: quote.marketTime || null,
       history,
