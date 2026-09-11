@@ -95,16 +95,15 @@ test('IPO notification deep-link consumes the pending ticker and focuses the mat
   assert.match(app, /safeSetLocal\('pushFocusIpo',\s*''\)/);
 });
 
-test('Google Play review access is temporary rather than a permanent localStorage unlock', () => {
+test('Google Play review access cannot be unlocked by a reusable public client code', async () => {
   const values = new Map();
   const storage = {
     getItem:key => values.has(key) ? values.get(key) : null,
     setItem:(key,value) => values.set(key, String(value)),
   };
-  let now = Date.parse('2026-09-11T12:00:00+03:00');
-  const access = createProAccess(storage, { now:()=>now });
-  assert.equal(access.enableReviewAccess('GPLAY-REVIEW-HA11-2026'), true);
-  assert.equal(access.getState().status, 'review');
-  now += 25 * 60 * 60 * 1000;
-  assert.notEqual(access.getState().status, 'review');
+  const source = await read('public/core/pro-access.js');
+  assert.doesNotMatch(source, /GPLAY-REVIEW-|REVIEW_ACCESS_CODE/);
+  const access = createProAccess(storage, { now:()=>Date.parse('2026-09-11T12:00:00+03:00') });
+  assert.equal(access.enableReviewAccess('GPLAY-REVIEW-HA11-2026'), false);
+  assert.equal(access.getState().status, 'not_started');
 });
