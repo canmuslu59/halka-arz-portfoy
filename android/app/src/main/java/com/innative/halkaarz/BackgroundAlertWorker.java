@@ -388,26 +388,59 @@ public class BackgroundAlertWorker extends Worker {
         if (meta == null) meta = new JSONObject();
         double current = finite(meta.optDouble("regularMarketPrice", Double.NaN));
         double previousClose = finite(meta.optDouble("previousClose", Double.NaN));
-        if (!Double.isFinite(previousClose)) previousClose = finite(meta.optDouble("chartPreviousClose", Double.NaN));
-        long marketEpoch = meta.optLong("regularMarketTime", 0L);
+        double chartPreviousClose = finite(meta.optDouble("chartPreviousClose", Double.NaN));
+        long metaMarketEpoch = meta.optLong("regularMarketTime", 0L);
 
         JSONArray timestamps = result.optJSONArray("timestamp");
         JSONObject indicators = result.optJSONObject("indicators");
         JSONArray quoteArray = indicators == null ? null : indicators.optJSONArray("quote");
         JSONObject quote = quoteArray == null ? null : quoteArray.optJSONObject(0);
         JSONArray closes = quote == null ? null : quote.optJSONArray("close");
-        if (closes != null) {
-            for (int i = closes.length() - 1; i >= 0; i--) {
+
+        long latestTickEpoch = 0L;
+        double latestTickClose = Double.NaN;
+        if (closes != null && timestamps != null) {
+            int count = Math.min(closes.length(), timestamps.length());
+            for (int i = 0; i < count; i++) {
                 double close = finite(closes.optDouble(i, Double.NaN));
-                if (!Double.isFinite(close)) continue;
-                if (!Double.isFinite(current)) current = close;
-                if (marketEpoch <= 0 && timestamps != null) marketEpoch = timestamps.optLong(i, 0L);
-                break;
+                long epoch = timestamps.optLong(i, 0L);
+                if (!Double.isFinite(close) || epoch <= 0) continue;
+                if (epoch > latestTickEpoch) {
+                    latestTickEpoch = epoch;
+                    latestTickClose = close;
+                }
             }
         }
-        if (!(current > 0) || !(previousClose > 0) || marketEpoch <= 0) throw new IllegalStateException("Eksik fiyat verisi.");
-        String marketDate = Instant.ofEpochSecond(marketEpoch).atZone(ISTANBUL).toLocalDate().toString();
-        return new Quote(current, previousClose, marketDate);
+
+        long effectiveMarketEpoch = Math.max(metaMarketEpoch, latestTickEpoch);
+        if (latestTickEpoch > metaMarketEpoch) current = latestTickClose;
+        if (!Double.isFinite(current)) current = latestTickClose;
+        if (effectiveMarketEpoch <= 0) throw new IllegalStateException("Eksik fiyat verisi.");
+
+        LocalDate effectiveMarketDate = Instant.ofEpochSecond(effectiveMarketEpoch).atZone(ISTANBUL).toLocalDate();
+        double previousSessionClose = Double.NaN;
+        long previousSessionEpoch = 0L;
+        if (closes != null && timestamps != null) {
+            int count = Math.min(closes.length(), timestamps.length());
+            for (int i = 0; i < count; i++) {
+                double close = finite(closes.optDouble(i, Double.NaN));
+                long epoch = timestamps.optLong(i, 0L);
+                if (!Double.isFinite(close) || epoch <= 0) continue;
+                LocalDate tickDate = Instant.ofEpochSecond(epoch).atZone(ISTANBUL).toLocalDate();
+                if (tickDate.isBefore(effectiveMarketDate)) {
+                    if (epoch > previousSessionEpoch) {
+                        previousSessionEpoch = epoch;
+                        previousSessionClose = close;
+                    }
+                }
+            }
+        }
+
+        if (!Double.isFinite(previousClose)) previousClose = previousSessionClose;
+        if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;
+        if (!Double.isFinite(previousClose)) previousClose = latestTickClose;
+        if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
+        return new Quote(current, previousClose, effectiveMarketDate.toString());
     }
 
     private static double finite(double value) {
