@@ -15,9 +15,9 @@ test('Android API 36 build uses compatible AGP and enables AndroidX', async () =
   assert.doesNotMatch(properties, /^android\.useAndroidX=false$/m);
 });
 
-test('Release candidate advances the Play identity to Code24', async () => {
+test('Release candidate advances the Play identity to Code25', async () => {
   const appGradle = await read('android/app/build.gradle');
 
-  assert.match(appGradle, /versionCode 24/);
-  assert.match(appGradle, /versionName ['"]2\.4\.2['"]/);
+  assert.match(appGradle, /versionCode 25/);
+  assert.match(appGradle, /versionName ['"]2\.4\.3['"]/);
 });
