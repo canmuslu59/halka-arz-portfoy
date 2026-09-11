@@ -31,6 +31,23 @@ test('fresh brokerage calendar parser extracts the active NETGL September offer'
   assert.equal(netgl?.status, 'active');
 });
 
+test('Gedik parser never turns the LEM suffix of İŞLEM KANALLARIMIZ into an IPO ticker', () => {
+  const html = `
+    <nav>
+      <a>İŞLEM KANALLARIMIZ</a>
+      <a>Bize Ulaşın</a>
+      <a>BİZE ULAŞIN</a>
+      <a>HESAP AÇIN</a>
+      <button>GİRİŞ YAP</button>
+    </nav>
+    <h1>Halka Arz Takvimi</h1>
+    <a href="/halka-arz/netgl">NETGL Net Global Endüstriyel Yatırımlar A.Ş. AKTİF 9-10-11 Eylül 2026 25,52 TL</a>`;
+
+  const rows = parseGedikCalendar(html);
+  assert.deepEqual(rows.map(row => row.ticker), ['NETGL']);
+  assert.equal(rows[0]?.company, 'Net Global Endüstriyel Yatırımlar A.Ş.');
+});
+
 test('UI calendar cross-checks Ahlatci even after a successful empty Gedik response', async () => {
   const calls = [];
   const sources = createDataSources({
