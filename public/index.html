@@ -9,6 +9,7 @@
   <title>Halka Arz Portföyüm</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
+  <style>.review-access-box{display:none!important}</style>
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -183,6 +184,13 @@
             <div><strong>Telefon bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
             <button id="requestNotificationPermission" class="secondary-btn compact-btn" type="button">İzin ver</button>
           </div>
+          <div class="permission-row">
+            <div><strong>Bildirim tanılama</strong><span>Test APK’sında gerçek Android bildirim kanalını kontrol eder.</span></div>
+            <div>
+              <button id="notificationSettingsButton" class="secondary-btn compact-btn" type="button" hidden>Bildirim ayarları</button>
+              <button id="debugNotificationTest" class="secondary-btn compact-btn" type="button" hidden>Test bildirimi gönder</button>
+            </div>
+          </div>
         </article>
 
         <article class="settings-card about-card">
@@ -274,5 +282,6 @@
   </template>
 
   <script type="module" src="./app.js"></script>
+  <script type="module" src="./notification-recovery.js"></script>
 </body>
 </html>
