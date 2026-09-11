@@ -133,3 +133,18 @@ test('parseYahooChart collapses intraday candles into one row per Istanbul tradi
   assert.equal(out.current, 128);
   assert.equal(out.marketTime, new Date(aug31b * 1000).toISOString());
 });
+
+test('parseYahooChart exposes current-session high and low for notification limit-touch detection', () => {
+  const aug31a = Math.floor(new Date('2026-08-31T07:05:00Z').getTime()/1000);
+  const aug31b = Math.floor(new Date('2026-08-31T10:15:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: { regularMarketPrice:108, previousClose:100, regularMarketTime:aug31b, exchangeTimezoneName:'Europe/Istanbul' },
+    timestamp:[aug31a, aug31b],
+    indicators:{ quote:[{
+      close:[110,108], high:[110,109], low:[101,107], open:[105,109],
+    }] },
+  }] } };
+  const out = parseYahooChart(json, 'TEST');
+  assert.equal(out.sessionHigh, 110);
+  assert.equal(out.sessionLow, 101);
+});
