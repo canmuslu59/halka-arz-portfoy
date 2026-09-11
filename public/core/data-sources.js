@@ -2,6 +2,19 @@ import { cleanTicker } from './domain.js';
 import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseAhlatciCalendar, parseFintablesSector } from './parsers.js';
 import { parseGedikCalendar } from './gedik-calendar.js';
 
+const MAX_AHLATCI_ARCHIVE_PAGES = 40;
+
+function ahlatciPageUrl(pageNumber) {
+  return `https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=${pageNumber}`;
+}
+
+function hasNextAhlatciPage(html, pageNumber) {
+  const nextPage = pageNumber + 1;
+  const text = String(html || '');
+  const escaped = String(nextPage).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:[?&]|&amp;)sayfa=${escaped}(?:["'&<\\s]|$)`, 'i').test(text);
+}
+
 export function createDataSources({ getJson, getText }) {
   if (typeof getJson !== 'function' || typeof getText !== 'function') {
     throw new TypeError('HTTP veri fonksiyonları gerekli.');
@@ -31,26 +44,35 @@ export function createDataSources({ getJson, getText }) {
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
     let found = null;
     let scanIncomplete = false;
+    let firstPageHtml = '';
     try {
-      const firstPage = await getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1');
-      found = parseAhlatciList(firstPage, key);
+      firstPageHtml = await getText(ahlatciPageUrl(1));
+      found = parseAhlatciList(firstPageHtml, key);
     } catch {
       scanIncomplete = true;
-      // Continue with archive pages; another page may still contain the requested ticker.
     }
 
     if (!found) {
-      const pages = await Promise.allSettled(
-        Array.from({ length: 11 }, (_, index) => getText(`https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=${index + 2}`)),
-      );
-      for (const page of pages) {
-        if (page.status !== 'fulfilled') {
+      let pageNumber = 2;
+      let shouldContinue = !firstPageHtml || hasNextAhlatciPage(firstPageHtml, 1);
+      let previousPage = firstPageHtml;
+      while (shouldContinue && pageNumber <= MAX_AHLATCI_ARCHIVE_PAGES && !found) {
+        let html;
+        try {
+          html = await getText(ahlatciPageUrl(pageNumber));
+        } catch {
           scanIncomplete = true;
-          continue;
+          break;
         }
-        found = parseAhlatciList(page.value, key);
+        const newResults = html && html !== previousPage;
+        if (!newResults) break;
+        found = parseAhlatciList(html, key);
         if (found) break;
+        shouldContinue = hasNextAhlatciPage(html, pageNumber);
+        previousPage = html;
+        pageNumber += 1;
       }
+      if (shouldContinue && pageNumber > MAX_AHLATCI_ARCHIVE_PAGES) scanIncomplete = true;
     }
 
     if (!found && scanIncomplete) {
@@ -78,7 +100,7 @@ export function createDataSources({ getJson, getText }) {
   async function getIpoCalendar() {
     const [gedikResult, ahlatciResult] = await Promise.allSettled([
       getText('https://gedik.com/halka-arz-takvimi').then(parseGedikCalendar),
-      getText('https://www.ahlatciyatirim.com.tr/halka-arz?sayfa=1').then(parseAhlatciCalendar),
+      getText(ahlatciPageUrl(1)).then(parseAhlatciCalendar),
     ]);
 
     if (gedikResult.status === 'rejected' && ahlatciResult.status === 'rejected') {
