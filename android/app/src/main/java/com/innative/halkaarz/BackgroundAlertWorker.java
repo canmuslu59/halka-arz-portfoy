@@ -417,8 +417,6 @@ public class BackgroundAlertWorker extends Worker {
 
         long latestTickEpoch = 0L;
         double latestTickClose = Double.NaN;
-        double latestTickHigh = Double.NaN;
-        double latestTickLow = Double.NaN;
         if (closes != null && timestamps != null) {
             int count = Math.min(closes.length(), timestamps.length());
             for (int i = 0; i < count; i++) {
@@ -428,8 +426,6 @@ public class BackgroundAlertWorker extends Worker {
                 if (epoch > latestTickEpoch) {
                     latestTickEpoch = epoch;
                     latestTickClose = close;
-                    latestTickHigh = highs == null ? Double.NaN : finite(highs.optDouble(i, Double.NaN));
-                    latestTickLow = lows == null ? Double.NaN : finite(lows.optDouble(i, Double.NaN));
                 }
             }
         }
@@ -442,6 +438,8 @@ public class BackgroundAlertWorker extends Worker {
         LocalDate effectiveMarketDate = Instant.ofEpochSecond(effectiveMarketEpoch).atZone(ISTANBUL).toLocalDate();
         double previousSessionClose = Double.NaN;
         long previousSessionEpoch = 0L;
+        double sessionHigh = Double.NaN;
+        double sessionLow = Double.NaN;
         if (closes != null && timestamps != null) {
             int count = Math.min(closes.length(), timestamps.length());
             for (int i = 0; i < count; i++) {
@@ -449,7 +447,16 @@ public class BackgroundAlertWorker extends Worker {
                 long epoch = timestamps.optLong(i, 0L);
                 if (!Double.isFinite(close) || epoch <= 0) continue;
                 LocalDate tickDate = Instant.ofEpochSecond(epoch).atZone(ISTANBUL).toLocalDate();
-                if (tickDate.isBefore(effectiveMarketDate)) {
+                if (tickDate.equals(effectiveMarketDate)) {
+                    double high = highs == null ? Double.NaN : finite(highs.optDouble(i, Double.NaN));
+                    double low = lows == null ? Double.NaN : finite(lows.optDouble(i, Double.NaN));
+                    if (Double.isFinite(high)) {
+                        sessionHigh = Double.isFinite(sessionHigh) ? Math.max(sessionHigh, high) : high;
+                    }
+                    if (Double.isFinite(low)) {
+                        sessionLow = Double.isFinite(sessionLow) ? Math.min(sessionLow, low) : low;
+                    }
+                } else if (tickDate.isBefore(effectiveMarketDate)) {
                     if (epoch > previousSessionEpoch) {
                         previousSessionEpoch = epoch;
                         previousSessionClose = close;
@@ -462,8 +469,8 @@ public class BackgroundAlertWorker extends Worker {
         if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;
         if (!Double.isFinite(previousClose)) previousClose = latestTickClose;
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
-        double sessionHigh = Double.isFinite(latestTickHigh) ? latestTickHigh : current;
-        double sessionLow = Double.isFinite(latestTickLow) ? latestTickLow : current;
+        if (!Double.isFinite(sessionHigh)) sessionHigh = current;
+        if (!Double.isFinite(sessionLow)) sessionLow = current;
         return new Quote(current, previousClose, sessionHigh, sessionLow, effectiveMarketDate.toString());
     }
 
