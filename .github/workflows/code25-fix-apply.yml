@@ -1,0 +1,55 @@
+name: Apply Code25 verified fixes
+
+on:
+  push:
+    branches:
+      - fix/code25-real-device-bugs-20260911
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code25-real-device-bugs-20260911
+      - name: Apply exact minimal fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          for name in ['public/app.js', 'android/app/src/main/assets/www/app.js']:
+              p = Path(name)
+              text = p.read_text(encoding='utf-8')
+              old = "  $('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));"
+              new = "  $$('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));"
+              if text.count(old) != 1:
+                  raise SystemExit(f'{name}: expected exactly one calendar selector match, found {text.count(old)}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          p = Path('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java')
+          text = p.read_text(encoding='utf-8')
+          replacements = [
+              ('            int activeCount = 0;\n', ''),
+              ('                activeCount += 1;\n', ''),
+              ('            if (activeCount > 0 && validTodayCount == activeCount && previousValue > 0) {',
+               '            if (validTodayCount > 0 && previousValue > 0) {'),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'BackgroundAlertWorker.java: expected exactly one match for {old!r}, found {text.count(old)}')
+              text = text.replace(old, new)
+          p.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit fixes and remove one-time applicator
+        run: |
+          rm .github/workflows/code25-fix-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/app.js android/app/src/main/assets/www/app.js android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java .github/workflows/code25-fix-apply.yml
+          git commit -m 'fix: restore calendar rendering and partial-quote alerts'
+          git push origin HEAD:fix/code25-real-device-bugs-20260911
