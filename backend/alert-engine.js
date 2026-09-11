@@ -1,5 +1,8 @@
 import { evaluateDailyAlerts, notificationPayloadForEvent } from '../public/core/notification-rules.js';
 
+const MAX_QUOTE_AGE_MS = 15 * 60 * 1000;
+const MAX_FUTURE_CLOCK_SKEW_MS = 60 * 1000;
+
 function finite(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -14,7 +17,16 @@ function normalizeTicker(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map(), day } = {}) {
+function isFreshQuote(marketTime, now) {
+  if (marketTime == null || marketTime === '' || now == null) return true;
+  const marketMs = new Date(marketTime).getTime();
+  const nowMs = (now instanceof Date ? now : new Date(now)).getTime();
+  if (!Number.isFinite(marketMs) || !Number.isFinite(nowMs)) return false;
+  const ageMs = nowMs - marketMs;
+  return ageMs >= -MAX_FUTURE_CLOCK_SKEW_MS && ageMs <= MAX_QUOTE_AGE_MS;
+}
+
+export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map(), day, now } = {}) {
   const holdings = [];
   let previousValue = 0;
   let currentValue = 0;
@@ -29,7 +41,8 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     const quote = quotes instanceof Map ? quotes.get(ticker) : quotes?.[ticker];
     const current = finite(quote?.current);
     const previousClose = finite(quote?.previousClose);
-    const dailySessionActive = !quote?.latestMarketDate || !day || quote.latestMarketDate === day;
+    const quoteFresh = isFreshQuote(quote?.marketTime, now);
+    const dailySessionActive = (!quote?.latestMarketDate || !day || quote.latestMarketDate === day) && quoteFresh;
     if (current == null || previousClose == null || previousClose <= 0 || !dailySessionActive) {
       holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:false });
       continue;
