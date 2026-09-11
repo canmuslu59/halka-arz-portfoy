@@ -25,6 +25,15 @@ test('emits stock limit events only and keeps threshold alerts at portfolio leve
   assert.equal(result.portfolioPct, 5);
 });
 
+test('backend preserves session high and low so a moved-away limit touch is still notified', () => {
+  const oneHolding = { ...registration, holdings:[{ticker:'AAA',lots:10}] };
+  const quotes = new Map([
+    ['AAA',{ticker:'AAA',current:108,previousClose:100,sessionHigh:110,sessionLow:101,latestMarketDate:'2026-09-04'}],
+  ]);
+  const result = evaluateRegistrationAlerts({ registration:oneHolding, quotes, day:'2026-09-04' });
+  assert.deepEqual(result.events.filter(event => event.kind === 'ceiling').map(event => event.ticker), ['AAA']);
+});
+
 test('deduplicates delivered limit/portfolio alerts and resets on a new BIST day', () => {
   const quotes = new Map([
     ['AAA',{ticker:'AAA',current:110,previousClose:100}],
