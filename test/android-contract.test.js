@@ -35,8 +35,8 @@ test('Android Gradle config uses requested app id and SDK levels', async () => {
   assert.match(gradle, /minSdk 26/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /compileSdk 36/);
-  assert.match(gradle, /versionCode 24/);
-  assert.match(gradle, /versionName ['"]2\.4\.2['"]/);
+  assert.match(gradle, /versionCode 25/);
+  assert.match(gradle, /versionName ['"]2\.4\.3['"]/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
