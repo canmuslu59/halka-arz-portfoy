@@ -39,6 +39,7 @@ public class BackgroundAlertWorker extends Worker {
     private static final ZoneId ISTANBUL = ZoneId.of("Europe/Istanbul");
     private static final int MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
     private static final int MAX_REDIRECTS = 5;
+    private static final long MAX_QUOTE_AGE_SECONDS = 15 * 60;
 
     public BackgroundAlertWorker(@NonNull Context appContext, @NonNull WorkerParameters params) {
         super(appContext, params);
@@ -90,6 +91,7 @@ public class BackgroundAlertWorker extends Worker {
             int expectedQuoteCount = 0;
             int validTodayCount = 0;
             boolean quoteRetryNeeded = false;
+            long nowEpoch = Instant.now().getEpochSecond();
 
             for (int i = 0; i < holdings.length(); i++) {
                 JSONObject item = holdings.optJSONObject(i);
@@ -107,7 +109,8 @@ public class BackgroundAlertWorker extends Worker {
                     quoteRetryNeeded |= BackgroundRetryPolicy.shouldRetry(error);
                     continue;
                 }
-                if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)) continue;
+                if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)
+                        || !isFreshMarketQuote(quote, nowEpoch)) continue;
                 validTodayCount += 1;
 
                 JSONObject tickerLimits = limits.optJSONObject(ticker);
@@ -471,11 +474,17 @@ public class BackgroundAlertWorker extends Worker {
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
         if (!Double.isFinite(sessionHigh)) sessionHigh = current;
         if (!Double.isFinite(sessionLow)) sessionLow = current;
-        return new Quote(current, previousClose, sessionHigh, sessionLow, effectiveMarketDate.toString());
+        return new Quote(current, previousClose, sessionHigh, sessionLow, effectiveMarketDate.toString(), effectiveMarketEpoch);
     }
 
     private static double finite(double value) {
         return Double.isFinite(value) ? value : Double.NaN;
+    }
+
+    private static boolean isFreshMarketQuote(Quote quote, long nowEpoch) {
+        if (quote == null || quote.marketEpoch <= 0 || nowEpoch <= 0) return false;
+        long ageSeconds = nowEpoch - quote.marketEpoch;
+        return ageSeconds >= -60L && ageSeconds <= MAX_QUOTE_AGE_SECONDS;
     }
 
     private static double clampThreshold(double value) {
@@ -547,13 +556,15 @@ public class BackgroundAlertWorker extends Worker {
         final double sessionHigh;
         final double sessionLow;
         final String marketDate;
+        final long marketEpoch;
 
-        Quote(double current, double previousClose, double sessionHigh, double sessionLow, String marketDate) {
+        Quote(double current, double previousClose, double sessionHigh, double sessionLow, String marketDate, long marketEpoch) {
             this.current = current;
             this.previousClose = previousClose;
             this.sessionHigh = sessionHigh;
             this.sessionLow = sessionLow;
             this.marketDate = marketDate;
+            this.marketEpoch = marketEpoch;
         }
     }
 }
