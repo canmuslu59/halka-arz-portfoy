@@ -1,16 +1,11 @@
 export const DEFAULT_TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
 export const REVIEW_ACCESS_MS = 24 * 60 * 60 * 1000;
-export const REVIEW_ACCESS_CODE = 'GPLAY-REVIEW-HA11-2026';
 const START_KEY = 'halka_arz_pro_trial_started_at_v1';
 const REVIEW_KEY = 'halka_arz_pro_review_access_v1';
 
 function asFiniteTimestamp(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function normalizeReviewCode(value) {
-  return String(value || '').trim().toUpperCase();
 }
 
 export function createProAccess(storage, { now = () => Date.now(), trialMs = DEFAULT_TRIAL_MS } = {}) {
@@ -40,10 +35,10 @@ export function createProAccess(storage, { now = () => Date.now(), trialMs = DEF
     return getState();
   }
 
-  function enableReviewAccess(code) {
-    if (normalizeReviewCode(code) !== REVIEW_ACCESS_CODE) return false;
-    storage.setItem(REVIEW_KEY, String(now()));
-    return true;
+  // Review authorization is intentionally not validated in public client code.
+  // A reusable secret embedded in JavaScript can be recovered from every APK/AAB.
+  function enableReviewAccess() {
+    return false;
   }
 
   return { getState, enterAdvanced, enableReviewAccess };
