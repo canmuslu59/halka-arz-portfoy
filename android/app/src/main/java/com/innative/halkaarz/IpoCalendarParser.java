@@ -27,6 +27,10 @@ final class IpoCalendarParser {
     private static final Pattern GEDIK_ACTIVE = Pattern.compile(
             "\\b([A-Z0-9]{3,8})\\s+(.{3,180}?A\\.?\\s*Ş\\.?)\\s+AKTİF\\s+((?:\\d{1,2}\\s*[-–—]\\s*){0,2}\\d{1,2}\\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\\s+20\\d{2})\\s+[0-9.]+(?:,[0-9]+)?\\s*TL"
     );
+    private static final Pattern GEDIK_ANCHOR = Pattern.compile("(?is)<a\\b[^>]*>([\\s\\S]*?)</a>");
+    private static final Pattern GEDIK_NAVIGATION_NOISE = Pattern.compile(
+            "(?iu)(KANALLARIMIZ|BİZE\\s+ULAŞIN|BIZE\\s+ULASIN|HESAP\\s+AÇIN|HESAP\\s+ACIN|GİRİŞ\\s+YAP|GIRIS\\s+YAP|HALKA\\s+ARZ\\s+TAKVİMİ)"
+    );
 
     private IpoCalendarParser() {}
 
@@ -78,18 +82,33 @@ final class IpoCalendarParser {
     }
 
     static List<Entry> parseGedik(String html) {
-        String text = stripHtml(html);
+        String raw = html == null ? "" : html;
         Map<String, Entry> unique = new LinkedHashMap<>();
+
+        // Gedik renders offering cards as links. Scope each candidate to its own link so
+        // navigation text (for example “İŞLEM KANALLARIMIZ”) cannot bleed into an IPO.
+        Matcher anchors = GEDIK_ANCHOR.matcher(raw);
+        while (anchors.find()) {
+            parseGedikText(stripHtml(anchors.group(1)), unique);
+        }
+        if (!unique.isEmpty()) return new ArrayList<>(unique.values());
+
+        // Conservative fallback for markup changes, with navigation-noise rejection.
+        parseGedikText(stripHtml(raw), unique);
+        return new ArrayList<>(unique.values());
+    }
+
+    private static void parseGedikText(String text, Map<String, Entry> unique) {
         Matcher matcher = GEDIK_ACTIVE.matcher(text);
         while (matcher.find()) {
             String ticker = normalizeTicker(matcher.group(1));
             if (ticker.isEmpty()) continue;
             String company = matcher.group(2).replaceAll("\\s+", " ").trim();
+            if (GEDIK_NAVIGATION_NOISE.matcher(company).find()) continue;
             String dates = normalizeGedikDates(matcher.group(3));
             String key = ticker + "|" + dates;
             unique.putIfAbsent(key, new Entry(ticker, company, dates));
         }
-        return new ArrayList<>(unique.values());
     }
 
     private static String normalizeGedikDates(String value) {
