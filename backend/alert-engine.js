@@ -36,15 +36,16 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     currentValue += current * lots;
   }
 
-  const portfolioPct = valid > 0 && previousValue > 0
+  const completeCoverage = expected > 0 && valid === expected && previousValue > 0;
+  const portfolioPct = completeCoverage
     ? ((currentValue - previousValue) / previousValue) * 100
-    : 0;
+    : null;
   const result = evaluateDailyAlerts({
     day:String(day || ''),
     threshold:registration.threshold,
     enabled:registration.enabled !== false,
     holdings,
-    portfolioPct,
+    portfolioPct:portfolioPct ?? 0,
     previousState:registration.alertState,
   });
   return { ...result, portfolioPct };
