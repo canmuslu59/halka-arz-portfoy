@@ -32,7 +32,7 @@ test('native notification delivery has one persisted cross-producer once-per-eve
   assert.match(helper, /DELIVERY_STATE_KEY/);
   assert.match(helper, /Europe\/Istanbul/);
   assert.match(helper, /synchronized\s*\(DELIVERY_LOCK\)/);
-  assert.match(helper, /if\s*\(delivered[^)]*\)\s*return true;/s,
+  assert.match(helper, /if\s*\(delivered\.contains\(deliveryKey\)\)\s*return true;/,
     'an already delivered event should be treated as a successful no-op so producer state can converge');
   const notify = helper.indexOf('manager.notify(');
   const persist = helper.indexOf('putString(DELIVERY_STATE_KEY', notify);
