@@ -139,17 +139,48 @@ export function calculateHolding(holding, { today = null } = {}) {
 export function calculateTotals(holdings) {
   const keys = ['invested', 'activeValue', 'salesProceeds', 'totalWealth', 'totalProfit', 'realizedProfit', 'unrealizedProfit', 'dailyProfit'];
   const totals = Object.fromEntries(keys.map(key => [key, 0]));
+  let activePositionCount = 0;
+  let missingActiveValueCount = 0;
+  let missingDailyValueCount = 0;
+
   for (const holding of holdings) {
+    const active = Number(holding.currentLots || 0) > 0;
+    if (active) {
+      activePositionCount += 1;
+      if (!Number.isFinite(holding.activeValue) || !Number.isFinite(holding.totalWealth) || !Number.isFinite(holding.totalProfit)) {
+        missingActiveValueCount += 1;
+      }
+      if (holding.dailySessionActive !== false
+          && (!Number.isFinite(holding.previousClose) || !Number.isFinite(holding.dailyProfit))) {
+        missingDailyValueCount += 1;
+      }
+    }
     for (const key of keys) {
       if (Number.isFinite(holding[key])) totals[key] += holding[key];
     }
   }
-  totals.totalProfitPct = totals.invested > 0 ? (totals.totalProfit / totals.invested) * 100 : 0;
+
+  totals.activePositionCount = activePositionCount;
+  totals.missingActiveValueCount = missingActiveValueCount;
+  totals.missingDailyValueCount = missingDailyValueCount;
+  totals.complete = missingActiveValueCount === 0;
+  totals.dailyComplete = missingDailyValueCount === 0;
+  totals.totalProfitPct = totals.complete && totals.invested > 0 ? (totals.totalProfit / totals.invested) * 100 : null;
+
   const dailyBase = holdings.reduce((sum, holding) => {
-    if (holding.dailySessionActive === false) return sum;
+    if (holding.dailySessionActive === false || !(Number(holding.currentLots || 0) > 0)) return sum;
     return sum + (Number.isFinite(holding.previousClose) ? holding.previousClose * Number(holding.currentLots || 0) : 0);
   }, 0);
-  totals.dailyPct = dailyBase > 0 ? (totals.dailyProfit / dailyBase) * 100 : 0;
+  totals.dailyPct = totals.dailyComplete && dailyBase > 0 ? (totals.dailyProfit / dailyBase) * 100 : null;
+
+  if (!totals.complete) {
+    // Never let consumers accidentally present a partial active portfolio value/profit as complete.
+    totals.activeValue = null;
+    totals.totalWealth = null;
+    totals.totalProfit = null;
+    totals.unrealizedProfit = null;
+  }
+  if (!totals.dailyComplete) totals.dailyProfit = null;
   return totals;
 }
 
