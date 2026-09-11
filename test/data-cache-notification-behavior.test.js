@@ -67,12 +67,12 @@ test('custom notification WAV resources are present and non-empty', async () => 
   }
 });
 
-test('IPO calendar cache uses the current schema alongside the release identity', async () => {
+test('IPO calendar cache uses the current schema alongside the milestone release identity', async () => {
   const service = await read('public/core/ipo-service.js');
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
   assert.match(service, /halka_arz_calendar_cache_v3/);
-  assert.match(gradle, /versionCode 25/);
-  assert.match(gradle, /versionName ['"]2\.4\.3['"]/);
-  assert.match(html, /v2\.4\.3\s*•\s*Build 25/);
+  assert.match(gradle, /versionCode 26/);
+  assert.match(gradle, /versionName ['"]2\.4\.4['"]/);
+  assert.match(html, /v2\.4\.4\s*•\s*Build 26/);
 });
