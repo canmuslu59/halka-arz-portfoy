@@ -52,6 +52,18 @@ test('ceiling and floor alerts are delivered once per ticker per day', () => {
   assert.deepEqual(duplicate.events, []);
 });
 
+test('intraday candle high and low preserve limit-touch alerts after price moves away', () => {
+  const result = evaluateDailyAlerts({
+    day:'2026-09-05', threshold:3, enabled:true,
+    holdings:[
+      { ticker:'THYAO', currentPrice:108, previousClose:100, sessionHigh:110, sessionLow:101, dailySessionActive:true },
+      { ticker:'EREGL', currentPrice:92, previousClose:100, sessionHigh:99, sessionLow:90, dailySessionActive:true },
+    ],
+    portfolioPct:0,
+  });
+  assert.deepEqual(result.events.map(event => [event.kind,event.ticker]), [['ceiling','THYAO'],['floor','EREGL']]);
+});
+
 test('portfolio positive levels are emitted and a new trading day resets delivery state', () => {
   const first = evaluateDailyAlerts({
     day:'2026-09-05', threshold:3, enabled:true,
