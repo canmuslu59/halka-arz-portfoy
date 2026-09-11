@@ -107,6 +107,14 @@ test('native worker requires complete current-session quote coverage before port
     'portfolio threshold calculation must require every configured holding to have a current-session quote');
 });
 
+test('foreground portfolio hydration preserves quote session extrema for notification rules', async () => {
+  const service = await read('public/core/portfolio-service.js');
+  assert.match(service, /sessionHigh\s*:\s*nullableFiniteNumber\(quote\.sessionHigh\)/,
+    'foreground hydrated holdings must retain the current-session high from the quote parser');
+  assert.match(service, /sessionLow\s*:\s*nullableFiniteNumber\(quote\.sessionLow\)/,
+    'foreground hydrated holdings must retain the current-session low from the quote parser');
+});
+
 test('native config normalization uses the same half-point threshold contract as the UI', async () => {
   const sync = await read('android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java');
   const save = methodBody(sync, 'static void saveConfig(Context context, String json)', 'static void saveToken(Context context, String token)');
