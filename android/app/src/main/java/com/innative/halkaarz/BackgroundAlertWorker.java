@@ -208,6 +208,7 @@ public class BackgroundAlertWorker extends Worker {
         Map<String, String> data = new HashMap<>();
         data.put("kind", "portfolio");
         data.put("ticker", "");
+        data.put("level", String.valueOf(level));
         data.put("title", "Portföy yükselişi");
         data.put("body", "Toplam portföy bugün +%" + formatLevel(level) + " seviyesini geçti.");
         return NotificationHelper.show(context, data);

@@ -96,5 +96,5 @@ export function notificationPayloadForEvent(event = {}) {
     return { kind, ticker, title:`${ticker} taban yaptı`, body:`${ticker} bugün taban fiyatına ulaştı.` };
   }
   const level = Math.max(0, finite(event?.level, 0));
-  return { kind:'portfolio', ticker:'', title:'Portföy yükselişi', body:`Toplam portföy bugün +%${Math.abs(level)} seviyesini geçti.` };
+  return { kind:'portfolio', ticker:'', level:String(level), title:'Portföy yükselişi', body:`Toplam portföy bugün +%${Math.abs(level)} seviyesini geçti.` };
 }

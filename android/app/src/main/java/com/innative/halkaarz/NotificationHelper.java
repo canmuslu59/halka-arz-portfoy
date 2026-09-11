@@ -75,7 +75,14 @@ final class NotificationHelper {
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
         String deliveryDay = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString();
-        String deliveryKey = kind + "|" + ticker + "|" + body;
+        String deliveryKey;
+        if ("portfolio".equals(kind)) {
+            deliveryKey = kind + "|" + value(data, "level", body);
+        } else if ("ceiling".equals(kind) || "floor".equals(kind)) {
+            deliveryKey = kind + "|" + ticker;
+        } else {
+            deliveryKey = kind + "|" + ticker + "|" + body;
+        }
 
         // Foreground JS, WorkManager and FCM can observe the same event independently. Serialize
         // the final delivery boundary so the user receives one notification, while producers that
