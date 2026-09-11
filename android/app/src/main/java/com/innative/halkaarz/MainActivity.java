@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
 import android.webkit.WebResourceRequest;
@@ -160,6 +161,16 @@ public class MainActivity extends ComponentActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        NotificationHelper.ensureChannels(this);
+        BackgroundAlertScheduler.ensure(this);
+        if (webView != null) {
+            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         WebView currentWebView = webView;
         webView = null;
@@ -235,6 +246,16 @@ public class MainActivity extends ComponentActivity {
         BackgroundAlertScheduler.ensure(this);
     }
 
+    private void openAppNotificationSettings() {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        try {
+            startActivity(intent);
+        } catch (Exception ignored) {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+        }
+    }
+
     private class AndroidBridge {
         private final SharedPreferences prefs;
         private final MainActivity activity;
@@ -270,12 +291,47 @@ public class MainActivity extends ComponentActivity {
         }
 
         @JavascriptInterface
+        public String getNotificationStatus() {
+            return NotificationHelper.diagnosticStatus(activity);
+        }
+
+        @JavascriptInterface
         public void requestNotificationPermission() {
             if (Build.VERSION.SDK_INT < 33) return;
             activity.runOnUiThread(() -> {
+                if (ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                    BackgroundAlertScheduler.ensure(activity);
+                    return;
+                }
+                boolean askedBefore = prefs.getBoolean(NOTIFICATION_ASKED_KEY, false);
+                if (askedBefore && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    activity.openAppNotificationSettings();
+                    return;
+                }
                 prefs.edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
                 activity.notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
             });
+        }
+
+        @JavascriptInterface
+        public void openNotificationSettings() {
+            activity.runOnUiThread(activity::openAppNotificationSettings);
+        }
+
+        @JavascriptInterface
+        public boolean isDebugBuild() {
+            return BuildConfig.DEBUG;
+        }
+
+        @JavascriptInterface
+        public boolean showDebugTestNotification() {
+            if (!BuildConfig.DEBUG) return false;
+            Map<String, String> data = new HashMap<>();
+            data.put("kind", "portfolio");
+            data.put("ticker", "");
+            data.put("title", "Test bildirimi");
+            data.put("body", "Bildirim sistemi çalışıyor. Bu yalnızca test sürümüdür.");
+            return NotificationHelper.show(activity, data);
         }
 
         @JavascriptInterface
