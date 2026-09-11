@@ -20,3 +20,13 @@ test('background quote parser recovers previous close from the latest prior-sess
   assert.match(worker, /previousSessionClose\s*=\s*close;/);
   assert.match(worker, /if\s*\(!Double\.isFinite\(previousClose\)\)\s*previousClose\s*=\s*previousSessionClose;/);
 });
+
+test('background quote parser carries candle high and low into tavan/taban evaluation', async () => {
+  const worker = await readWorker();
+  assert.match(worker, /JSONArray\s+highs\s*=\s*quote\s*==\s*null\s*\?\s*null\s*:\s*quote\.optJSONArray\("high"\)/);
+  assert.match(worker, /JSONArray\s+lows\s*=\s*quote\s*==\s*null\s*\?\s*null\s*:\s*quote\.optJSONArray\("low"\)/);
+  assert.match(worker, /final\s+double\s+sessionHigh/);
+  assert.match(worker, /final\s+double\s+sessionLow/);
+  assert.match(worker, /quote\.sessionHigh\s*>=\s*ceiling\s*-\s*ceilingTolerance/);
+  assert.match(worker, /quote\.sessionLow\s*<=\s*floor\s*\+\s*floorTolerance/);
+});
