@@ -98,6 +98,21 @@ test('backend never labels a partial quote basket as total portfolio movement wh
     'a valid per-stock limit event remains deliverable but no portfolio threshold may be emitted');
 });
 
+test('backend preserves an explicit BIST reference price for limit evaluation', () => {
+  const registration = {
+    enabled:true,
+    threshold:3,
+    holdings:[{ticker:'AAA',lots:10}],
+    alertState:null,
+  };
+  const quotes = new Map([
+    ['AAA',{ticker:'AAA',current:100,previousClose:90,referencePrice:95,latestMarketDate:'2026-09-11'}],
+  ]);
+  const result = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-11' });
+  assert.equal(result.events.some(event => event.kind === 'ceiling'), false,
+    'backend must not drop a supplied exchange reference price and fall back to previousClose');
+});
+
 test('native worker requires complete current-session quote coverage before portfolio threshold delivery', async () => {
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
   assert.match(worker, /int\s+expectedQuoteCount\s*=\s*0/);
@@ -113,6 +128,22 @@ test('foreground portfolio hydration preserves quote session extrema for notific
     'foreground hydrated holdings must retain the current-session high from the quote parser');
   assert.match(service, /sessionLow\s*:\s*nullableFiniteNumber\(quote\.sessionLow\)/,
     'foreground hydrated holdings must retain the current-session low from the quote parser');
+});
+
+test('foreground portfolio hydration preserves an explicit BIST reference price', async () => {
+  const service = await read('public/core/portfolio-service.js');
+  assert.match(service, /referencePrice\s*:\s*nullableFiniteNumber\(quote\.referencePrice\)/,
+    'a verified reference price supplied by a quote source must survive portfolio hydration');
+});
+
+test('native worker models and prefers an explicit BIST reference price for limit math', async () => {
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  assert.match(worker, /final\s+double\s+referencePrice/,
+    'native Quote must be able to carry a verified exchange reference price');
+  assert.match(worker, /limitBase\s*=\s*Double\.isFinite\(quote\.referencePrice\)[\s\S]*quote\.previousClose/,
+    'native limit math must prefer referencePrice and fall back to previousClose');
+  assert.match(worker, /ceilingPrice\(limitBase\)/);
+  assert.match(worker, /floorPrice\(limitBase\)/);
 });
 
 test('native config normalization uses the same half-point threshold contract as the UI', async () => {
