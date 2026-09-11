@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashSet;
@@ -77,7 +78,7 @@ final class NotificationHelper {
         String deliveryDay = LocalDate.now(ZoneId.of("Europe/Istanbul")).toString();
         String deliveryKey;
         if ("portfolio".equals(kind)) {
-            deliveryKey = kind + "|" + value(data, "level", body);
+            deliveryKey = kind + "|" + canonicalPortfolioLevel(value(data, "level", body));
         } else if ("ceiling".equals(kind) || "floor".equals(kind) || "ipo".equals(kind)) {
             deliveryKey = kind + "|" + ticker;
         } else {
@@ -141,6 +142,16 @@ final class NotificationHelper {
             } catch (RuntimeException error) {
                 return false;
             }
+        }
+    }
+
+    private static String canonicalPortfolioLevel(String raw) {
+        String normalized = String.valueOf(raw == null ? "" : raw).trim().replace(',', '.');
+        if (normalized.isEmpty()) return normalized;
+        try {
+            return new BigDecimal(normalized).stripTrailingZeros().toPlainString();
+        } catch (NumberFormatException ignored) {
+            return normalized;
         }
     }
 
