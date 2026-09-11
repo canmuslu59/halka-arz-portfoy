@@ -7,8 +7,8 @@ const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 // Regression coverage for failures reproduced on the physical Android build.
 test('IPO calendar binds detail buttons through the multi-element selector helper', async () => {
   const app = await read('public/app.js');
-  assert.match(app, /\$\$\('\[data-pro-ticker\]',\s*list\)\.forEach\(/);
-  assert.doesNotMatch(app, /\$\('\[data-pro-ticker\]',\s*list\)\.forEach\(/);
+  assert.match(app, /^\s*\$\$\('\[data-pro-ticker\]',\s*list\)\.forEach\(/m);
+  assert.doesNotMatch(app, /^\s*\$\('\[data-pro-ticker\]',\s*list\)\.forEach\(/m);
 });
 
 test('background portfolio threshold is not suppressed by one stale or unavailable holding quote', async () => {
