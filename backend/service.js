@@ -152,14 +152,14 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     let sent = 0;
     let failed = 0;
 
-    for (const registration of registrations) {
-      const evaluated = evaluateRegistrationAlerts({ registration, quotes, day });
-      let delivered = registration.alertState ?? null;
+    for (const entry of registrations) {
+      const evaluated = evaluateRegistrationAlerts({ registration:entry, quotes, day, now:now() });
+      let delivered = entry.alertState ?? null;
       let changed = false;
 
       for (const event of evaluated.events) {
         try {
-          await sender.send(registration.fcmToken, notificationForAlert(event));
+          await sender.send(entry.fcmToken, notificationForAlert(event));
           delivered = deliveredStateAfter(delivered, day, event);
           changed = true;
           sent += 1;
@@ -170,7 +170,7 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
 
       if (changed) {
         await store.mutate(state => {
-          const current = state.installations?.[registration.installId];
+          const current = state.installations?.[entry.installId];
           if (current) {
             current.alertState = delivered;
             current.updatedAt = now().toISOString();
