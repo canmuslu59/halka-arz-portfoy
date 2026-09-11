@@ -45,16 +45,31 @@ jobs:
         run: gradle -p android --no-daemon compileReleaseJavaWithJavac
       - name: Build release AAB
         run: gradle -p android --no-daemon bundleRelease
-      - name: Package unsigned milestone AAB
+      - name: Package milestone artifacts
         run: |
           test -s android/app/build/outputs/bundle/release/app-release.aab
           cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.4-code26-unsigned.aab
           sha256sum halka-arz-portfoyum-v2.4.4-code26-unsigned.aab > code26-unsigned-sha256.txt
+          git archive --format=zip --output=halka-arz-portfoyum-v2.4.4-code26-source.zip HEAD
+          {
+            echo "Halka Arz Portfoyum Milat 1 Build"
+            echo "versionName=2.4.4"
+            echo "versionCode=26"
+            echo "package=com.innative.halkaarz"
+            echo "targetSdk=36"
+            echo "branch=${GITHUB_REF_NAME}"
+            echo "commit=${GITHUB_SHA}"
+          } > MILESTONE_BUILD.txt
+          sha256sum halka-arz-portfoyum-v2.4.4-code26-source.zip > code26-source-sha256.txt
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: code26-milestone-unsigned-aab
+          name: code26-milestone-release-inputs
           path: |
             halka-arz-portfoyum-v2.4.4-code26-unsigned.aab
             code26-unsigned-sha256.txt
+            halka-arz-portfoyum-v2.4.4-code26-source.zip
+            code26-source-sha256.txt
+            MILESTONE.md
+            MILESTONE_BUILD.txt
           if-no-files-found: error
           retention-days: 30
