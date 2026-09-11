@@ -3,7 +3,7 @@ import { cleanTicker } from './domain.js';
 
 export const CALENDAR_TTL_MS = 60 * 60 * 1000;
 export const DETAIL_TTL_MS = 24 * 60 * 60 * 1000;
-const CALENDAR_KEY = 'halka_arz_calendar_cache_v2';
+const CALENDAR_KEY = 'halka_arz_calendar_cache_v3';
 const DETAIL_PREFIX = 'halka_arz_detail_cache_v1_';
 
 const MONTHS = {
