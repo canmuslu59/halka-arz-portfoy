@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('service worker uses the Code23 cache generation and precaches every current app entry module', async () => {
+test('service worker uses the current cache generation and precaches every current app entry module', async () => {
   const sw = await read('public/sw.js');
-  assert.match(sw, /CACHE\s*=\s*['"]halka-arz-portfoy-v6['"]/);
+  assert.match(sw, /CACHE\s*=\s*['"]halka-arz-portfoy-v7['"]/);
   for (const asset of [
     './privacy.html',
+    './notification-recovery.js',
     './core/repository.js',
     './core/http.js',
     './core/data-sources.js',
