@@ -41,3 +41,4 @@ jobs:
           git add -A
           git commit -m "fix: harden notification delivery paths"
           git push origin HEAD:audit/code25-notification-hardening-20260911
+# retry after structural test correction
