@@ -64,6 +64,21 @@ test('intraday candle high and low preserve limit-touch alerts after price moves
   assert.deepEqual(result.events.map(event => [event.kind,event.ticker]), [['ceiling','THYAO'],['floor','EREGL']]);
 });
 
+test('limit rules prefer explicit BIST reference price over previous close', () => {
+  const result = evaluateDailyAlerts({
+    day:'2026-09-11', threshold:3, enabled:true,
+    holdings:[{
+      ticker:'AAA',
+      currentPrice:100,
+      previousClose:90,
+      referencePrice:95,
+      dailySessionActive:true,
+    }],
+    portfolioPct:0,
+  });
+  assert.equal(result.events.some(event => event.kind === 'ceiling'), false);
+});
+
 test('portfolio positive levels are emitted and a new trading day resets delivery state', () => {
   const first = evaluateDailyAlerts({
     day:'2026-09-05', threshold:3, enabled:true,
