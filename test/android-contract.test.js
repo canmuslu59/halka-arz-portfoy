@@ -14,7 +14,7 @@ test('Android manifest declares standalone internet-enabled app', async () => {
 test('MainActivity exposes storage and HTTPS bridge methods', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   assert.match(java, /@JavascriptInterface\s+public String readPortfolio\(/s);
-  assert.match(java, /@JavascriptInterface\s+public void writePortfolio\(/s);
+  assert.match(java, /@JavascriptInterface\s+public boolean writePortfolio\(/s);
   assert.doesNotMatch(java, /@JavascriptInterface\s+public String httpGet\(/s);
   assert.match(java, /@JavascriptInterface\s+public void httpGetAsync\(String urlText, String requestId\)/s);
   assert.doesNotMatch(java, /Executors\.newCachedThreadPool/);
@@ -150,3 +150,4 @@ test('Android 36 build pins compatible AGP and AndroidX Core versions', async ()
   assert.match(appGradle, /com\.google\.firebase:firebase-messaging:24\.1\.1/);
   assert.doesNotMatch(appGradle, /androidx\.core:core:1\.19\.0/);
 });
+

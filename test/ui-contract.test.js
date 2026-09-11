@@ -39,7 +39,7 @@ test('chart range offers full IPO-to-present history', async () => {
   const html = await read('public/index.html');
   assert.match(html, /<option value="0">Tümü<\/option>/);
   const app = await read('public/app.js');
-  assert.match(app, /days\s*<=\s*0\s*\?\s*history/);
+  assert.match(app, /if \(days <= 0\) return history/);
 });
 
 test('add holding flow keeps a stable form reference across await and always opens blank', async () => {
@@ -69,3 +69,4 @@ test('UI polls quotes frequently while BIST is open rather than once per minute'
   assert.match(appJs, /15_000/);
   assert.match(appJs, /getBistMarketStatus/);
 });
+

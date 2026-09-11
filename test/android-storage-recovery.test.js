@@ -12,7 +12,7 @@ test('Android portfolio read falls back from an invalid primary to a valid backu
 
 test('Android portfolio write preserves the previous valid primary as backup before committing the replacement', async () => {
   const java = await readMain();
-  const start = java.indexOf('public void writePortfolio(String json)');
+  const start = java.indexOf('public boolean writePortfolio(String json)');
   const end = java.indexOf('@JavascriptInterface', start + 1);
   const body = java.slice(start, end > start ? end : undefined);
 
@@ -21,3 +21,4 @@ test('Android portfolio write preserves the previous valid primary as backup bef
   assert.ok(body.indexOf('putString(BACKUP_KEY, current)') < body.indexOf('putString(PORTFOLIO_KEY, json)'));
   assert.match(body, /editor\.commit\(\)/);
 });
+

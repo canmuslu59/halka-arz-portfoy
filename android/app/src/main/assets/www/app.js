@@ -62,8 +62,8 @@ const timeFmt = new Intl.DateTimeFormat('tr-TR', { timeZone:'Europe/Istanbul', h
 function safeGetLocal(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function safeSetLocal(key, value) { try { localStorage.setItem(key, value); } catch {} }
 function safeParseLocalJson(key) { try { const raw = safeGetLocal(key); return raw ? JSON.parse(raw) : null; } catch { return null; } }
-function money(v) { return Number.isFinite(Number(v)) ? fmtTRY.format(Number(v)) : '—'; }
-function pct(v) { return Number.isFinite(Number(v)) ? `${fmtPct.format(Number(v))}%` : '—'; }
+function money(v) { return v != null && v !== '' && Number.isFinite(Number(v)) ? fmtTRY.format(Number(v)) : '—'; }
+function pct(v) { return v != null && v !== '' && Number.isFinite(Number(v)) ? `${fmtPct.format(Number(v))}%` : '—'; }
 function signClass(v) { return Number(v) > 0 ? 'positive' : Number(v) < 0 ? 'negative' : 'neutral'; }
 function esc(s='') { return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function trDate(iso) { if (!iso) return '—'; const d = new Date(`${iso}T12:00:00+03:00`); return Number.isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat('tr-TR',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Istanbul'}).format(d); }
@@ -100,6 +100,7 @@ function initTheme() {
 }
 
 function formatIpoSize(value) {
+  if (value == null || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
   if (n >= 1_000_000_000) return `${fmtNum.format(n / 1_000_000_000)} mlr ₺`;
@@ -158,7 +159,7 @@ function renderIpoCalendar(data = state.calendar) {
 
 async function loadIpoCalendar({ force = false } = {}) {
   if (state.calendarLoading) return state.calendar;
-  if (state.calendarLoaded && !force) { renderIpoCalendar(); return state.calendar; }
+  
   state.calendarLoading = true;
   const list = $('#calendarList');
   const status = $('#calendarStatus');
@@ -221,9 +222,9 @@ function proLockedGate(access) {
   return `
     <section class="pro-locked pro-gate">
       <span class="pro-lock-icon">✦</span><h3>Gelişmiş özellikler kilitli</h3>
-      <p>Tavan serisi, şirket/halka arz detayları ve sonuç analizleri Pro alanında yer alır.</p>
+      
       ${trialAction}
-      <div class="review-access-box">
+      <div class="review-access-box" hidden>
         <span class="eyebrow">GOOGLE PLAY İNCELEME</span>
         <strong>Google Play inceleme erişimi</strong>
         <p>Bu alan yalnızca Google Play inceleme ekibi için sağlanmıştır.</p>
@@ -310,7 +311,7 @@ function renderProList() {
 }
 
 async function ensureProCalendar() {
-  if (state.calendarLoaded) return state.calendar;
+  
   try {
     state.calendar = await ipoService.getCalendar();
     state.calendarLoaded = true;
@@ -396,7 +397,7 @@ async function openProIpoDetail(ticker) {
         <section class="pro-detail-section"><div class="detail-section-head"><h3>Halka arz sonuçları</h3><span>${detail.participantCount ? `${fmtNum.format(detail.participantCount)} katılımcı` : ''}</span></div>${renderResultTable(detail.results)}</section>
         <section class="pro-detail-section"><div class="detail-section-head"><h3>Tavan serisi</h3><span>BIST fiyat adımına göre</span></div>${renderCeilingRows(detail)}</section>
         ${detail.warning ? `<div class="warning-box">${esc(detail.warning)}</div>` : ''}
-        <p class="form-note">Kaynak: ${esc(detail.source || 'Açık veri kaynakları')}. Tavan serisi geçmiş kapanış fiyatlarından hesaplanır.</p>
+
       </article>${betaControls(access)}`;
     bindBetaControls();
     $('#proDetailBack')?.addEventListener('click', () => { state.proSelectedTicker = null; renderProList(); });
@@ -704,7 +705,12 @@ function renderSectorAllocation(holdings) {
 function selectedHistoryRows() {
   const history = state.portfolio?.history || [];
   const days = Number($('#chartRange').value || 30);
-  return days <= 0 ? history : history.slice(-days);
+  if (days <= 0) return history;
+  const end = new Date(todayIstanbul() + 'T12:00:00Z');
+  if (days === 365) end.setUTCFullYear(end.getUTCFullYear()-1);
+  else end.setUTCDate(end.getUTCDate()-days+1);
+  const start = end.toISOString().slice(0,10);
+  return history.filter(row => row.date >= start);
 }
 
 function renderDailyHistory() {
@@ -790,7 +796,7 @@ function openDetail(id, { push = true } = {}) {
       </form>
     </div>
     <div class="edit-box">
-      <h3>Otomatik bilgi yanlışsa düzelt</h3>
+      <h3>Bilgileri düzenle</h3>
       <form id="overrideForm" class="mini-form">
         <input name="ipoPriceOverride" type="number" min="0.01" step="0.01" value="${h.ipoPrice ?? ''}" placeholder="Halka arz fiyatı">
         <input name="firstTradeDateOverride" type="date" value="${h.firstTradeDate ?? ''}">
@@ -820,9 +826,16 @@ function openDetail(id, { push = true } = {}) {
 
 async function submitSale(event) {
   event.preventDefault();
+  const element = event.currentTarget;
+  if (element.dataset.saving === 'true') return;
+  element.dataset.saving = 'true';
+  const button = element.querySelector('button');
+  button.disabled = true;
+  const operationId = element.dataset.operationId ||= crypto.randomUUID();
   const form = new FormData(event.currentTarget);
   try {
     await service.addSale(state.selected.id, {
+      operationId,
       lots:Number(form.get('lots')),
       price:Number(form.get('price')),
       date:form.get('date') || todayIstanbul(),
@@ -832,6 +845,7 @@ async function submitSale(event) {
     await refreshBackgroundHistory({ force:true });
     toast('Satış kaydedildi.');
   } catch (error) { toast(error.message); }
+  finally { element.dataset.saving = 'false'; button.disabled = false; }
 }
 
 async function submitOverride(event) {
@@ -863,9 +877,11 @@ async function deleteHolding() {
 }
 
 let lookupTimer;
+let lookupGeneration = 0;
 $('#tickerInput').addEventListener('input', event => {
   event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
   clearTimeout(lookupTimer);
+  const generation = ++lookupGeneration;
   const ticker = event.target.value.trim();
   const preview = $('#lookupPreview');
   if (ticker.length < 3) { preview.hidden = true; return; }
@@ -874,10 +890,11 @@ $('#tickerInput').addEventListener('input', event => {
     preview.textContent = 'Bilgiler aranıyor…';
     try {
       const result = await service.lookup(ticker);
+      if (generation !== lookupGeneration || $('#tickerInput').value.trim() !== ticker) return;
       const ipoPrice = result.ipo?.ipoPrice;
       const current = result.market?.current;
       preview.innerHTML = `<b>${esc(result.ticker)}</b> · Güncel ${money(current)}<br>${ipoPrice ? `Halka arz ${money(ipoPrice)}${result.ipo.firstTradeDate ? ` · İlk işlem ${trDate(result.ipo.firstTradeDate)}` : ''}` : 'Halka arz fiyatı otomatik bulunamadı; ekledikten sonra düzeltebilirsiniz.'}`;
-    } catch (error) { preview.textContent = error.message; }
+    } catch (error) { if (generation === lookupGeneration) preview.textContent = error.message; }
   }, 450);
 });
 
@@ -928,7 +945,8 @@ function drawChart() {
   const w = rect.width, h = rect.height;
   ctx.clearRect(0,0,w,h);
 
-  const values = rows.map(row => Number(row.value));
+  const values = rows.filter(row => Number.isFinite(row.value)).map(row => row.value);
+  if (!values.length) { empty.hidden=false; empty.textContent='Geçmiş verisi eksik';canvas.style.opacity=0;tooltip.hidden=true;return; }
   let min = Math.min(...values), max = Math.max(...values);
   if (min === max) { min -= Math.max(1,min*.01); max += Math.max(1,max*.01); }
   const extra = (max-min) * .12;
@@ -954,12 +972,14 @@ function drawChart() {
   grad.addColorStop(1,'rgba(0,0,0,0)');
 
   ctx.beginPath();
-  rows.forEach((row,index) => { const xx=x(index), yy=y(row.value); index ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy); });
+  let connected = false;
+  rows.forEach((row,index) => { if (!Number.isFinite(row.value)) { connected=false;return; } const xx=x(index), yy=y(row.value); connected ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy);connected=true; });
   ctx.lineTo(x(rows.length-1),h-pad.b); ctx.lineTo(x(0),h-pad.b); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
+  ctx.fillStyle = grad; if (rows.every(row => Number.isFinite(row.value))) ctx.fill();
 
   ctx.beginPath();
-  rows.forEach((row,index) => { const xx=x(index), yy=y(row.value); index ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy); });
+  connected = false;
+  rows.forEach((row,index) => { if (!Number.isFinite(row.value)) { connected=false;return; } const xx=x(index), yy=y(row.value); connected ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy);connected=true; });
   ctx.strokeStyle = stroke; ctx.lineWidth = 2.3; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
 
   ctx.fillStyle = state.theme === 'light' ? '#66758c' : '#758198'; ctx.font='10px system-ui';
@@ -975,7 +995,7 @@ function drawChart() {
 function drawChartSelection(index) {
   const geometry = state.chartGeometry;
   const row = state.chartRows[index];
-  if (!geometry || !row) return;
+  if (!geometry || !row || !Number.isFinite(row.value)) return;
   const canvas = $('#portfolioChart');
   const ctx = canvas.getContext('2d');
   const { x, y, pad, h } = geometry;
@@ -1007,6 +1027,7 @@ function showChartPoint(clientX) {
 }
 
 function resetAddEntryForm() {
+  lookupGeneration += 1;
   clearTimeout(lookupTimer);
   const form = $('#addForm');
   if (form) form.reset();

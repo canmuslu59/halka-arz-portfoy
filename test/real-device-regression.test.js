@@ -11,8 +11,9 @@ test('IPO calendar binds detail buttons through the multi-element selector helpe
   assert.doesNotMatch(app, /^\s*\$\('\[data-pro-ticker\]',\s*list\)\.forEach\(/m);
 });
 
-test('background portfolio threshold is not suppressed by one stale or unavailable holding quote', async () => {
+test('background portfolio threshold requires every active holding quote', async () => {
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
   assert.doesNotMatch(worker, /validTodayCount\s*==\s*activeCount/);
-  assert.match(worker, /validTodayCount\s*>\s*0\s*&&\s*previousValue\s*>\s*0/);
+  assert.match(worker, /validTodayCount\s*>\s*0\s*&&\s*validTodayCount\s*==\s*expectedTodayCount\s*&&\s*previousValue\s*>\s*0/);
 });
+

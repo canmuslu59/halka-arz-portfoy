@@ -26,7 +26,7 @@ function specificSectorFromText(value, ticker = '') {
   // mağazacılık, ticaret and perakende. This makes the allocation useful to investors.
   if (/GAYRİMENKUL\s+YATIRIM\s+ORTAK/.test(name) || /(?:GYO|GMYO)$/.test(key)) return 'GYO';
   if (/(?:ENERJİ|ELEKTRİK|YENİLENEBİLİR|DOĞAL\s+GAZ|PETROL|AKARYAKIT|GÜNEŞ|RÜZGAR)/.test(name)) return 'Enerji';
-  if (/(?:GIDA|YİYECEK|İÇECEK|TARIM|SÜT|UN\b|ŞEKER|ET\b|TAVUK|PİLİÇ|MAKARNA|BAKLİYAT|YEM\b)/.test(name)) return 'Gıda';
+  if (/(?:GIDA|YİYECEK|İÇECEK|TARIM|SÜT|(?<![\p{L}])UN(?![\p{L}])|ŞEKER|(?<![\p{L}])ET(?![\p{L}])|TAVUK|PİLİÇ|MAKARNA|BAKLİYAT|(?<![\p{L}])YEM(?![\p{L}]))/u.test(name)) return 'Gıda';
   if (/(?:BANKA|BANKASI|BANKACILIK)/.test(name)) return 'Bankacılık';
   if (/(?:SİGORTA|EMEKLİLİK)/.test(name)) return 'Sigorta / Emeklilik';
   if (/(?:FİNANS|FAKTORİNG|FİNANSAL\s+KİRALAMA|MENKUL\s+DEĞERLER|YATIRIM\s+MENKUL)/.test(name)) return 'Finans';
@@ -91,21 +91,25 @@ export function calculateHolding(holding, { today = null } = {}) {
   const sales = Array.isArray(holding.sales) ? holding.sales : [];
 
   const invested = ipoPrice == null ? null : initialLots * ipoPrice;
-  const activeValue = currentPrice == null ? null : currentLots * currentPrice;
+  const activeValue = currentLots === 0 ? 0 : currentPrice == null ? null : currentLots * currentPrice;
   const salesProceeds = sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * Number(sale.price || 0), 0);
   const realizedProfit = ipoPrice == null
     ? null
     : sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - ipoPrice), 0);
-  const unrealizedProfit = currentPrice == null || ipoPrice == null ? null : currentLots * (currentPrice - ipoPrice);
+  const unrealizedProfit = currentLots === 0 ? 0 : currentPrice == null || ipoPrice == null ? null : currentLots * (currentPrice - ipoPrice);
   const totalProfit = realizedProfit == null || unrealizedProfit == null ? null : realizedProfit + unrealizedProfit;
   const totalWealth = activeValue == null ? null : activeValue + salesProceeds;
   const latestMarketDate = holding.latestMarketDate || null;
   const sessionIsToday = !today || !latestMarketDate || latestMarketDate === today;
+  const todaySales = today ? sales.filter(sale => sale.date === today) : [];
+  const soldTodayLots = todaySales.reduce((sum,sale) => sum + Number(sale.lots),0);
+  const dailyBaseLots = currentLots + soldTodayLots;
+  const saleDayGain = previousClose == null ? null : todaySales.reduce((sum,sale) => sum + Number(sale.lots)*(Number(sale.price)-previousClose),0);
   const dailyProfit = !sessionIsToday
     ? 0
-    : currentPrice == null || previousClose == null
+    : (currentLots > 0 && currentPrice == null) || previousClose == null
       ? null
-      : currentLots * (currentPrice - previousClose);
+      : (currentLots === 0 ? 0 : currentLots * (currentPrice - previousClose)) + saleDayGain;
   const dailyPct = !sessionIsToday
     ? 0
     : currentPrice == null || !(previousClose > 0)
@@ -130,6 +134,7 @@ export function calculateHolding(holding, { today = null } = {}) {
     unrealizedProfit,
     totalProfit,
     totalProfitPct: invested != null && totalProfit != null ? profitPct(totalProfit, invested) : null,
+    dailyBaseLots,
     dailyProfit,
     dailyPct,
     dailySessionActive: sessionIsToday,
@@ -145,6 +150,7 @@ export function calculateTotals(holdings) {
 
   for (const holding of holdings) {
     const active = Number(holding.currentLots || 0) > 0;
+    if (Number(holding.dailyBaseLots || 0) > 0 && holding.dailySessionActive !== false && !Number.isFinite(holding.dailyProfit)) missingDailyValueCount += 1;
     if (active) {
       activePositionCount += 1;
       if (!Number.isFinite(holding.activeValue) || !Number.isFinite(holding.totalWealth) || !Number.isFinite(holding.totalProfit)) {
@@ -168,8 +174,8 @@ export function calculateTotals(holdings) {
   totals.totalProfitPct = totals.complete && totals.invested > 0 ? (totals.totalProfit / totals.invested) * 100 : null;
 
   const dailyBase = holdings.reduce((sum, holding) => {
-    if (holding.dailySessionActive === false || !(Number(holding.currentLots || 0) > 0)) return sum;
-    return sum + (Number.isFinite(holding.previousClose) ? holding.previousClose * Number(holding.currentLots || 0) : 0);
+    if (holding.dailySessionActive === false || !(Number(holding.dailyBaseLots ?? holding.currentLots ?? 0) > 0)) return sum;
+    return sum + (Number.isFinite(holding.previousClose) ? holding.previousClose * Number(holding.dailyBaseLots ?? holding.currentLots ?? 0) : 0);
   }, 0);
   totals.dailyPct = totals.dailyComplete && dailyBase > 0 ? (totals.dailyProfit / dailyBase) * 100 : null;
 
@@ -206,8 +212,6 @@ function historyStateOnDate(holding, date) {
     if (row.date >= start && rowClose != null) close = rowClose;
   }
   if (close == null && date === start) close = ipoPrice;
-  if (close == null) return null;
-
   let soldLots = 0;
   let proceeds = 0;
   for (const sale of normalizedSales(holding)) {
@@ -216,6 +220,7 @@ function historyStateOnDate(holding, date) {
     proceeds += sale.lots * sale.price;
   }
   const activeLots = Math.max(0, initialLots - soldLots);
+  if (close == null && activeLots > 0) return null;
   const cost = initialLots * ipoPrice;
   return {
     value: activeLots * close + proceeds,
@@ -242,23 +247,28 @@ export function makePortfolioHistory(holdings) {
     let value = 0;
     let cost = 0;
     let capitalAdded = 0;
+    let complete = true;
     for (const holding of holdings) {
       const state = historyStateOnDate(holding, date);
-      if (!state) continue;
+      if (!state) {
+        const start = holding.firstTradeDate || holding.history?.[0]?.date;
+        if (!start || date >= start) complete = false;
+        continue;
+      }
       value += state.value;
       cost += state.cost;
       capitalAdded += state.capitalAdded;
     }
     const profit = value - cost;
-    return { date, value, cost, profit, profitPct: profitPct(profit, cost), capitalAdded };
+    return { date, value:complete ? value : null, cost, profit:complete ? profit : null, profitPct:complete ? profitPct(profit, cost) : null, capitalAdded, complete };
   }).filter(row => row.cost > 0);
 
   let previousValue = 0;
   let previousProfit = 0;
   return rows.map((row, index) => {
-    const dailyProfit = row.profit - (index ? previousProfit : 0);
+    const dailyProfit = row.profit == null || (index && previousProfit == null) ? null : row.profit - (index ? previousProfit : 0);
     const dailyBase = previousValue + row.capitalAdded;
-    const dailyPct = dailyBase > 0 ? (dailyProfit / dailyBase) * 100 : 0;
+    const dailyPct = dailyProfit == null || (index && previousValue == null) ? null : dailyBase > 0 ? (dailyProfit / dailyBase) * 100 : 0;
     previousValue = row.value;
     previousProfit = row.profit;
     return { ...row, dailyProfit, dailyPct };

@@ -7,7 +7,7 @@ const read = path => fs.readFile(path, 'utf8');
 test('notification helper reports delivery success and respects Android system notification state', async () => {
   const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
 
-  assert.match(helper, /static boolean show\(Context context, Map<String, String> data\)/);
+  assert.match(helper, /static synchronized boolean show\(Context context, Map<String, String> data\)/);
   assert.match(helper, /NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)/);
   assert.match(helper, /manager\.notify\(/);
   assert.match(helper, /return true;/);
@@ -39,3 +39,4 @@ test('native IPO dedupe identity includes the offering event, not ticker alone',
   assert.match(worker, /entry\.offerDates/);
   assert.match(worker, /ticker\s*\+\s*"\\|"/);
 });
+

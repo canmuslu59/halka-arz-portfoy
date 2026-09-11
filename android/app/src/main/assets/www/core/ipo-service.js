@@ -131,7 +131,7 @@ export function createIpoService({
     const key = `${DETAIL_PREFIX}${item.ticker}`;
     const cached = safeRead(storage, key);
     const age = cached?.fetchedAt ? now() - Number(cached.fetchedAt) : Infinity;
-    if (!force && cached?.data && age >= 0 && age < detailTtlMs) {
+    if (!force && cached?.data && !cached.historyWarning && age >= 0 && age < detailTtlMs) {
       return { ...cached.data, stale:false, warning:null, fetchedAt:cached.fetchedAt };
     }
 
@@ -158,7 +158,7 @@ export function createIpoService({
         ceilingAnalysis,
         ceilingSimulation:simulateCeilings(detail.ipoPrice, 20),
       };
-      const record = { fetchedAt:now(), data };
+      const record = { fetchedAt:now(), data, historyWarning };
       safeWrite(storage, key, record);
       return { ...data, stale:false, warning:historyWarning, fetchedAt:record.fetchedAt };
     } catch (error) {

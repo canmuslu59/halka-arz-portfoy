@@ -176,6 +176,11 @@ function hydrate(raw, errors = {}) {
       previousClose: quotePreviousClose,
     });
     const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;
+    if (latestMarketDate === today && nullableFiniteNumber(quote.current) != null) {
+      const row = history.find(row => row.date === today);
+      if (row) row.close = Number(quote.current);
+      else history.push({date:today,close:Number(quote.current)});
+    }
     const inferredSector = inferSectorFromCompany(ipo.company, raw.ticker);
     const chosenSector = chooseSector({
       manual: raw.sectorOverride,
@@ -213,7 +218,7 @@ function hydrate(raw, errors = {}) {
     const totals = calculateTotals(holdings);
     const history = makePortfolioHistory(holdings);
     const lastHistory = history.at(-1);
-    if (lastHistory?.date === today) {
+    if (lastHistory?.date === today && lastHistory.complete !== false) {
       lastHistory.dailyProfit = totals.dailyProfit;
       lastHistory.dailyPct = totals.dailyPct;
     }
@@ -362,7 +367,7 @@ function hydrate(raw, errors = {}) {
       historySnapshot: firstTradeDate ? {
         history:Array.isArray(historyResult?.history) ? historyResult.history : (quoteResult.value.history || []),
         fetchedAt:stamp,
-        fetchedLocalDate:localDate,
+        fetchedLocalDate:historyError ? null : localDate,
         startDate:firstTradeDate,
       } : null,
       ipoSnapshot: ipoData ? { ...ipoData, fetchedAt: stamp } : null,
@@ -406,11 +411,12 @@ function hydrate(raw, errors = {}) {
     return hydrate(raw);
   }
 
-  async function addSale(id, { lots, price, date } = {}) {
+  async function addSale(id, { lots, price, date, operationId = null } = {}) {
     const data = await repository.load();
     const index = data.holdings.findIndex(item => item.id === id);
     if (index < 0) throw new Error('Kayıt bulunamadı.');
     const raw = { ...data.holdings[index], sales: [...(data.holdings[index].sales || [])] };
+    if (operationId && raw.sales.some(sale => sale.operationId === operationId)) return hydrate(raw);
     const valid = validateSale(raw, lots, price);
     const saleDate = optionalIsoDate(date || dateInIstanbul(now()), 'Satış tarihi');
     if (saleDate > dateInIstanbul(now())) throw new Error('Satış tarihi gelecekte olamaz.');
@@ -419,6 +425,7 @@ function hydrate(raw, errors = {}) {
     const stamp = now().toISOString();
     raw.sales.push({
       id: uuid(),
+      operationId,
       lots: valid.lots,
       price: valid.price,
       date: saleDate,

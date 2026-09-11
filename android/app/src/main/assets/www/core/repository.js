@@ -31,7 +31,7 @@ export function createPlatformStorage() {
   if (bridge?.readPortfolio && bridge?.writePortfolio) {
     return {
       get: async () => bridge.readPortfolio() || null,
-      set: async value => { bridge.writePortfolio(String(value)); },
+      set: async value => { if (bridge.writePortfolio(String(value)) === false) throw new Error('Kayıt diske yazılamadı. Tekrar deneyin.'); },
     };
   }
   return {

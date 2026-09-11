@@ -97,7 +97,7 @@ final class NotificationHelper {
         channels.put(key, value);
     }
 
-    static boolean show(Context context, Map<String, String> data) {
+    static synchronized boolean show(Context context, Map<String, String> data) {
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return false;
@@ -109,6 +109,10 @@ final class NotificationHelper {
         String ticker = value(data, "ticker", "");
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
+        android.content.SharedPreferences delivered = context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE);
+        String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();
+        String eventKey = kind + ":" + ticker + ":" + body.replace(',', '.');
+        if (day.equals(delivered.getString("day", "")) && delivered.getBoolean(eventKey, false)) return true;
         String channel;
         if ("ipo".equals(kind)) channel = CHANNEL_IPO;
         else if ("ceiling".equals(kind)) channel = CHANNEL_CEILING;
@@ -142,6 +146,9 @@ final class NotificationHelper {
                 .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             manager.notify(requestCode, builder.build());
+            android.content.SharedPreferences.Editor delivery = delivered.edit();
+            if (!day.equals(delivered.getString("day", ""))) delivery.clear();
+            delivery.putString("day", day).putBoolean(eventKey, true).commit();
             return true;
         } catch (RuntimeException error) {
             return false;
@@ -153,3 +160,4 @@ final class NotificationHelper {
         return value == null || value.trim().isEmpty() ? fallback : value;
     }
 }
+

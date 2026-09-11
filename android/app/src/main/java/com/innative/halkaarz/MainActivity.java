@@ -274,13 +274,13 @@ public class MainActivity extends ComponentActivity {
         }
 
         @JavascriptInterface
-        public void writePortfolio(String json) {
-            if (!isValidJsonObject(json)) return;
+        public boolean writePortfolio(String json) {
+            if (!isValidJsonObject(json)) return false;
             String current = prefs.getString(PORTFOLIO_KEY, "");
             SharedPreferences.Editor editor = prefs.edit();
             if (isValidJsonObject(current)) editor.putString(BACKUP_KEY, current);
             editor.putString(PORTFOLIO_KEY, json);
-            editor.commit();
+            return editor.commit();
         }
 
         @JavascriptInterface

@@ -88,6 +88,7 @@ public class BackgroundAlertWorker extends Worker {
             double previousValue = 0.0;
             double currentValue = 0.0;
             int validTodayCount = 0;
+            int expectedTodayCount = 0;
             boolean quoteRetryNeeded = false;
 
             for (int i = 0; i < holdings.length(); i++) {
@@ -96,6 +97,7 @@ public class BackgroundAlertWorker extends Worker {
                 String ticker = normalizeTicker(item.optString("ticker", ""));
                 double lots = item.optDouble("lots", 0.0);
                 if (ticker.isEmpty() || !(lots > 0)) continue;
+                expectedTodayCount += 1;
 
                 Quote quote;
                 try {
@@ -131,7 +133,7 @@ public class BackgroundAlertWorker extends Worker {
                 currentValue += quote.current * lots;
             }
 
-            if (validTodayCount > 0 && previousValue > 0) {
+            if (validTodayCount > 0 && validTodayCount == expectedTodayCount && previousValue > 0) {
                 double portfolioPct = ((currentValue - previousValue) / previousValue) * 100.0;
                 if (portfolioPct > 0) {
                     int reached = (int)Math.floor((portfolioPct + 1e-9) / threshold);
@@ -522,3 +524,4 @@ public class BackgroundAlertWorker extends Worker {
         }
     }
 }
+

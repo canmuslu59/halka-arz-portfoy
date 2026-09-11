@@ -62,8 +62,8 @@ test('makePortfolioHistory starts each holding on IPO day and separates capital 
     { ticker:'BBB', ipoPrice:20, initialLots:5, currentLots:5, firstTradeDate:'2026-08-21', sales:[], history:[{date:'2026-08-21',close:21}] },
   ]);
   assert.deepEqual(history, [
-    { date:'2026-08-20', value:100, cost:100, profit:0, profitPct:0, dailyProfit:0, dailyPct:0, capitalAdded:100 },
-    { date:'2026-08-21', value:225, cost:200, profit:25, profitPct:12.5, dailyProfit:25, dailyPct:12.5, capitalAdded:100 },
+    { date:'2026-08-20', value:100, cost:100, profit:0, profitPct:0, dailyProfit:0, dailyPct:0, capitalAdded:100, complete:true },
+    { date:'2026-08-21', value:225, cost:200, profit:25, profitPct:12.5, dailyProfit:25, dailyPct:12.5, capitalAdded:100, complete:true },
   ]);
 });
 
@@ -110,3 +110,4 @@ test('calculateTotals keeps unchanged current-day holdings in daily percentage d
   assert.equal(totals.dailyProfit, 10);
   assert.ok(Math.abs(totals.dailyPct - (10/300*100)) < 1e-9);
 });
+

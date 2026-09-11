@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {calculateHolding,calculateTotals,makePortfolioHistory,inferSectorFromCompany} from '../public/core/domain.js';
+import {createPortfolioService} from '../public/core/portfolio-service.js';
+import {createIpoService} from '../public/core/ipo-service.js';
+import {createPlatformStorage} from '../public/core/repository.js';
+const today='2026-09-11';
+const h={ticker:'TEST',initialLots:10,currentLots:0,ipoPrice:10,currentPrice:12,previousClose:11,latestMarketDate:today,sales:[{lots:10,price:12,date:today}]};
+test('today sales retain daily realized gains',()=>{const p=calculateHolding(h,{today});assert.equal(p.dailyProfit,10);assert.equal(calculateTotals([p]).dailyPct,100/11);});
+test('closed holdings preserve cash without quotes',()=>{const p=calculateHolding({...h,currentPrice:null},{today});assert.equal(p.totalWealth,120);assert.equal(p.totalProfit,20);});
+test('sector short words do not match word endings',()=>{assert.equal(inferSectorFromCompany('ABC Ticaret A.Ş.'),'Perakende');assert.equal(inferSectorFromCompany('ABC Hizmet A.Ş.'),null);});
+function setup(getHistory=async()=>({history:[]})) {let data={holdings:[]};const service=createPortfolioService({repository:{load:async()=>structuredClone(data),save:async d=>{data=structuredClone(d)}},getQuote:async()=>({current:12,previousClose:11,latestMarketDate:today,history:[{date:today,close:11.5}]}),getIpo:async()=>({ipoPrice:10,firstTradeDate:'2026-09-01'}),getHistory,now:()=>new Date(today+'T12:00:00Z'),uuid:()=> 'id'});return service;}
+test('live chart uses same price as headline',async()=>{const s=setup();await s.addHolding({ticker:'TEST',lots:10});const p=await s.getPortfolio({refresh:false});assert.equal(p.history.at(-1).value,p.totals.totalWealth);});
+test('failed history is retried without force',async()=>{let count=0;const s=setup(async()=>{count++;throw Error('offline')});await s.addHolding({ticker:'TEST',lots:10});await s.refreshHistory();assert.equal(count,2);});
+test('sale operation id prevents duplicate mutation',async()=>{const s=setup();await s.addHolding({ticker:'TEST',lots:10});await s.addSale('id',{lots:2,price:12,date:today,operationId:'same'});await s.addSale('id',{lots:2,price:12,date:today,operationId:'same'});const p=await s.getPortfolio({refresh:false});assert.equal(p.holdings[0].currentLots,8);});
+test('incomplete portfolio history does not show partial total',()=>{const rows=makePortfolioHistory([{...h,currentLots:10,sales:[],firstTradeDate:'2026-09-01',history:[{date:today,close:12}]},{...h,ticker:'OTHER',currentLots:10,sales:[],firstTradeDate:'2026-09-01',history:[]}]);assert.equal(rows.at(-1).value,null);});
+test('failed pro history keeps warning and retries',async()=>{const m=new Map();let calls=0;const s=createIpoService({getCalendar:async()=>[],getDetail:async()=>({ipoPrice:10,firstTradeDate:today}),getHistory:async()=>{calls++;throw Error('offline')},storage:{getItem:k=>m.get(k),setItem:(k,v)=>m.set(k,v)}});await s.getDetail('TEST');const p=await s.getDetail('TEST');assert.equal(p.warning,'offline');assert.equal(calls,2);});
+test('native disk failure rejects storage write',async()=>{globalThis.window={AndroidBridge:{readPortfolio:()=>'',writePortfolio:()=>false}};try{await assert.rejects(createPlatformStorage().set('{}'));}finally{delete globalThis.window;}});
+test('closed holding history retains sale proceeds without market history',()=>{const rows=makePortfolioHistory([{...h,currentPrice:null,history:[],firstTradeDate:'2026-09-01'}]);assert.equal(rows.at(-1).date,today);assert.equal(rows.at(-1).value,120);});
+test('food tokens use Unicode boundaries on both sides',()=>{assert.notEqual(inferSectorFromCompany('ABC UNİVERSAL SANAYİ'),'Gıda');});
