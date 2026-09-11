@@ -35,8 +35,8 @@ test('Android Gradle config uses requested app id and SDK levels', async () => {
   assert.match(gradle, /minSdk 26/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /compileSdk 36/);
-  assert.match(gradle, /versionCode 25/);
-  assert.match(gradle, /versionName ['"]2\.4\.3['"]/);
+  assert.match(gradle, /versionCode 26/);
+  assert.match(gradle, /versionName ['"]2\.4\.4['"]/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
@@ -49,7 +49,6 @@ test('asset sync script copies public app into Android assets', async () => {
   assert.match(script, /public/);
   assert.match(script, /android\/app\/src\/main\/assets\/www/);
 });
-
 
 test('Android storage stays device-local and source avoids newer String APIs', async () => {
   const xml = await read('android/app/src/main/AndroidManifest.xml');
@@ -85,13 +84,11 @@ test('README documents direct-source Android verification without retired releas
   assert.match(readme, /Build v2\.4\.0 Release Candidate/);
 });
 
-
 test('native bridge avoids Charset overload unavailable on older Android APIs', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   assert.doesNotMatch(java, /toString\(StandardCharsets\.UTF_8\)/);
   assert.match(java, /toString\("UTF-8"\)/);
 });
-
 
 test('Android 13+ notification permission and Firebase messaging service are declared', async () => {
   const xml = await read('android/app/src/main/AndroidManifest.xml');
