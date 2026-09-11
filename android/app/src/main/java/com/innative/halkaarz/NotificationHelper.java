@@ -78,7 +78,7 @@ final class NotificationHelper {
         String deliveryKey;
         if ("portfolio".equals(kind)) {
             deliveryKey = kind + "|" + value(data, "level", body);
-        } else if ("ceiling".equals(kind) || "floor".equals(kind)) {
+        } else if ("ceiling".equals(kind) || "floor".equals(kind) || "ipo".equals(kind)) {
             deliveryKey = kind + "|" + ticker;
         } else {
             deliveryKey = kind + "|" + ticker + "|" + body;
