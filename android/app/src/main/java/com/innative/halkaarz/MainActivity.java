@@ -290,6 +290,7 @@ public class MainActivity extends ComponentActivity {
                 Map<String, String> data = new HashMap<>();
                 data.put("kind", parsed.optString("kind", "portfolio"));
                 data.put("ticker", parsed.optString("ticker", ""));
+                data.put("level", parsed.optString("level", ""));
                 data.put("title", parsed.optString("title", "Halka Arz Portföyüm"));
                 data.put("body", parsed.optString("body", "Portföyünüzde yeni bir hareket var."));
                 return NotificationHelper.show(activity, data);
