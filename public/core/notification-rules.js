@@ -5,6 +5,11 @@ function finite(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function extrema(value, fallback) {
+  if (value == null || value === '') return fallback;
+  return finite(value, fallback);
+}
+
 export function normalizeAlertSettings(input = {}) {
   const enabled = input.enabled !== false;
   const raw = finite(input.threshold, 3);
@@ -57,8 +62,8 @@ export function evaluateDailyAlerts({
     const currentPrice = finite(holding?.currentPrice, NaN);
     const previousClose = finite(holding?.previousClose, NaN);
     if (!(currentPrice > 0) || !(previousClose > 0)) continue;
-    const sessionHigh = finite(holding?.sessionHigh, currentPrice);
-    const sessionLow = finite(holding?.sessionLow, currentPrice);
+    const sessionHigh = extrema(holding?.sessionHigh, currentPrice);
+    const sessionLow = extrema(holding?.sessionLow, currentPrice);
     const ceiling = ceilingPrice(previousClose);
     const floor = floorPrice(previousClose);
     const ceilingStep = bistTickSize(ceiling) || 0.01;
