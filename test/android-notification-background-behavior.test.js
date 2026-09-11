@@ -77,12 +77,12 @@ test('Android schedules network-constrained background market and IPO checks eve
   assert.match(worker, /background_alert_state_v1/);
 });
 
-test('Play update identity advances to versionCode 24 / versionName 2.4.2', async () => {
+test('Play update identity advances to versionCode 25 / versionName 2.4.3', async () => {
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
-  assert.match(gradle, /versionCode 24/);
-  assert.match(gradle, /versionName ['"]2\.4\.2['"]/);
-  assert.match(html, /v2\.4\.2\s*•\s*Build 24/);
+  assert.match(gradle, /versionCode 25/);
+  assert.match(gradle, /versionName ['"]2\.4\.3['"]/);
+  assert.match(html, /v2\.4\.3\s*•\s*Build 25/);
 });
 
 
