@@ -14,8 +14,8 @@ android {
         applicationId 'com.innative.halkaarz'
         minSdk 26
         targetSdk 36
-        versionCode 25
-        versionName '2.4.3'
+        versionCode 26
+        versionName '2.4.4'
         buildConfigField 'String', 'PUSH_BACKEND_URL', '"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '"'
     }
 
