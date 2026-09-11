@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - release/v2.4.3-code25
+      - audit/code25-notification-hardening-20260911
   workflow_dispatch:
 
 permissions:
