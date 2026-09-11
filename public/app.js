@@ -153,7 +153,7 @@ function renderIpoCalendar(data = state.calendar) {
       setTimeout(() => target.scrollIntoView({ behavior:'smooth', block:'center' }), 0);
     }
   }
-  $('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));
+  $$('[data-pro-ticker]', list).forEach(button => button.addEventListener('click', () => switchView('pro', { selectedTicker:button.dataset.proTicker })));
 }
 
 async function loadIpoCalendar({ force = false } = {}) {
