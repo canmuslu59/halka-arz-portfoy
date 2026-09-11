@@ -1,0 +1,35 @@
+name: Code25 Sync Android Assets
+
+on:
+  push:
+    branches:
+      - fix/code25-notifications-audit-testapk
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code25-notifications-audit-testapk
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Synchronize Android web assets
+        run: npm run android:sync
+      - name: Commit synchronized assets if needed
+        run: |
+          if git diff --quiet -- android/app/src/main/assets/www; then
+            echo "Assets already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/assets/www
+          git commit -m "chore: sync code25 Android assets"
+          git push origin HEAD:fix/code25-notifications-audit-testapk
