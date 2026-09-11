@@ -40,6 +40,21 @@ test('native notification delivery has one persisted cross-producer once-per-eve
     'delivery guard must advance only after NotificationManager accepted the notification');
 });
 
+test('cross-producer portfolio dedupe uses semantic threshold level instead of localized body text', async () => {
+  const rules = await read('public/core/notification-rules.js');
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+
+  const payload = methodBody(rules, 'export function notificationPayloadForEvent', null);
+  assert.match(payload, /level\s*:/, 'foreground portfolio payload must carry the numeric threshold level');
+
+  const nativePortfolio = methodBody(worker, 'private static boolean showPortfolioNotification', 'private static void checkIpoCalendar');
+  assert.match(nativePortfolio, /data\.put\("level"/, 'background portfolio payload must carry the numeric threshold level');
+
+  assert.match(helper, /"portfolio"\.equals\(kind\)[\s\S]*value\(data,\s*"level"/,
+    'final delivery identity for portfolio alerts must use level, not display body text');
+});
+
 test('native IPO notifications seed the first complete snapshot instead of replaying every existing IPO', async () => {
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
   const start = worker.indexOf('private static void checkIpoCalendar');
