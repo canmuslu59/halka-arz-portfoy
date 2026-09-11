@@ -80,7 +80,7 @@ test('native IPO notifications seed the first complete snapshot instead of repla
     'first complete calendar read must establish a baseline without user-visible replay notifications');
 });
 
-test('backend portfolio alert parity keeps evaluating valid holdings when one quote is stale', () => {
+test('backend never labels a partial quote basket as total portfolio movement while valid stock limits still work', () => {
   const registration = {
     enabled:true,
     threshold:3,
@@ -88,12 +88,23 @@ test('backend portfolio alert parity keeps evaluating valid holdings when one qu
     alertState:null,
   };
   const quotes = new Map([
-    ['AAA',{ticker:'AAA',current:104,previousClose:100,latestMarketDate:'2026-09-11'}],
+    ['AAA',{ticker:'AAA',current:110,previousClose:100,latestMarketDate:'2026-09-11'}],
     ['BBB',{ticker:'BBB',current:200,previousClose:200,latestMarketDate:'2026-09-10'}],
   ]);
   const result = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-11' });
-  assert.equal(result.portfolioPct, 4);
-  assert.deepEqual(result.events.filter(event => event.kind === 'portfolio').map(event => event.level), [3]);
+  assert.equal(result.portfolioPct, null,
+    'incomplete current-session coverage must be represented as unavailable, not a partial percentage');
+  assert.deepEqual(result.events.map(event => event.kind), ['ceiling'],
+    'a valid per-stock limit event remains deliverable but no portfolio threshold may be emitted');
+});
+
+test('native worker requires complete current-session quote coverage before portfolio threshold delivery', async () => {
+  const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
+  assert.match(worker, /int\s+expectedQuoteCount\s*=\s*0/);
+  assert.match(worker, /expectedQuoteCount\s*\+=\s*1|expectedQuoteCount\+\+/,
+    'each configured positive-lot holding must count toward portfolio coverage');
+  assert.match(worker, /validTodayCount\s*==\s*expectedQuoteCount/,
+    'portfolio threshold calculation must require every configured holding to have a current-session quote');
 });
 
 test('native config normalization uses the same half-point threshold contract as the UI', async () => {
