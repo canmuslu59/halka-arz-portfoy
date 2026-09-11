@@ -55,6 +55,12 @@ test('cross-producer portfolio dedupe uses semantic threshold level instead of l
     'final delivery identity for portfolio alerts must use level, not display body text');
 });
 
+test('cross-producer IPO dedupe ignores producer-specific wording and keys by ticker within the Istanbul day', async () => {
+  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+  assert.match(helper, /"ipo"\.equals\(kind\)[\s\S]*deliveryKey\s*=\s*kind\s*\+\s*"\|"\s*\+\s*ticker/,
+    'native worker and future FCM producer use different IPO wording, so the final day-level guard must dedupe IPO delivery by ticker');
+});
+
 test('native IPO notifications seed the first complete snapshot instead of replaying every existing IPO', async () => {
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
   const start = worker.indexOf('private static void checkIpoCalendar');
