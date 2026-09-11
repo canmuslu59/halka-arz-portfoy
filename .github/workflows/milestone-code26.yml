@@ -1,0 +1,60 @@
+name: Milestone v2.4.4 Code26
+
+on:
+  push:
+    branches:
+      - milestone/v2.4.4-code26
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Full regression suite
+        run: npm test
+      - name: Synchronize Android assets
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4.0.1
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Compile release Java
+        run: gradle -p android --no-daemon compileReleaseJavaWithJavac
+      - name: Build release AAB
+        run: gradle -p android --no-daemon bundleRelease
+      - name: Package unsigned milestone AAB
+        run: |
+          test -s android/app/build/outputs/bundle/release/app-release.aab
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-v2.4.4-code26-unsigned.aab
+          sha256sum halka-arz-portfoyum-v2.4.4-code26-unsigned.aab > code26-unsigned-sha256.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: code26-milestone-unsigned-aab
+          path: |
+            halka-arz-portfoyum-v2.4.4-code26-unsigned.aab
+            code26-unsigned-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
