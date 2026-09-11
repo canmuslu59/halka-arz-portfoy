@@ -57,11 +57,11 @@ test('Android exposes notification diagnostics, notification settings recovery, 
   assert.match(helper, /areNotificationsEnabled\(\)/);
 });
 
-test('test notification UI is capability gated by BuildConfig.DEBUG through the native bridge', async () => {
+test('production milestone UI hides the test notification control while retaining notification recovery', async () => {
   const html = await read('public/index.html');
   const recovery = await read('public/notification-recovery.js');
-  assert.match(html, /debugNotificationTest[^>]*hidden/);
-  assert.match(html, /Test bildirimi gönder/);
+  assert.doesNotMatch(html, /debugNotificationTest/);
+  assert.doesNotMatch(html, /Test bildirimi gönder/);
   assert.match(recovery, /isDebugBuild/);
   assert.match(recovery, /showDebugTestNotification/);
   assert.match(recovery, /openNotificationSettings/);
