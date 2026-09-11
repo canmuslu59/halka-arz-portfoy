@@ -62,10 +62,12 @@ export function evaluateDailyAlerts({
     const currentPrice = finite(holding?.currentPrice, NaN);
     const previousClose = finite(holding?.previousClose, NaN);
     if (!(currentPrice > 0) || !(previousClose > 0)) continue;
+    const referencePrice = finite(holding?.referencePrice, NaN);
+    const limitBase = referencePrice > 0 ? referencePrice : previousClose;
     const sessionHigh = extrema(holding?.sessionHigh, currentPrice);
     const sessionLow = extrema(holding?.sessionLow, currentPrice);
-    const ceiling = ceilingPrice(previousClose);
-    const floor = floorPrice(previousClose);
+    const ceiling = ceilingPrice(limitBase);
+    const floor = floorPrice(limitBase);
     const ceilingStep = bistTickSize(ceiling) || 0.01;
     const floorStep = bistTickSize(floor) || 0.01;
     const limitState = { ...(state.limits[ticker] || {}) };

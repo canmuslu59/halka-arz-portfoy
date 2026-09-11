@@ -53,6 +53,7 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
       ticker,
       currentPrice:current,
       previousClose,
+      referencePrice:nullableFinite(quote?.referencePrice),
       sessionHigh:nullableFinite(quote?.sessionHigh),
       sessionLow:nullableFinite(quote?.sessionLow),
       dailySessionActive:true,

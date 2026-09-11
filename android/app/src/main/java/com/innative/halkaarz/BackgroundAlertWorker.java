@@ -115,8 +115,10 @@ public class BackgroundAlertWorker extends Worker {
 
                 JSONObject tickerLimits = limits.optJSONObject(ticker);
                 if (tickerLimits == null) tickerLimits = new JSONObject();
-                double ceiling = ceilingPrice(quote.previousClose);
-                double floor = floorPrice(quote.previousClose);
+                double limitBase = Double.isFinite(quote.referencePrice) && quote.referencePrice > 0
+                        ? quote.referencePrice : quote.previousClose;
+                double ceiling = ceilingPrice(limitBase);
+                double floor = floorPrice(limitBase);
                 double ceilingTolerance = Math.max(0.005, tickSize(ceiling) / 2.0 + 1e-8);
                 double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
 
@@ -407,6 +409,7 @@ public class BackgroundAlertWorker extends Worker {
         if (meta == null) meta = new JSONObject();
         double current = finite(meta.optDouble("regularMarketPrice", Double.NaN));
         double previousClose = finite(meta.optDouble("previousClose", Double.NaN));
+        double referencePrice = Double.NaN;
         double chartPreviousClose = finite(meta.optDouble("chartPreviousClose", Double.NaN));
         long metaMarketEpoch = meta.optLong("regularMarketTime", 0L);
 
@@ -474,7 +477,7 @@ public class BackgroundAlertWorker extends Worker {
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
         if (!Double.isFinite(sessionHigh)) sessionHigh = current;
         if (!Double.isFinite(sessionLow)) sessionLow = current;
-        return new Quote(current, previousClose, sessionHigh, sessionLow, effectiveMarketDate.toString(), effectiveMarketEpoch);
+        return new Quote(current, previousClose, referencePrice, sessionHigh, sessionLow, effectiveMarketDate.toString(), effectiveMarketEpoch);
     }
 
     private static double finite(double value) {
@@ -553,14 +556,16 @@ public class BackgroundAlertWorker extends Worker {
     private static final class Quote {
         final double current;
         final double previousClose;
+        final double referencePrice;
         final double sessionHigh;
         final double sessionLow;
         final String marketDate;
         final long marketEpoch;
 
-        Quote(double current, double previousClose, double sessionHigh, double sessionLow, String marketDate, long marketEpoch) {
+        Quote(double current, double previousClose, double referencePrice, double sessionHigh, double sessionLow, String marketDate, long marketEpoch) {
             this.current = current;
             this.previousClose = previousClose;
+            this.referencePrice = referencePrice;
             this.sessionHigh = sessionHigh;
             this.sessionLow = sessionLow;
             this.marketDate = marketDate;
