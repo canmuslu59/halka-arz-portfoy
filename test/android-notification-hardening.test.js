@@ -39,3 +39,15 @@ test('native IPO dedupe identity includes the offering event, not ticker alone',
   assert.match(worker, /entry\.offerDates/);
   assert.match(worker, /ticker\s*\+\s*"\\|"/);
 });
+
+test('portfolio delivery identity canonicalizes equivalent numeric threshold strings', async () => {
+  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+  assert.match(helper, /canonicalPortfolioLevel\(/,
+    'portfolio delivery identity must normalize producer-specific numeric formatting');
+  assert.match(helper, /deliveryKey\s*=\s*kind\s*\+\s*"\\|"\s*\+\s*canonicalPortfolioLevel\(/,
+    'portfolio dedupe key must use a canonical level instead of raw producer text');
+  assert.match(helper, /replace\('\,',\s*'\.'\)|replace\("\,",\s*"\."\)/,
+    'canonical level must accept Turkish decimal-comma input');
+  assert.match(helper, /stripTrailingZeros\(\)\.toPlainString\(\)/,
+    'canonical level must collapse 3 and 3.0 to the same stable identity');
+});
