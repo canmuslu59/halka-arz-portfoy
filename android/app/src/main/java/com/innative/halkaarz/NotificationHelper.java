@@ -15,6 +15,8 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONObject;
+
 import java.util.Map;
 
 final class NotificationHelper {
@@ -56,6 +58,43 @@ final class NotificationHelper {
                 .build();
         channel.setSound(sound, attrs);
         return channel;
+    }
+
+    static String diagnosticStatus(Context context) {
+        ensureChannels(context);
+        try {
+            JSONObject status = new JSONObject();
+            boolean permissionGranted = Build.VERSION.SDK_INT < 33
+                    || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+            boolean notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled();
+            status.put("permissionGranted", permissionGranted);
+            status.put("notificationsEnabled", notificationsEnabled);
+            status.put("sdk", Build.VERSION.SDK_INT);
+
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
+                JSONObject channels = new JSONObject();
+                putChannelState(channels, manager, "market", CHANNEL_MARKET);
+                putChannelState(channels, manager, "portfolio", CHANNEL_RISE);
+                putChannelState(channels, manager, "ceiling", CHANNEL_CEILING);
+                putChannelState(channels, manager, "floor", CHANNEL_FLOOR);
+                putChannelState(channels, manager, "ipo", CHANNEL_IPO);
+                status.put("channels", channels);
+            }
+            return status.toString();
+        } catch (Exception error) {
+            return "{\"permissionGranted\":false,\"notificationsEnabled\":false,\"error\":\"diagnostic_failed\"}";
+        }
+    }
+
+    private static void putChannelState(JSONObject channels, NotificationManager manager, String key, String channelId) throws Exception {
+        NotificationChannel channel = manager.getNotificationChannel(channelId);
+        JSONObject value = new JSONObject();
+        value.put("exists", channel != null);
+        int importance = channel == null ? NotificationManager.IMPORTANCE_NONE : channel.getImportance();
+        value.put("importance", importance);
+        value.put("enabled", channel != null && importance != NotificationManager.IMPORTANCE_NONE);
+        channels.put(key, value);
     }
 
     static boolean show(Context context, Map<String, String> data) {
