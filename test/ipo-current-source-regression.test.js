@@ -6,7 +6,7 @@ import { parseGedikCalendar } from '../public/core/gedik-calendar.js';
 
 const read = path => fs.readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('fresh brokerage calendar parser extracts the active NETGL September offer', () => {
+test('fresh brokerage calendar parser extracts active and valid unlabelled September offers', () => {
   const html = `
     <section class="ipo-card">
       <strong>NETGL</strong>
@@ -29,6 +29,23 @@ test('fresh brokerage calendar parser extracts the active NETGL September offer'
   assert.equal(netgl?.ipoPrice, 25.52);
   assert.equal(netgl?.source, 'Gedik Yatırım');
   assert.equal(netgl?.status, 'active');
+
+  const bkrgy = rows.find(row => row.ticker === 'BKRGY');
+  assert.equal(bkrgy?.company, 'Bakırcı Gayrimenkul Yatırım Ortaklığı A.Ş.');
+  assert.equal(bkrgy?.offerDates, '24-26 Ağustos 2026');
+  assert.equal(bkrgy?.ipoPrice, 12.93);
+  assert.equal(bkrgy?.status, null);
+});
+
+test('native Gedik row grammar does not require a literal AKTİF marker', async () => {
+  const parser = await read('android/app/src/main/java/com/innative/halkaarz/IpoCalendarParser.java');
+  const start = parser.indexOf('private static final Pattern GEDIK_ACTIVE');
+  const end = parser.indexOf('private IpoCalendarParser()', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const grammar = parser.slice(start, end);
+  assert.doesNotMatch(grammar, /\\\\s\+AKTİF\\\\s\+/,
+    'foreground accepts structurally valid Gedik rows without AKTİF, so native parsing must not require that literal marker');
 });
 
 test('UI calendar cross-checks Ahlatci even after a successful empty Gedik response', async () => {
