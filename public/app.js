@@ -485,6 +485,7 @@ function pushPayload() {
 }
 
 function syncPushConfiguration() {
+  if (!state.portfolio) return;
   try { window.AndroidBridge?.syncPushConfig?.(JSON.stringify(pushPayload())); } catch {}
 }
 
@@ -589,6 +590,8 @@ async function loadPortfolio({ quiet = false, force = false } = {}) {
       const cached = await service.getPortfolio({ refresh:false });
       state.portfolio = cached;
       renderPortfolio(cached);
+      // Restore native background holdings from durable local state before any network refresh.
+      syncPushConfiguration();
 
       const fresh = await service.getPortfolio({ refresh:true, force:runForce });
       state.portfolio = fresh;

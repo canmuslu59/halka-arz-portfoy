@@ -38,7 +38,8 @@ final class PushConfigSync {
             JSONObject safe = new JSONObject();
             safe.put("enabled", parsed.optBoolean("enabled", true));
             double threshold = parsed.optDouble("threshold", 3.0);
-            safe.put("threshold", Math.max(1.0, Math.min(10.0, threshold)));
+            double normalizedThreshold = Math.round(Math.max(1.0, Math.min(10.0, threshold)) * 2.0) / 2.0;
+            safe.put("threshold", normalizedThreshold);
             safe.put("ipoEnabled", parsed.optBoolean("ipoEnabled", true));
             org.json.JSONArray holdings = parsed.optJSONArray("holdings") == null ? new org.json.JSONArray() : parsed.optJSONArray("holdings");
             safe.put("holdings", holdings);

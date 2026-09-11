@@ -36,7 +36,7 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     currentValue += current * lots;
   }
 
-  const portfolioPct = expected > 0 && valid === expected && previousValue > 0
+  const portfolioPct = valid > 0 && previousValue > 0
     ? ((currentValue - previousValue) / previousValue) * 100
     : 0;
   const result = evaluateDailyAlerts({

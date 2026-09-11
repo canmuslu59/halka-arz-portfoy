@@ -239,6 +239,19 @@ public class BackgroundAlertWorker extends Worker {
         }
 
         List<IpoCalendarParser.Entry> entries = mergeIpoEntries(gedikEntries, ahlatciEntries);
+        if (!prefs.contains(IPO_STATE_KEY)) {
+            // Establish a baseline only from a complete dual-source read. A partial outage must retry
+            // rather than making the missing source look like a batch of new IPOs on the next run.
+            if (gedikError != null) throw gedikError;
+            if (ahlatciError != null) throw ahlatciError;
+            Set<String> baseline = new HashSet<>();
+            for (IpoCalendarParser.Entry entry : entries) {
+                if (entry.ticker.isEmpty()) continue;
+                baseline.add(ipoEventKey(entry.ticker, entry.offerDates));
+            }
+            prefs.edit().putString(IPO_STATE_KEY, toJsonArrayStrings(baseline).toString()).apply();
+            return;
+        }
         Set<String> seen = new HashSet<>();
         try {
             JSONArray old = new JSONArray(prefs.getString(IPO_STATE_KEY, "[]"));
