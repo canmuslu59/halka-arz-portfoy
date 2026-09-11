@@ -5,6 +5,11 @@ function finite(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function nullableFinite(value) {
+  if (value == null || value === '') return null;
+  return finite(value);
+}
+
 function normalizeTicker(value) {
   return String(value || '').trim().toUpperCase();
 }
@@ -35,8 +40,8 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
       ticker,
       currentPrice:current,
       previousClose,
-      sessionHigh:finite(quote?.sessionHigh),
-      sessionLow:finite(quote?.sessionLow),
+      sessionHigh:nullableFinite(quote?.sessionHigh),
+      sessionLow:nullableFinite(quote?.sessionLow),
       dailySessionActive:true,
     });
     previousValue += previousClose * lots;
