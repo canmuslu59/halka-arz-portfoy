@@ -1,0 +1,46 @@
+name: Code27 Play AAB
+on:
+  push:
+    branches: [release/code27-no-test-notification-20260912]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  play-aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm test
+      - run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --check
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4.0.1
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - run: gradle -p android --no-daemon bundleRelease
+        env:
+          PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+      - run: |
+          cp android/app/build/outputs/bundle/release/app-release.aab halka-arz-portfoyum-code27-unsigned.aab
+          sha256sum halka-arz-portfoyum-code27-unsigned.aab > aab-sha256.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: code27-play-aab
+          path: |
+            halka-arz-portfoyum-code27-unsigned.aab
+            aab-sha256.txt
+          if-no-files-found: error
+          retention-days: 14

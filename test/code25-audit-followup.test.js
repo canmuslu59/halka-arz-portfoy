@@ -44,26 +44,25 @@ test('privacy disclosure explicitly says remote sync can include ticker and lot 
   assert.match(privacy, /HTTPS[\s\S]{0,420}(?:hisse kod|ticker)[\s\S]{0,180}lot|(?:hisse kod|ticker)[\s\S]{0,180}lot[\s\S]{0,420}HTTPS/i);
 });
 
-test('Android exposes notification diagnostics, notification settings recovery, and debug-only native test trigger', async () => {
+test('Android exposes notification diagnostics, notification settings recovery, without a test notification trigger', async () => {
   const main = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
   assert.match(main, /getNotificationStatus/);
   assert.match(main, /openNotificationSettings/);
-  assert.match(main, /showDebugTestNotification/);
-  assert.match(main, /BuildConfig\.DEBUG/);
+  assert.doesNotMatch(main, /showDebugTestNotification|isDebugBuild/);
   assert.match(main, /shouldShowRequestPermissionRationale/);
   assert.match(helper, /diagnosticStatus/);
   assert.match(helper, /getImportance\(\)/);
   assert.match(helper, /areNotificationsEnabled\(\)/);
 });
 
-test('production milestone UI hides the test notification control while retaining notification recovery', async () => {
+test('production milestone UI removes the test notification control while retaining notification recovery', async () => {
   const html = await read('public/index.html');
   const recovery = await read('public/notification-recovery.js');
   assert.doesNotMatch(html, /debugNotificationTest/);
   assert.doesNotMatch(html, /Test bildirimi gönder/);
-  assert.match(recovery, /isDebugBuild/);
-  assert.match(recovery, /showDebugTestNotification/);
+  assert.doesNotMatch(recovery, /isDebugBuild/);
+  assert.doesNotMatch(recovery, /showDebugTestNotification|debugNotificationTest/);
   assert.match(recovery, /openNotificationSettings/);
 });
 
@@ -81,3 +80,4 @@ test('finding 3 purchase flow and finding 6 market calendar remain untouched by 
   assert.match(calendar, /CLOSED_2027/);
   assert.doesNotMatch(calendar, /CLOSED_2028/);
 });
+

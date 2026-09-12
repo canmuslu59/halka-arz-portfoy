@@ -319,22 +319,6 @@ public class MainActivity extends ComponentActivity {
         }
 
         @JavascriptInterface
-        public boolean isDebugBuild() {
-            return BuildConfig.DEBUG;
-        }
-
-        @JavascriptInterface
-        public boolean showDebugTestNotification() {
-            if (!BuildConfig.DEBUG) return false;
-            Map<String, String> data = new HashMap<>();
-            data.put("kind", "portfolio");
-            data.put("ticker", "");
-            data.put("title", "Test bildirimi");
-            data.put("body", "Bildirim sistemi çalışıyor. Bu yalnızca test sürümüdür.");
-            return NotificationHelper.show(activity, data);
-        }
-
-        @JavascriptInterface
         public void syncPushConfig(String json) {
             PushConfigSync.saveConfig(activity, json);
         }

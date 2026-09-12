@@ -38,23 +38,7 @@ function refreshNotificationDiagnostics() {
 
 function setup() {
   const native = bridge();
-  const debugButton = document.querySelector('#debugNotificationTest');
   const settingsButton = document.querySelector('#notificationSettingsButton');
-
-  let isDebugBuild = false;
-  try { isDebugBuild = native?.isDebugBuild?.() === true; } catch {}
-  if (debugButton) debugButton.hidden = !isDebugBuild;
-
-  debugButton?.addEventListener('click', () => {
-    let ok = false;
-    try { ok = native?.showDebugTestNotification?.() === true; } catch {}
-    const label = document.querySelector('#notificationPermissionStatus');
-    if (label) label.textContent = ok
-      ? 'Test bildirimi gönderildi. Telefonun bildirim perdesini kontrol edin.'
-      : 'Test bildirimi engellendi. Android bildirim ayarlarını kontrol edin.';
-    if (!ok && settingsButton) settingsButton.hidden = false;
-    setTimeout(refreshNotificationDiagnostics, 1200);
-  });
 
   settingsButton?.addEventListener('click', () => {
     try { native?.openNotificationSettings?.(); } catch {}

@@ -13,15 +13,15 @@ test('Android shell and bundled UI follow the Milestone Code26 release identity'
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 26/);
-  assert.match(gradle, /versionName '2\.4\.4'/);
+  assert.match(gradle, /versionCode 27/);
+  assert.match(gradle, /versionName '2\.4\.5'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
   assert.match(gradle, /androidx\.fragment:fragment:1\.9\.0/);
   assert.match(java, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
-  assert.match(html, /v2\.4\.4 • Build 26/);
+  assert.match(html, /v2\.4\.5 • Build 27/);
 });
 
 test('BIST daily upper/lower limits use valid price-step rounding', () => {
@@ -120,3 +120,4 @@ test('floating dock has scroll-aware fade and boundary recovery behavior', () =>
   assert.match(css, /transition:opacity \.30s ease,transform \.30s/);
   assert.match(css, /pointer-events:none/);
 });
+
