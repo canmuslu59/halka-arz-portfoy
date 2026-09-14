@@ -11,6 +11,11 @@ function dateInIstanbul(value) {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
+function finiteNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function fetchYahooQuote(ticker, { fetchImpl = globalThis.fetch } = {}) {
   const key = cleanTicker(ticker);
   if (!key) return null;
@@ -28,18 +33,59 @@ export async function fetchYahooQuote(ticker, { fetchImpl = globalThis.fetch } =
   const json = await response.json();
   const result = json?.chart?.result?.[0];
   if (!result) return null;
+
   const meta = result.meta || {};
   const timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];
-  const current = Number(meta.regularMarketPrice);
-  const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
-  const lastTimestamp = Number(meta.regularMarketTime || timestamps.at(-1));
-  const latestMarketDate = Number.isFinite(lastTimestamp) && lastTimestamp > 0
-    ? dateInIstanbul(new Date(lastTimestamp * 1000))
+  const closes = Array.isArray(result?.indicators?.quote?.[0]?.close)
+    ? result.indicators.quote[0].close
+    : [];
+
+  let latestTickEpoch = 0;
+  let latestTickClose = null;
+  const count = Math.min(timestamps.length, closes.length);
+  for (let index = 0; index < count; index += 1) {
+    const epoch = Number(timestamps[index]);
+    const close = finiteNumber(closes[index]);
+    if (!(epoch > 0) || !(close > 0)) continue;
+    if (epoch > latestTickEpoch) {
+      latestTickEpoch = epoch;
+      latestTickClose = close;
+    }
+  }
+
+  const metaMarketEpoch = finiteNumber(meta.regularMarketTime) ?? 0;
+  const effectiveMarketEpoch = Math.max(metaMarketEpoch, latestTickEpoch);
+  const latestMarketDate = effectiveMarketEpoch > 0
+    ? dateInIstanbul(new Date(effectiveMarketEpoch * 1000))
     : null;
+
+  let current = finiteNumber(meta.regularMarketPrice);
+  if (latestTickEpoch > metaMarketEpoch) current = latestTickClose;
+  if (!(current > 0)) current = latestTickClose;
+
+  let previousSessionEpoch = 0;
+  let previousSessionClose = null;
+  if (latestMarketDate) {
+    for (let index = 0; index < count; index += 1) {
+      const epoch = Number(timestamps[index]);
+      const close = finiteNumber(closes[index]);
+      if (!(epoch > 0) || !(close > 0)) continue;
+      if (dateInIstanbul(new Date(epoch * 1000)) >= latestMarketDate) continue;
+      if (epoch > previousSessionEpoch) {
+        previousSessionEpoch = epoch;
+        previousSessionClose = close;
+      }
+    }
+  }
+
+  let previousClose = finiteNumber(meta.previousClose);
+  if (!(previousClose > 0)) previousClose = previousSessionClose;
+  if (!(previousClose > 0)) previousClose = finiteNumber(meta.chartPreviousClose);
+
   return {
     ticker:key,
-    current:Number.isFinite(current) ? current : null,
-    previousClose:Number.isFinite(previousClose) ? previousClose : null,
+    current:current > 0 ? current : null,
+    previousClose:previousClose > 0 ? previousClose : null,
     latestMarketDate,
   };
 }
