@@ -5,6 +5,9 @@ on:
     branches: [fix/code28-signed-portfolio-alerts-20260914]
     paths:
       - .github/workflows/cloudflare-temporary-bootstrap.yml
+      - wrangler.jsonc
+      - cloudflare/durable-store.js
+      - cloudflare/worker.js
 
 permissions:
   contents: read
