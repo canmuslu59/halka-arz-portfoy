@@ -95,15 +95,18 @@ test('IPO notification deep-link consumes the pending ticker and focuses the mat
   assert.match(app, /safeSetLocal\('pushFocusIpo',\s*''\)/);
 });
 
-test('Google Play review access cannot be unlocked by a reusable public client code', async () => {
+test('Pro access exposes only the standard seven-day trial and no dead review unlock API', async () => {
   const values = new Map();
   const storage = {
     getItem:key => values.has(key) ? values.get(key) : null,
     setItem:(key,value) => values.set(key, String(value)),
   };
   const source = await read('public/core/pro-access.js');
-  assert.doesNotMatch(source, /GPLAY-REVIEW-|REVIEW_ACCESS_CODE/);
+  assert.doesNotMatch(source, /GPLAY-REVIEW-|REVIEW_ACCESS_CODE|REVIEW_ACCESS_MS|REVIEW_KEY|enableReviewAccess/);
   const access = createProAccess(storage, { now:()=>Date.parse('2026-09-11T12:00:00+03:00') });
-  assert.equal(access.enableReviewAccess('GPLAY-REVIEW-HA11-2026'), false);
+  assert.equal(access.enableReviewAccess, undefined);
   assert.equal(access.getState().status, 'not_started');
+  const entered = access.enterAdvanced();
+  assert.equal(entered.status, 'trial');
+  assert.equal(entered.hasAccess, true);
 });
