@@ -19,15 +19,14 @@ test('portfolio totals explicitly report incomplete active market values and sup
   assert.equal(totals.dailyProfit, null);
 });
 
-test('review access code is not embedded in public JavaScript', async () => {
+test('review backdoor code is absent from public JavaScript', async () => {
   const pro = await read('public/core/pro-access.js');
-  assert.doesNotMatch(pro, /GPLAY-REVIEW-|REVIEW_ACCESS_CODE\s*=\s*['"]/);
-  assert.match(pro, /enableReviewAccess\(\)[\s\S]{0,120}return false/);
+  assert.doesNotMatch(pro, /GPLAY-REVIEW-|REVIEW_ACCESS_CODE|REVIEW_ACCESS_MS|REVIEW_KEY|enableReviewAccess/);
 });
 
-test('Google Play review form is hidden from normal users', async () => {
+test('Google Play review-only hidden form/style is absent from normal UI', async () => {
   const html = await read('public/index.html');
-  assert.match(html, /\.review-access-box\{display:none!important\}/);
+  assert.doesNotMatch(html, /review-access-box|reviewAccess|GPLAY-REVIEW/i);
 });
 
 test('Ahlatci archive discovery is not hard limited to twelve pages', async () => {
@@ -80,4 +79,3 @@ test('finding 3 purchase flow and finding 6 market calendar remain untouched by 
   assert.match(calendar, /CLOSED_2027/);
   assert.doesNotMatch(calendar, /CLOSED_2028/);
 });
-
