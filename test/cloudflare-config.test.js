@@ -20,10 +20,24 @@ async function collectFiles(root) {
   return found;
 }
 
-test('Cloudflare config pins a two-minute cron without plaintext secrets', async () => {
+test('Cloudflare config pins a two-minute cron and draft D1 binding without plaintext secrets', async () => {
   const wrangler = await read('wrangler.jsonc');
   assert.match(wrangler, /"crons"\s*:\s*\[\s*"\*\/2 \* \* \* \*"\s*\]/);
+  assert.match(wrangler, /"d1_databases"\s*:\s*\[\s*\{\s*"binding"\s*:\s*"DB"\s*\}\s*\]/);
   assert.doesNotMatch(wrangler, /BEGIN PRIVATE KEY|private_key_id/i);
+});
+
+test('temporary Cloudflare bootstrap uses an ephemeral public-key envelope and never stores plaintext Firebase credentials', async () => {
+  const workflow = await read('.github/workflows/cloudflare-temporary-bootstrap.yml');
+  assert.match(workflow, /wrangler@4\.131\.1\s+deploy\s+--temporary/);
+  assert.match(workflow, /openssl\s+genpkey/);
+  assert.match(workflow, /cloudflare-bootstrap-public-key/);
+  assert.match(workflow, /cloudflare-bootstrap-secret\.enc\.json/);
+  assert.match(workflow, /pkeyutl\s+-decrypt/);
+  assert.match(workflow, /--secrets-file/);
+  assert.match(workflow, /d1\s+migrations\s+apply\s+DB\s+--remote/);
+  assert.doesNotMatch(workflow, /BEGIN PRIVATE KEY/);
+  assert.doesNotMatch(workflow, /firebase-adminsdk-[^\s]+@halka-arz-portfoyum/);
 });
 
 test('Cloudflare local state and secret env files are ignored', async () => {
