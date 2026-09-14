@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 25
     env:
       PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
-      GOOGLE_SERVICES_JSON_BASE64: ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamZWN0X251bWJlciI6ICI5NjgxMjUyODUyMzEiLAogICAgInByb2plY3RfaWQiOiAiaGFsa2EtYXJ6LXBvcnRmb3l1bSIsCiAgICAic3RvcmFnZV9idWNrZXQiOiAiaGFsa2EtYXJ6LXBvcnRmb3l1bS5maXJlYmFzZXN0b3JhZ2UuYXBwIgogIH0sCiAgImNsaWVudCI6IFsKICAgIHsKICAgICAgImNsaWVudF9pbmZvIjogewogICAgICAgICJtb2JpbGVzZGtfYXBwX2lkIjogIjE6OTY4MTI1Mjg1MjMxOmFuZHJvaWQ6NWFlMWE1NmNkYTAzNjUxZDYzOWU5YSIsCiAgICAgICAgImFuZHJvaWRfY2xpZW50X2luZm8iOiB7CiAgICAgICAgICAicGFja2FnZV9uYW1lIjogImNvbS5pbm5hdGl2ZS5oYWxrYWFyeiIKICAgICAgICB9CiAgICAgIH0sCiAgICAgICJvYXV0aF9jbGllbnQiOiBbXSwKICAgICAgImFwaV9rZXkiOiBbCiAgICAgICAgewogICAgICAgICAgImN1cnJlbnRfa2V5IjogIkFJemFTeUJ5MFZiUzNnMklQVEtYcXRNU3BiN2szTTJ0ZFo3ZVhfOCIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJzZXJ2aWNlcyI6IHsKICAgICAgICAiYXBwaW52aXRlX3NlcnZpY2UiOiB7CiAgICAgICAgICAib3RoZXJfcGxhdGZvcm1fb2F1dGhfY2xpZW50IjogW10KICAgICAgICB9CiAgICAgIH0KICAgIH0KICBdLAogICJjb25maWd1cmF0aW9uX3ZlcnNpb24iOiAiMSIKfQo=
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.0.0
@@ -38,7 +37,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "968125285231",
+              "project_id": "halka-arz-portfoyum",
+              "storage_bucket": "halka-arz-portfoyum.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:968125285231:android:5ae1a56cda03651d639e9a",
+                  "android_client_info": {
+                    "package_name": "com.innative.halkaarz"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyBy0VbS3g2IPTKXqtMSpb7k3M2tdZ7eX_8"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
           node - <<'NODE'
           const fs = require('fs');
           const config = JSON.parse(fs.readFileSync('android/app/google-services.json','utf8'));
