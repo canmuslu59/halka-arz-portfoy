@@ -62,9 +62,10 @@ function mergeHistoryRows(
     .map(row => ({ row, close: nullableFiniteNumber(row?.close) }))
     .filter(({ row, close }) => row?.date && close != null)
     .map(({ row, close }) => ({ ...row, close }));
-  const priorRecentDate = latestMarketDate
-    ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort().at(-1) || null
-    : null;
+  const priorRecentDates = latestMarketDate
+    ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort()
+    : [];
+  const priorRecentDate = priorRecentDates.length ? priorRecentDates[priorRecentDates.length - 1] : null;
   const exchangePreviousClose = nullableFiniteNumber(previousClose);
 
   for (const row of validRecentRows) {
@@ -167,7 +168,7 @@ function hydrate(raw, errors = {}) {
         ? legacyMarket.history
         : [];
     const quoteHistory = Array.isArray(quote.history) ? quote.history : [];
-    const quoteLatestMarketDate = quote.latestMarketDate || quoteHistory.at(-1)?.date || null;
+    const quoteLatestMarketDate = quote.latestMarketDate || (quoteHistory.length ? quoteHistory[quoteHistory.length - 1]?.date : null) || null;
     const today = dateInIstanbul(now());
     const quotePreviousClose = nullableFiniteNumber(quote.previousClose);
     const history = mergeHistoryRows(baseHistory, quoteHistory, {
@@ -175,7 +176,7 @@ function hydrate(raw, errors = {}) {
       today,
       previousClose: quotePreviousClose,
     });
-    const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;
+    const latestMarketDate = quoteLatestMarketDate || (history.length ? history[history.length - 1]?.date : null) || null;
     if (latestMarketDate === today && nullableFiniteNumber(quote.current) != null) {
       const row = history.find(row => row.date === today);
       if (row) row.close = Number(quote.current);
@@ -217,7 +218,7 @@ function hydrate(raw, errors = {}) {
     const holdings = (data.holdings || []).map(raw => hydrate(raw, errorsById.get(raw.id) || {}));
     const totals = calculateTotals(holdings);
     const history = makePortfolioHistory(holdings);
-    const lastHistory = history.at(-1);
+    const lastHistory = history.length ? history[history.length - 1] : null;
     if (lastHistory?.date === today && lastHistory.complete !== false) {
       lastHistory.dailyProfit = totals.dailyProfit;
       lastHistory.dailyPct = totals.dailyPct;

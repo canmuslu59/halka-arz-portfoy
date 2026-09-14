@@ -185,7 +185,7 @@ function splitConsortium(text = '') {
 
 function extractTickerFromCompanyCell(text = '') {
   const matches = String(text).match(/\b[A-Z0-9]{3,8}\b/g) || [];
-  return cleanTicker(matches.at(-1) || '');
+  return cleanTicker((matches.length ? matches[matches.length - 1] : '') || '');
 }
 
 function sectionHtml(raw, heading) {
@@ -210,7 +210,7 @@ export function parseAhlatciCalendar(html) {
   const cardLinks = [];
   for (const link of detailLinks) {
     const href = String(link[1] || '');
-    const previous = cardLinks.at(-1);
+    const previous = cardLinks.length ? cardLinks[cardLinks.length - 1] : null;
     if (previous && previous.href === href) {
       previous.lastEnd = (link.index || 0) + link[0].length;
       continue;
@@ -237,7 +237,7 @@ export function parseAhlatciCalendar(html) {
       const headings = [...cardHtml.matchAll(/<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>/gi)]
         .map(match => textFromHtml(match[1]))
         .filter(value => value && !/Halka\s+Arzlar/i.test(value));
-      company = headings.find(value => /A\.?\s*Ş\.?/i.test(value)) || headings.at(-1) || null;
+      company = headings.find(value => /A\.?\s*Ş\.?/i.test(value)) || (headings.length ? headings[headings.length - 1] : null);
     }
 
     let ticker = '';
@@ -444,7 +444,7 @@ export function parseFintablesSector(html, ticker) {
     .filter(Boolean)
     .filter((value, index, rows) => rows.indexOf(value) === index);
 
-  let sector = linkedSectors.at(-1) || null;
+  let sector = linkedSectors.length ? linkedSectors[linkedSectors.length - 1] : null;
   if (!sector) {
     const text = textFromHtml(scope);
     const match = text.match(/Sektörler\s*[:|]?\s*([^|•]{2,160}?)(?=\s+(?:Temettü|Finansallar|Ortaklık\s+Yapısı|Şirket|Karne|Kaynak|Son\s+temettü|Brüt\s+Kar|$))/i)

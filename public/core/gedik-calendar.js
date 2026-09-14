@@ -34,7 +34,7 @@ function normalizeOfferDates(value = '') {
   if (!match) return compact;
   const days = match[1].split('-').filter(Boolean);
   if (days.length < 2) return compact;
-  return `${days[0]}-${days.at(-1)} ${match[2]}`;
+  return `${days[0]}-${days[days.length - 1]} ${match[2]}`;
 }
 
 const ROW_PATTERN = /(?:^|\s)([A-Z0-9]{3,8})\s+(.{3,180}?A\.?\s*[Şş]\.?)\s+((?:AKTİF|Aktif|aktif)\s+)?((?:\d{1,2}\s*[-–—]\s*){0,2}\d{1,2}\s+[A-Za-zÇĞİÖŞÜçğıöşü]+\s+20\d{2})\s+([0-9.]+(?:,[0-9]+)?)\s*TL/g;

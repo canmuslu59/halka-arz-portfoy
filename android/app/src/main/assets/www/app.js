@@ -949,7 +949,7 @@ function drawChart() {
     ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(w-pad.r,yy); ctx.stroke();
   }
 
-  const last = rows.at(-1);
+  const last = rows[rows.length - 1];
   const positive = Number(last?.profit) >= 0;
   const stroke = positive ? '#35d49a' : '#ff6b78';
   const grad = ctx.createLinearGradient(0,pad.t,0,h-pad.b);
@@ -969,7 +969,7 @@ function drawChart() {
 
   ctx.fillStyle = state.theme === 'light' ? '#66758c' : '#758198'; ctx.font='10px system-ui';
   ctx.textAlign='left'; ctx.fillText(trDate(rows[0].date).replace(/ 20\d{2}/,''),pad.l,h-5);
-  ctx.textAlign='right'; ctx.fillText(trDate(rows.at(-1).date).replace(/ 20\d{2}/,''),w-pad.r,h-5);
+  ctx.textAlign='right'; ctx.fillText(trDate(rows[rows.length - 1].date).replace(/ 20\d{2}/,''),w-pad.r,h-5);
   ctx.textAlign='left'; ctx.fillText(money(max).replace(',00',''),pad.l,pad.t-5);
 
   if (Number.isInteger(state.chartSelectedIndex) && state.chartSelectedIndex < rows.length) {

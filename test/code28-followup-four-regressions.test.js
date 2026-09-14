@@ -37,6 +37,24 @@ test('an undated quote is never treated as the current Istanbul trading session'
   assert.equal(holding.dailyPct, 0);
 });
 
+test('runtime web JavaScript avoids Array at/findLast/findLastIndex for older Android WebViews', async () => {
+  const roots = [new URL('../public/', import.meta.url)];
+  const offenders = [];
+  async function walk(url) {
+    const entries = await fs.readdir(url, { withFileTypes:true });
+    for (const entry of entries) {
+      const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), url);
+      if (entry.isDirectory()) await walk(child);
+      else if (entry.name.endsWith('.js')) {
+        const text = await fs.readFile(child, 'utf8');
+        if (/\.at\s*\(|\.findLast(?:Index)?\s*\(/.test(text)) offenders.push(child.pathname);
+      }
+    }
+  }
+  for (const root of roots) await walk(root);
+  assert.deepEqual(offenders, []);
+});
+
 test('Yahoo price parsing still works when newer Array at/findLast/findLastIndex methods are unavailable', () => {
   const methods = ['at', 'findLast', 'findLastIndex'];
   const saved = new Map(methods.map(name => [name, Object.getOwnPropertyDescriptor(Array.prototype, name)]));

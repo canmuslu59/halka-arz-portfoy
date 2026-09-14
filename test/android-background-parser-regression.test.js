@@ -23,7 +23,8 @@ test('background scheduler runs alerts without holdings and kicks immediate work
   assert.match(sync, /ipoEnabled/);
   assert.doesNotMatch(sync, /holdings\.length\(\)\s*>\s*0/);
   assert.match(app, /ipoEnabled\s*:\s*true/);
-  assert.match(app, /syncPushConfiguration\(\);\s*\napplyNavigationState/);
+  assert.doesNotMatch(app, /initTheme\(\);\s*syncPushConfiguration\(\);/);
+  assert.match(app, /state\.portfolio\s*=\s*fresh;[\s\S]{0,500}syncPushConfiguration\(\);/);
 });
 
 test('background worker has native IPO fetch, de-dup state and notification permission guard', async () => {

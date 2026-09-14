@@ -125,16 +125,17 @@ export function calculateHolding(holding, { today = null } = {}) {
   const todayWithholdingTax = ipoPrice == null
     ? 0
     : todaySales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, ipoPrice), 0);
-  const dailyProfit = !sessionIsToday
-    ? 0
-    : (currentLots > 0 && currentPrice == null) || previousClose == null
-      ? null
+  const hasDailyMarketPrices = previousClose != null && (currentLots === 0 || currentPrice != null);
+  const dailyProfit = !hasDailyMarketPrices
+    ? null
+    : !sessionIsToday
+      ? 0
       : (currentLots === 0 ? 0 : currentLots * (currentPrice - previousClose)) + saleDayGain - todayWithholdingTax;
   const dailyBase = previousClose != null && dailyBaseLots > 0 ? previousClose * dailyBaseLots : 0;
-  const dailyPct = !sessionIsToday
-    ? 0
-    : dailyProfit == null || !(dailyBase > 0)
-      ? null
+  const dailyPct = dailyProfit == null || !(dailyBase > 0)
+    ? null
+    : !sessionIsToday
+      ? 0
       : (dailyProfit / dailyBase) * 100;
 
   return {
