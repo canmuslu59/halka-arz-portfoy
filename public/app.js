@@ -477,11 +477,20 @@ function evaluateLocalAlerts(portfolio) {
 }
 
 function pushPayload() {
+  const day = todayIstanbul();
+  const holdings = (state.portfolio?.holdings || []).map(item => ({
+    ticker:item.ticker,
+    lots:Number(item.currentLots || 0),
+    ipoPrice:Number(item.ipoPrice || 0),
+    sales:(Array.isArray(item.sales) ? item.sales : [])
+      .filter(sale => sale?.date === day && Number(sale.lots || 0) > 0 && Number(sale.price || 0) > 0)
+      .map(sale => ({ date:sale.date, lots:Number(sale.lots), price:Number(sale.price) })),
+  })).filter(item => item.lots > 0 || item.sales.length > 0);
   return {
     enabled: state.alertSettings.enabled,
     threshold: state.alertSettings.threshold,
     ipoEnabled: true,
-    holdings: (state.portfolio?.holdings || []).filter(item => Number(item.currentLots || 0) > 0).map(item => ({ ticker:item.ticker, lots:Number(item.currentLots || 0) })),
+    holdings,
   };
 }
 
@@ -782,7 +791,8 @@ function openDetail(id, { push = true } = {}) {
       <div class="detail-tile"><span>Toplam kazanç</span><strong class="${signClass(h.totalProfit)}">${money(h.totalProfit)} · ${pct(h.totalProfitPct)}</strong></div>
       <div class="detail-tile"><span>Başlangıç yatırım</span><strong>${money(h.invested)}</strong></div>
       <div class="detail-tile"><span>Güncel değer</span><strong>${money(h.activeValue)}</strong></div>
-      <div class="detail-tile"><span>Gerçekleşen kâr</span><strong class="${signClass(h.realizedProfit)}">${money(h.realizedProfit)}</strong></div>
+      <div class="detail-tile"><span>Gerçekleşen net kâr</span><strong class="${signClass(h.realizedProfit)}">${money(h.realizedProfit)}</strong></div>
+      ${Number(h.withholdingTax || 0) > 0 ? `<div class="detail-tile"><span>Stopaj (%17,5)</span><strong class="negative">-${money(h.withholdingTax)}</strong></div>` : ''}
       <div class="detail-tile"><span>Sektör</span><strong>${esc(h.sector || '—')}</strong></div>
     </div>
     ${warnings.length ? `<div class="warning-box">${warnings.map(esc).join('<br>')}</div>` : ''}

@@ -49,6 +49,7 @@ public class BackgroundAlertWorker extends Worker {
     public Result doWork() {
         Context context = getApplicationContext();
         AlertDiagnostics.record(context, "running", 0, 0, null);
+        PushConfigSync.ensureSynced(context);
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             AlertDiagnostics.record(context, "permission_blocked", 0, 0, null);
@@ -95,10 +96,11 @@ public class BackgroundAlertWorker extends Worker {
             Set<Double> portfolioDelivered = deliveredLevels(state.optJSONArray("portfolio"));
 
             double previousValue = 0.0;
-            double currentValue = 0.0;
+            double dailyProfitValue = 0.0;
             int validTodayCount = 0;
             int expectedTodayCount = 0;
             boolean quoteRetryNeeded = false;
+            boolean hasTodaySales = false;
             List<Map<Long, Double>> positionSamples = new java.util.ArrayList<>();
             long monitoringSince = prefs.getLong(PushConfigSync.MONITORING_SINCE_KEY, 0L);
             if (monitoringSince <= 0) {
@@ -110,8 +112,26 @@ public class BackgroundAlertWorker extends Worker {
                 JSONObject item = holdings.optJSONObject(i);
                 if (item == null) continue;
                 String ticker = normalizeTicker(item.optString("ticker", ""));
-                double lots = item.optDouble("lots", 0.0);
-                if (ticker.isEmpty() || !(lots > 0)) continue;
+                double currentLots = Math.max(0.0, item.optDouble("lots", 0.0));
+                double ipoPrice = item.optDouble("ipoPrice", 0.0);
+                JSONArray sales = item.optJSONArray("sales");
+                if (sales == null) sales = new JSONArray();
+
+                double soldTodayLots = 0.0;
+                double todayWithholdingTax = 0.0;
+                for (int saleIndex = 0; saleIndex < sales.length(); saleIndex++) {
+                    JSONObject sale = sales.optJSONObject(saleIndex);
+                    if (sale == null || !day.equals(sale.optString("date", ""))) continue;
+                    double saleLots = sale.optDouble("lots", 0.0);
+                    double salePrice = sale.optDouble("price", 0.0);
+                    if (!(saleLots > 0) || !(salePrice > 0)) continue;
+                    soldTodayLots += saleLots;
+                    if (ipoPrice > 0) {
+                        todayWithholdingTax += Math.max(0.0, saleLots * (salePrice - ipoPrice)) * 0.175;
+                    }
+                }
+                double dailyBaseLots = currentLots + soldTodayLots;
+                if (ticker.isEmpty() || !(dailyBaseLots > 0)) continue;
                 expectedTodayCount += 1;
 
                 Quote quote;
@@ -124,39 +144,57 @@ public class BackgroundAlertWorker extends Worker {
                 }
                 if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)) continue;
                 validTodayCount += 1;
-                Map<Long, Double> samples = new java.util.TreeMap<>();
-                for (Map.Entry<Long, Double> sample : quote.sessionCloses.entrySet()) samples.put(sample.getKey(), sample.getValue() * lots);
-                positionSamples.add(samples);
 
-                JSONObject tickerLimits = limits.optJSONObject(ticker);
-                if (tickerLimits == null) tickerLimits = new JSONObject();
-                double ceiling = ceilingPrice(quote.previousClose);
-                double floor = floorPrice(quote.previousClose);
-                double ceilingTolerance = Math.max(0.005, tickSize(ceiling) / 2.0 + 1e-8);
-                double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
-
-                if (quote.current >= ceiling - ceilingTolerance && !tickerLimits.optBoolean("ceiling", false)) {
-                    if (showLimitNotification(context, "ceiling", ticker)) {
-                        tickerLimits.put("ceiling", true);
-                    }
+                if (soldTodayLots > 0) {
+                    hasTodaySales = true;
+                } else if (currentLots > 0) {
+                    Map<Long, Double> samples = new java.util.TreeMap<>();
+                    for (Map.Entry<Long, Double> sample : quote.sessionCloses.entrySet()) samples.put(sample.getKey(), sample.getValue() * currentLots);
+                    positionSamples.add(samples);
                 }
-                if (quote.current <= floor + floorTolerance && !tickerLimits.optBoolean("floor", false)) {
-                    if (showLimitNotification(context, "floor", ticker)) {
-                        tickerLimits.put("floor", true);
-                    }
-                }
-                limits.put(ticker, tickerLimits);
 
-                previousValue += quote.previousClose * lots;
-                currentValue += quote.current * lots;
+                if (currentLots > 0) {
+                    JSONObject tickerLimits = limits.optJSONObject(ticker);
+                    if (tickerLimits == null) tickerLimits = new JSONObject();
+                    double ceiling = ceilingPrice(quote.previousClose);
+                    double floor = floorPrice(quote.previousClose);
+                    double ceilingTolerance = Math.max(0.005, tickSize(ceiling) / 2.0 + 1e-8);
+                    double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
+
+                    if (quote.current >= ceiling - ceilingTolerance && !tickerLimits.optBoolean("ceiling", false)) {
+                        if (showLimitNotification(context, "ceiling", ticker)) {
+                            tickerLimits.put("ceiling", true);
+                        }
+                    }
+                    if (quote.current <= floor + floorTolerance && !tickerLimits.optBoolean("floor", false)) {
+                        if (showLimitNotification(context, "floor", ticker)) {
+                            tickerLimits.put("floor", true);
+                        }
+                    }
+                    limits.put(ticker, tickerLimits);
+                }
+
+                double saleDayGain = 0.0;
+                for (int saleIndex = 0; saleIndex < sales.length(); saleIndex++) {
+                    JSONObject sale = sales.optJSONObject(saleIndex);
+                    if (sale == null || !day.equals(sale.optString("date", ""))) continue;
+                    double saleLots = sale.optDouble("lots", 0.0);
+                    double salePrice = sale.optDouble("price", 0.0);
+                    if (saleLots > 0 && salePrice > 0) saleDayGain += saleLots * (salePrice - quote.previousClose);
+                }
+
+                previousValue += quote.previousClose * dailyBaseLots;
+                dailyProfitValue += currentLots * (quote.current - quote.previousClose) + saleDayGain - todayWithholdingTax;
             }
 
             Double checkedPercent = null;
             boolean deliveryBlocked = false;
             if (validTodayCount > 0 && validTodayCount == expectedTodayCount && previousValue > 0) {
-                double portfolioPct = ((currentValue - previousValue) / previousValue) * 100.0;
+                double portfolioPct = (dailyProfitValue / previousValue) * 100.0;
                 checkedPercent = portfolioPct;
-                List<Double> observed = PortfolioAlertRules.sampledPercentages(positionSamples, previousValue, (monitoringSince + 999) / 1000);
+                List<Double> observed = hasTodaySales
+                        ? new java.util.ArrayList<>()
+                        : PortfolioAlertRules.sampledPercentages(positionSamples, previousValue, (monitoringSince + 999) / 1000);
                 observed.add(portfolioPct);
                 for (double observedPercent : observed) {
                     for (double level : PortfolioAlertRules.levels(observedPercent, threshold)) {

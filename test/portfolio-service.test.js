@@ -56,8 +56,9 @@ test('addSale updates current lots and realized profit', async () => {
   const { holding } = await service.addHolding({ ticker:'TEST', lots:10 });
   const sold = await service.addSale(holding.id, { lots:4, price:12, date:'2026-08-28' });
   assert.equal(sold.currentLots, 6);
-  assert.equal(sold.realizedProfit, 8);
-  assert.equal(sold.totalProfit, 38);
+  assert.ok(Math.abs(sold.withholdingTax - 1.4) < 1e-9);
+  assert.ok(Math.abs(sold.realizedProfit - 6.6) < 1e-9);
+  assert.ok(Math.abs(sold.totalProfit - 36.6) < 1e-9);
 });
 
 test('network failure keeps last market snapshot and adds warning', async () => {
