@@ -22,7 +22,7 @@ test('native fallback reconstructs start-of-day lots and sale-day withholding', 
 test('realized-gain withholding is disclosed only after a taxable sale', async () => {
   const app = await read('public/app.js');
   assert.match(app, /Stopaj \(%17,5\)/);
-  assert.match(app, /withholdingTax\s*>\s*0/);
+  assert.match(app, /Number\(h\.withholdingTax\s*\|\|\s*0\)\s*>\s*0/);
 });
 
 test('push sync marks success only after HTTP 2xx and unsynced duplicates remain retryable', async () => {
