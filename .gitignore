@@ -4,6 +4,9 @@ android/.gradle/
 android/**/build/
 android/local.properties
 
+# Firebase client configuration is injected by release CI
+android/app/google-services.json
+
 # Signing material must stay local/private
 *.keystore
 *.jks
