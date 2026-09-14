@@ -48,6 +48,27 @@ test('market check enforces unique-ticker budget and reports partial diagnostics
   assert.deepEqual(fetched, ['AAA','BBB']);
 });
 
+test('ticker budget rotates across consecutive checks instead of starving later tickers', async () => {
+  const store = memoryStore({ installations:seededRegistration({
+    holdings:[{ticker:'AAA',lots:1},{ticker:'BBB',lots:1},{ticker:'CCC',lots:1}],
+  }) });
+  const fetched = [];
+  const service = createPushService({
+    store,
+    sender:{send:async()=>{}},
+    dataSources:{getQuote:async ticker => {
+      fetched.push(ticker);
+      return {ticker,current:100,previousClose:100,latestMarketDate:'2026-09-14'};
+    }},
+    now:()=>new Date('2026-09-14T10:00:00Z'),
+  });
+
+  await service.marketCheck({ maxUniqueTickers:2, maxNotifications:15 });
+  await service.marketCheck({ maxUniqueTickers:2, maxNotifications:15 });
+
+  assert.deepEqual(fetched, ['AAA','BBB','CCC','AAA']);
+});
+
 test('notification budget leaves unsent portfolio levels eligible for the next cron run', async () => {
   const store = memoryStore({ installations:seededRegistration({threshold:1}) });
   const sent = [];
