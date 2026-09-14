@@ -1,0 +1,37 @@
+name: Code28 Source Autopatch
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - scripts/code28-fix-patch.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Apply exact source patches
+        run: node scripts/code28-fix-patch.mjs
+      - name: Commit patched sources
+        run: |
+          if git diff --quiet; then
+            echo "No patch changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public android backend cloudflare server.js 2>/dev/null || true
+          git commit -m "fix: apply code28 reviewed source patches"
+          git push origin HEAD:fix/code28-seven-issues-20260914
