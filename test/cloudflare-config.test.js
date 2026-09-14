@@ -27,15 +27,12 @@ test('Cloudflare config pins a two-minute cron and draft D1 binding without plai
   assert.doesNotMatch(wrangler, /BEGIN PRIVATE KEY|private_key_id/i);
 });
 
-test('temporary Cloudflare bootstrap uses an ephemeral public-key envelope and never stores plaintext Firebase credentials', async () => {
+test('temporary Cloudflare bootstrap deploys anonymously, provisions D1, and never embeds Firebase credentials', async () => {
   const workflow = await read('.github/workflows/cloudflare-temporary-bootstrap.yml');
   assert.match(workflow, /wrangler@4\.131\.1\s+deploy\s+--temporary/);
-  assert.match(workflow, /openssl\s+genpkey/);
-  assert.match(workflow, /cloudflare-bootstrap-public-key/);
-  assert.match(workflow, /cloudflare-bootstrap-secret\.enc\.json/);
-  assert.match(workflow, /pkeyutl\s+-decrypt/);
-  assert.match(workflow, /--secrets-file/);
   assert.match(workflow, /d1\s+migrations\s+apply\s+DB\s+--remote/);
+  assert.match(workflow, /cloudflare-bootstrap-preview/);
+  assert.doesNotMatch(workflow, /FIREBASE_SERVICE_ACCOUNT_JSON/);
   assert.doesNotMatch(workflow, /BEGIN PRIVATE KEY/);
   assert.doesNotMatch(workflow, /firebase-adminsdk-[^\s]+@halka-arz-portfoyum/);
 });
