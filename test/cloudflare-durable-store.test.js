@@ -4,6 +4,7 @@ import { PushStateDurableObject, createDurableStore } from '../cloudflare/durabl
 
 function fakeState(seed = {}) {
   const values = new Map(Object.entries(seed));
+  let alarmAt = null;
   const storage = {
     async get(key) { return structuredClone(values.get(key)); },
     async put(keyOrMap, value) {
@@ -13,10 +14,13 @@ function fakeState(seed = {}) {
         values.set(keyOrMap, structuredClone(value));
       }
     },
+    async getAlarm() { return alarmAt; },
+    async setAlarm(value) { alarmAt = Number(value); },
   };
   return {
     storage,
     blockConcurrencyWhile: async fn => fn(),
+    get alarmAt() { return alarmAt; },
   };
 }
 
@@ -83,4 +87,26 @@ test('Durable Object never returns installation contents from runtime endpoint',
   const runtime = await store.runtimeRead();
   assert.deepEqual(runtime, {status:'market_closed'});
   assert.equal(JSON.stringify(runtime).includes('private-token'), false);
+});
+
+test('registration can seed one Durable Object alarm without delaying an earlier alarm', async () => {
+  const state = fakeState();
+  const object = new PushStateDurableObject(state, {});
+  const store = createDurableStore(namespaceFor(object));
+
+  const first = await store.ensureAlarm(1_000_000);
+  assert.equal(first, 1_000_000);
+  assert.equal(state.alarmAt, 1_000_000);
+
+  const later = await store.ensureAlarm(2_000_000);
+  assert.equal(later, 1_000_000);
+  assert.equal(state.alarmAt, 1_000_000);
+
+  const earlier = await store.ensureAlarm(500_000);
+  assert.equal(earlier, 500_000);
+  assert.equal(state.alarmAt, 500_000);
+});
+
+test('Durable Object defines an alarm handler so push checks do not depend on Cron Triggers', async () => {
+  assert.equal(typeof PushStateDurableObject.prototype.alarm, 'function');
 });
