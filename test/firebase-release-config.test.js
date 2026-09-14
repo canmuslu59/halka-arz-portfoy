@@ -22,3 +22,8 @@ test('code28 release workflow injects Firebase client config and refuses an empt
   assert.match(workflow, /https:\/\//);
   assert.match(workflow, /exit\s+1/);
 });
+
+test('Firebase client configuration is injected at build time rather than committed to source', async () => {
+  const gitignore = await read('.gitignore');
+  assert.match(gitignore, /android\/app\/google-services\.json/);
+});
