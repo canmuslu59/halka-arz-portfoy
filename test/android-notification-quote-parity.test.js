@@ -20,3 +20,9 @@ test('background quote parser recovers previous close from the latest prior-sess
   assert.match(worker, /previousSessionClose\s*=\s*close;/);
   assert.match(worker, /if\s*\(!Double\.isFinite\(previousClose\)\)\s*previousClose\s*=\s*previousSessionClose;/);
 });
+
+test('background quote parser never substitutes the current-session latest tick for previous close', async () => {
+  const worker = await readWorker();
+  assert.doesNotMatch(worker, /previousClose\s*=\s*latestTickClose\s*;/);
+  assert.match(worker, /if\s*\(!\(current\s*>\s*0\)\s*\|\|\s*!\(previousClose\s*>\s*0\)\)\s*throw new IllegalStateException\("Eksik fiyat verisi\."\);/);
+});
