@@ -1,7 +1,15 @@
+import { createPushService } from '../backend/service.js';
+import { getBistMarketStatus } from '../public/core/market-calendar.js';
+import { createCloudflareFcmSender } from './fcm-sender.js';
+import { fetchYahooQuote } from './yahoo-quote.js';
+
 const STATE_KEY = 'push-state-v1';
 const REVISION_KEY = 'push-state-revision-v1';
 const RUNTIME_KEY = 'push-runtime-v1';
 const INTERNAL_ORIGIN = 'https://push-state.internal';
+const ALARM_INTERVAL_MS = 120_000;
+const MAX_UNIQUE_TICKERS = 30;
+const MAX_NOTIFICATIONS = 15;
 
 function json(status, value) {
   return new Response(JSON.stringify(value), {
@@ -23,10 +31,112 @@ async function parseJson(request) {
   }
 }
 
+function finiteRevision(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function nextAlarmAt(nowMs, status) {
+  if (status?.isOpen) return nowMs + ALARM_INTERVAL_MS;
+  const nextOpen = Date.parse(String(status?.nextOpenAt || ''));
+  if (Number.isFinite(nextOpen) && nextOpen > nowMs) return nextOpen;
+  return nowMs + ALARM_INTERVAL_MS;
+}
+
 export class PushStateDurableObject {
-  constructor(state, _env = {}) {
+  constructor(state, env = {}) {
     this.state = state;
     this.storage = state.storage;
+    this.env = env;
+  }
+
+  async readStoredState() {
+    return initialState(await this.storage.get(STATE_KEY));
+  }
+
+  localStore() {
+    return Object.freeze({
+      read:async () => structuredClone(await this.readStoredState()),
+      mutate:async fn => {
+        if (typeof fn !== 'function') throw new TypeError('Durable store mutate callback is required.');
+        return this.state.blockConcurrencyWhile(async () => {
+          const draft = structuredClone(await this.readStoredState());
+          const result = await fn(draft);
+          const revision = finiteRevision(await this.storage.get(REVISION_KEY)) + 1;
+          await this.storage.put({
+            [STATE_KEY]:initialState(draft),
+            [REVISION_KEY]:revision,
+          });
+          return result;
+        });
+      },
+      runtimeRead:async () => structuredClone((await this.storage.get(RUNTIME_KEY)) ?? null),
+      runtimeWrite:async runtime => {
+        await this.storage.put(RUNTIME_KEY, runtime ?? null);
+        return runtime;
+      },
+    });
+  }
+
+  async ensureAlarm(atMs) {
+    const requested = Number(atMs);
+    if (!Number.isFinite(requested) || requested <= 0) throw new TypeError('A valid alarm timestamp is required.');
+    const current = await this.storage.getAlarm();
+    if (current == null || requested < Number(current)) {
+      await this.storage.setAlarm(requested);
+      return requested;
+    }
+    return Number(current);
+  }
+
+  async alarm() {
+    const started = new Date();
+    const startedMs = started.getTime();
+    const status = getBistMarketStatus(started);
+    const store = this.localStore();
+
+    try {
+      if (!status.isOpen) {
+        await store.runtimeWrite({
+          status:'market_closed',
+          startedAt:started.toISOString(),
+          finishedAt:new Date().toISOString(),
+          result:null,
+        });
+        return;
+      }
+
+      const sender = createCloudflareFcmSender({
+        serviceAccountJson:this.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+      });
+      const service = createPushService({
+        store,
+        sender,
+        dataSources:{
+          getQuote:ticker => fetchYahooQuote(ticker),
+          getIpoCalendar:async()=>[],
+        },
+        now:()=>started,
+      });
+      const result = await service.marketCheck({
+        maxUniqueTickers:MAX_UNIQUE_TICKERS,
+        maxNotifications:MAX_NOTIFICATIONS,
+      });
+      await store.runtimeWrite({
+        status:result.partial ? 'partial' : 'checked',
+        startedAt:started.toISOString(),
+        finishedAt:new Date().toISOString(),
+        result,
+      });
+    } catch (error) {
+      await store.runtimeWrite({
+        status:'error',
+        startedAt:started.toISOString(),
+        finishedAt:new Date().toISOString(),
+        result:{ error:String(error?.message || error) },
+      });
+    } finally {
+      await this.storage.setAlarm(nextAlarmAt(startedMs, status));
+    }
   }
 
   async fetch(request) {
@@ -39,7 +149,7 @@ export class PushStateDurableObject {
         this.storage.get(REVISION_KEY),
       ]);
       return json(200, {
-        revision:Number.isFinite(Number(rawRevision)) ? Number(rawRevision) : 0,
+        revision:finiteRevision(rawRevision),
         state:initialState(stored),
       });
     }
@@ -50,8 +160,7 @@ export class PushStateDurableObject {
         return json(400, { error:'INVALID_STATE_WRITE' });
       }
       return this.state.blockConcurrencyWhile(async () => {
-        const currentRaw = await this.storage.get(REVISION_KEY);
-        const current = Number.isFinite(Number(currentRaw)) ? Number(currentRaw) : 0;
+        const current = finiteRevision(await this.storage.get(REVISION_KEY));
         if (current !== Number(body.revision)) {
           return json(409, { error:'REVISION_CONFLICT', revision:current });
         }
@@ -75,6 +184,13 @@ export class PushStateDurableObject {
       }
       await this.storage.put(RUNTIME_KEY, body.runtime ?? null);
       return json(200, { ok:true });
+    }
+
+    if (method === 'PUT' && url.pathname === '/alarm/ensure') {
+      const body = await parseJson(request);
+      const at = Number(body?.at);
+      if (!Number.isFinite(at) || at <= 0) return json(400, { error:'INVALID_ALARM' });
+      return json(200, { alarmAt:await this.ensureAlarm(at) });
     }
 
     return json(404, { error:'NOT_FOUND' });
@@ -107,7 +223,7 @@ export function createDurableStore(binding) {
     const response = await stub.fetch(new Request(`${INTERNAL_ORIGIN}/state`));
     const body = await responseJson(response, 'Durable state read');
     return {
-      revision:Number.isFinite(Number(body.revision)) ? Number(body.revision) : 0,
+      revision:finiteRevision(body.revision),
       state:initialState(body.state),
     };
   }
@@ -149,5 +265,15 @@ export function createDurableStore(binding) {
     return runtime;
   }
 
-  return Object.freeze({ read, mutate, runtimeRead, runtimeWrite });
+  async function ensureAlarm(at) {
+    const response = await stub.fetch(new Request(`${INTERNAL_ORIGIN}/alarm/ensure`, {
+      method:'PUT',
+      headers:{ 'content-type':'application/json; charset=utf-8' },
+      body:JSON.stringify({ at }),
+    }));
+    const body = await responseJson(response, 'Durable alarm scheduling');
+    return Number(body.alarmAt);
+  }
+
+  return Object.freeze({ read, mutate, runtimeRead, runtimeWrite, ensureAlarm });
 }
