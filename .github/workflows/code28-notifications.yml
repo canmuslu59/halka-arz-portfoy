@@ -31,10 +31,32 @@ jobs:
         with:
           gradle-version: '8.11.1'
           cache-provider: basic
-      - run: gradle -p android --no-daemon bundleRelease
+      - name: Compile Android release sources
+        run: gradle -p android --no-daemon compileReleaseJavaWithJavac
+      - name: Require live Firebase and push backend configuration
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          case "${PUSH_BACKEND_URL:-}" in
+            https://*) ;;
+            *) echo "PUSH_BACKEND_URL must be a non-empty HTTPS URL" >&2; exit 1 ;;
+          esac
+          if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
+            echo "GOOGLE_SERVICES_JSON_BASE64 is required for a Play release" >&2
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('android/app/google-services.json','utf8')); if(!j.project_info?.project_id) process.exit(1);"
+      - name: Build configured release bundle
+        if: github.event_name == 'workflow_dispatch'
+        run: gradle -p android --no-daemon bundleRelease
         env:
           PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
       - name: Prepare and verify release signing when configured
+        if: github.event_name == 'workflow_dispatch'
         env:
           PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
           PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
@@ -42,6 +64,7 @@ jobs:
           PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
         run: python3 scripts/prepare-code28-release.py
       - uses: actions/upload-artifact@v7.0.1
+        if: github.event_name == 'workflow_dispatch'
         with:
           name: code28-notification-release
           path: |
