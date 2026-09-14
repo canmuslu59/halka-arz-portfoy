@@ -20,14 +20,14 @@ async function collectFiles(root) {
   return found;
 }
 
-test('Cloudflare config pins two-minute cron and SQLite Durable Object persistence without D1', async () => {
+test('Cloudflare config uses SQLite Durable Object persistence and no Cron Trigger', async () => {
   const wrangler = await read('wrangler.jsonc');
-  assert.match(wrangler, /"crons"\s*:\s*\[\s*"\*\/2 \* \* \* \*"\s*\]/);
   assert.match(wrangler, /"durable_objects"\s*:/);
   assert.match(wrangler, /"name"\s*:\s*"PUSH_STATE"/);
   assert.match(wrangler, /"class_name"\s*:\s*"PushStateDurableObject"/);
   assert.match(wrangler, /"new_sqlite_classes"\s*:\s*\[\s*"PushStateDurableObject"\s*\]/);
   assert.doesNotMatch(wrangler, /"d1_databases"\s*:/);
+  assert.doesNotMatch(wrangler, /"crons"\s*:/);
   assert.doesNotMatch(wrangler, /BEGIN PRIVATE KEY|private_key_id/i);
 });
 
@@ -39,7 +39,14 @@ test('production Worker defaults to the Durable Object store rather than D1', as
   assert.doesNotMatch(worker, /createD1Store|env\.DB/);
 });
 
-test('temporary Cloudflare bootstrap deploys anonymously without D1 provisioning or embedded Firebase credentials', async () => {
+test('Durable Object owns recurring two-minute alarm scheduling', async () => {
+  const durable = await read('cloudflare/durable-store.js');
+  assert.match(durable, /async alarm\(\)/);
+  assert.match(durable, /setAlarm\(/);
+  assert.match(durable, /120_000/);
+});
+
+test('temporary Cloudflare bootstrap deploys anonymously without D1, Cron or embedded Firebase credentials', async () => {
   const workflow = await read('.github/workflows/cloudflare-temporary-bootstrap.yml');
   assert.match(workflow, /wrangler@4\.131\.1\s+deploy\s+--temporary/);
   assert.doesNotMatch(workflow, /d1\s+(create|migrations)/i);
