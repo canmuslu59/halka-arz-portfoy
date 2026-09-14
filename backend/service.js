@@ -112,6 +112,10 @@ function offeringIdentity(item = {}) {
   return period ? `${ticker}|${period}` : ticker;
 }
 
+function permanentTokenFailure(error) {
+  return error?.permanentToken === true || error?.code === 'FCM_TOKEN_INVALID';
+}
+
 function ipoMessage(item = {}) {
   const ticker = cleanTicker(item.ticker || item.symbol || item.code);
   const company = String(item.company || item.name || ticker).trim();
@@ -205,6 +209,7 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
       const evaluated = evaluateRegistrationAlerts({ registration, quotes, day });
       let delivered = registration.alertState ?? null;
       let changed = false;
+      let invalidRegistration = false;
 
       for (const event of evaluated.events) {
         if (notificationAttempts >= notificationBudget) {
@@ -217,9 +222,22 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
           delivered = deliveredStateAfter(delivered, day, event);
           changed = true;
           sent += 1;
-        } catch {
+        } catch (error) {
           failed += 1;
+          if (permanentTokenFailure(error)) {
+            notificationAttempts = Math.max(0, notificationAttempts - 1);
+            invalidRegistration = true;
+            await store.mutate(state => {
+              if (state.installations) delete state.installations[registration.installId];
+            });
+            break;
+          }
         }
+      }
+
+      if (invalidRegistration) {
+        notificationBudgetReached = false;
+        continue;
       }
 
       if (changed) {
