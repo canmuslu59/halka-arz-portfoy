@@ -116,7 +116,9 @@ final class NotificationHelper {
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
         android.content.SharedPreferences delivered = context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE);
         String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();
-        String eventKey = kind + ":" + ticker + ":" + body.replace(',', '.');
+        String eventKey = "ipo".equals(kind)
+                ? kind + ":" + ticker
+                : kind + ":" + ticker + ":" + body.replace(',', '.');
         if (day.equals(delivered.getString("day", "")) && delivered.getBoolean(eventKey, false)) return true;
         String channel;
         if ("ipo".equals(kind)) channel = CHANNEL_IPO;
