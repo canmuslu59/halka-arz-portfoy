@@ -18,8 +18,9 @@ function memoryStore(seed = {}) {
   };
 }
 
-function appHarness({ now = Date.parse('2026-09-14T10:00:00Z'), store = memoryStore(), quote = null } = {}) {
+function appHarness({ now = Date.parse('2026-09-14T10:00:00Z'), store = memoryStore(), quote = null, ipoCalendar = [] } = {}) {
   let quoteCalls = 0;
+  let ipoCalls = 0;
   const sent = [];
   const app = createWorkerApp({
     createStore:()=>store,
@@ -28,9 +29,17 @@ function appHarness({ now = Date.parse('2026-09-14T10:00:00Z'), store = memorySt
       quoteCalls += 1;
       return quote ? quote(ticker) : {ticker,current:101,previousClose:100,latestMarketDate:'2026-09-14'};
     },
+    fetchIpoCalendar:async () => {
+      ipoCalls += 1;
+      return typeof ipoCalendar === 'function' ? ipoCalendar() : structuredClone(ipoCalendar);
+    },
     now:()=>now,
   });
-  return { app, store, sent, get quoteCalls() { return quoteCalls; } };
+  return {
+    app, store, sent,
+    get quoteCalls() { return quoteCalls; },
+    get ipoCalls() { return ipoCalls; },
+  };
 }
 
 test('health reports two-minute cloud cadence and 15-minute Android fallback without secrets', async () => {
@@ -83,10 +92,22 @@ test('registration endpoint rejects malformed and oversized JSON', async () => {
   assert.equal(huge.status, 413);
 });
 
-test('market-closed scheduled run performs zero quote requests and records market_closed', async () => {
-  const h = appHarness({now:Date.parse('2026-09-13T09:00:00Z')});
+test('market-closed scheduled run still checks IPO calendar while performing zero quote requests', async () => {
+  const store = memoryStore({installations:{one:{
+    installId:'one',fcmToken:'device-token',enabled:true,threshold:1,ipoEnabled:true,
+    holdings:[],alertState:null,ipoState:null,createdAt:'x',updatedAt:'x',
+  }}});
+  const h = appHarness({
+    store,
+    now:Date.parse('2026-09-13T09:00:00Z'),
+    ipoCalendar:[{ticker:'NEWCO',company:'New Company A.Ş.',offerDates:'15-16 Eylül 2026'}],
+  });
   await h.app.scheduled({scheduledTime:Date.parse('2026-09-13T09:00:00Z')}, {}, {});
   assert.equal(h.quoteCalls, 0);
+  assert.equal(h.ipoCalls, 1);
+  const state = await h.store.read();
+  assert.equal(state.installations.one.ipoState.initialized, true);
+  assert.deepEqual(state.installations.one.ipoState.seen, ['NEWCO|15-16 Eylül 2026']);
   const runtime = await h.store.runtimeRead();
   assert.equal(runtime.status, 'market_closed');
 });
@@ -99,6 +120,7 @@ test('open-market scheduled run checks registrations and records result', async 
   const h = appHarness({store,now:Date.parse('2026-09-14T10:00:00Z')});
   await h.app.scheduled({scheduledTime:Date.parse('2026-09-14T10:00:00Z')}, {}, {});
   assert.equal(h.quoteCalls, 1);
+  assert.equal(h.ipoCalls, 1);
   const runtime = await store.runtimeRead();
   assert.equal(runtime.status, 'checked');
   assert.equal(runtime.result.sent, 1);
