@@ -1,7 +1,5 @@
 export const DEFAULT_TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
-export const REVIEW_ACCESS_MS = 24 * 60 * 60 * 1000;
 const START_KEY = 'halka_arz_pro_trial_started_at_v1';
-const REVIEW_KEY = 'halka_arz_pro_review_access_v1';
 
 function asFiniteTimestamp(value) {
   const n = Number(value);
@@ -13,15 +11,7 @@ export function createProAccess(storage, { now = () => Date.now(), trialMs = DEF
     throw new TypeError('Pro erişimi için storage gerekli.');
   }
 
-  function hasReviewAccess() {
-    const grantedAt = asFiniteTimestamp(storage.getItem(REVIEW_KEY));
-    return Boolean(grantedAt && Math.max(0, now() - grantedAt) < REVIEW_ACCESS_MS);
-  }
-
   function getState() {
-    if (hasReviewAccess()) {
-      return { status:'review', hasAccess:true, startedAt:null, remainingMs:null };
-    }
     const startedAt = asFiniteTimestamp(storage.getItem(START_KEY));
     if (!startedAt) return { status:'not_started', hasAccess:false, startedAt:null, remainingMs:trialMs };
     const remainingMs = Math.max(0, trialMs - Math.max(0, now() - startedAt));
@@ -30,16 +20,9 @@ export function createProAccess(storage, { now = () => Date.now(), trialMs = DEF
   }
 
   function enterAdvanced() {
-    if (hasReviewAccess()) return getState();
     if (!asFiniteTimestamp(storage.getItem(START_KEY))) storage.setItem(START_KEY, String(now()));
     return getState();
   }
 
-  // Review authorization is intentionally not validated in public client code.
-  // A reusable secret embedded in JavaScript can be recovered from every APK/AAB.
-  function enableReviewAccess() {
-    return false;
-  }
-
-  return { getState, enterAdvanced, enableReviewAccess };
+  return { getState, enterAdvanced };
 }
