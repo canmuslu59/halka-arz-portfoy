@@ -69,6 +69,75 @@ function rotatedSlice(values, limit, cursorValue) {
   return { items, nextCursor:(start + count) % values.length };
 }
 
+function registrationTickers(registration) {
+  const result = [];
+  const seen = new Set();
+  for (const holding of Array.isArray(registration?.holdings) ? registration.holdings : []) {
+    const ticker = cleanTicker(holding?.ticker);
+    if (!ticker || seen.has(ticker)) continue;
+    seen.add(ticker);
+    result.push(ticker);
+  }
+  return result;
+}
+
+function selectQuoteBatch(registrations, allTickers, limit, snapshot = {}) {
+  if (!Number.isFinite(limit)) {
+    return { items:[...allTickers], nextRegistrationCursor:0, nextTickerCursor:0 };
+  }
+  if (!allTickers.length || limit <= 0) {
+    return { items:[], nextRegistrationCursor:0, nextTickerCursor:0 };
+  }
+
+  const groups = registrations
+    .map(registration => registrationTickers(registration))
+    .filter(tickers => tickers.length > 0);
+  if (!groups.length) {
+    const fallback = rotatedSlice(allTickers, limit, snapshot?.marketTickerCursor);
+    return { items:fallback.items, nextRegistrationCursor:0, nextTickerCursor:fallback.nextCursor };
+  }
+
+  const rawCursor = Number(snapshot?.marketRegistrationCursor);
+  const start = Number.isFinite(rawCursor) ? Math.max(0, Math.floor(rawCursor)) % groups.length : 0;
+  const selected = new Set();
+  let visited = 0;
+
+  for (let step = 0; step < groups.length; step += 1) {
+    const groupIndex = (start + step) % groups.length;
+    const tickers = groups[groupIndex];
+
+    // A single unusually large portfolio cannot fit in one backend quote budget.
+    // Keep the legacy ticker rotation for that portfolio so its individual stock
+    // alerts still make progress, then let Android's local worker cover portfolio totals.
+    if (tickers.length > limit) {
+      if (selected.size > 0) break;
+      const fallback = rotatedSlice(tickers, limit, snapshot?.marketTickerCursor);
+      return {
+        items:fallback.items,
+        nextRegistrationCursor:(groupIndex + 1) % groups.length,
+        nextTickerCursor:fallback.nextCursor,
+      };
+    }
+
+    const additions = tickers.filter(ticker => !selected.has(ticker));
+    if (selected.size > 0 && selected.size + additions.length > limit) break;
+    for (const ticker of additions) selected.add(ticker);
+    visited += 1;
+    if (selected.size >= limit) break;
+  }
+
+  if (selected.size === 0) {
+    const fallback = rotatedSlice(allTickers, limit, snapshot?.marketTickerCursor);
+    return { items:fallback.items, nextRegistrationCursor:start, nextTickerCursor:fallback.nextCursor };
+  }
+
+  return {
+    items:[...selected],
+    nextRegistrationCursor:(start + Math.max(1, visited)) % groups.length,
+    nextTickerCursor:0,
+  };
+}
+
 function freshAlertState(day) {
   return { day, stocks: {}, portfolio: [], limits: {} };
 }
@@ -178,12 +247,13 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     }
 
     const allTickers = [...tickerSet];
-    const selection = rotatedSlice(allTickers, quoteBudget, snapshot?.marketTickerCursor);
+    const selection = selectQuoteBatch(registrations, allTickers, quoteBudget, snapshot);
     const checkedTickerList = selection.items;
     const tickerBudgetReached = checkedTickerList.length < allTickers.length;
     if (tickerBudgetReached && checkedTickerList.length > 0) {
       await store.mutate(state => {
-        state.marketTickerCursor = selection.nextCursor;
+        state.marketRegistrationCursor = selection.nextRegistrationCursor;
+        state.marketTickerCursor = selection.nextTickerCursor;
       });
     }
 
