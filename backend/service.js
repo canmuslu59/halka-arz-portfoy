@@ -59,6 +59,16 @@ function normalizedBudget(value) {
   return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : Infinity;
 }
 
+function rotatedSlice(values, limit, cursorValue) {
+  if (!Number.isFinite(limit)) return { items:[...values], nextCursor:0 };
+  if (!values.length || limit <= 0) return { items:[], nextCursor:0 };
+  const count = Math.min(limit, values.length);
+  const rawCursor = Number(cursorValue);
+  const start = Number.isFinite(rawCursor) ? Math.max(0, Math.floor(rawCursor)) % values.length : 0;
+  const items = Array.from({ length:count }, (_, index) => values[(start + index) % values.length]);
+  return { items, nextCursor:(start + count) % values.length };
+}
+
 function freshAlertState(day) {
   return { day, stocks: {}, portfolio: [], limits: {} };
 }
@@ -163,8 +173,15 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     }
 
     const allTickers = [...tickerSet];
-    const checkedTickerList = Number.isFinite(quoteBudget) ? allTickers.slice(0, quoteBudget) : allTickers;
+    const selection = rotatedSlice(allTickers, quoteBudget, snapshot?.marketTickerCursor);
+    const checkedTickerList = selection.items;
     const tickerBudgetReached = checkedTickerList.length < allTickers.length;
+    if (tickerBudgetReached && checkedTickerList.length > 0) {
+      await store.mutate(state => {
+        state.marketTickerCursor = selection.nextCursor;
+      });
+    }
+
     const quotes = new Map();
     if (typeof dataSources.getQuote === 'function') {
       await Promise.all(checkedTickerList.map(async ticker => {
