@@ -18,7 +18,7 @@ test('background worker stops before network work when Android notifications are
   const worker = await read('android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java');
 
   assert.match(worker, /NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)/);
-  assert.match(worker, /if\s*\([^)]*!NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)[^)]*\)\s*\{?\s*return Result\.success\(\)/s);
+  assert.match(worker, /if\s*\([^)]*!NotificationManagerCompat\.from\(context\)\.areNotificationsEnabled\(\)[^)]*\)\s*\{[^}]*return Result\.success\(\)/s);
 });
 
 test('native dedupe state advances only after NotificationHelper confirms delivery', async () => {

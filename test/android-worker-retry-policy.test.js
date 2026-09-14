@@ -49,6 +49,6 @@ test('IPO-only configuration remains scheduled and reaches the IPO worker path',
 
   assert.match(worker, /boolean\s+marketEnabled\s*=\s*config\.optBoolean\("enabled",\s*true\)/);
   assert.match(worker, /boolean\s+ipoEnabled\s*=\s*config\.optBoolean\("ipoEnabled",\s*true\)/);
-  assert.match(worker, /if\s*\(!marketEnabled\s*&&\s*!ipoEnabled\)\s*return\s+Result\.success\(\)/);
+  assert.match(worker, /if\s*\(!marketEnabled\s*&&\s*!ipoEnabled\)\s*\{[^}]*return\s+Result\.success\(\)/);
   assert.match(worker, /JSONArray\s+holdings\s*=\s*marketEnabled\s*\?\s*config\.optJSONArray\("holdings"\)\s*:\s*new\s+JSONArray\(\)/);
 });
