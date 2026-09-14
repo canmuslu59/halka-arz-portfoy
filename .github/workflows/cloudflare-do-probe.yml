@@ -30,15 +30,22 @@ jobs:
           test -n "$WORKER_URL"
           echo "claim_url=$CLAIM_URL" >> "$GITHUB_OUTPUT"
           echo "worker_url=$WORKER_URL" >> "$GITHUB_OUTPUT"
-      - name: Verify durable persistence
+      - name: Verify durable persistence after route propagation
         shell: bash
         env:
           WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
         run: |
           set -euo pipefail
-          first="$(curl --fail --silent --show-error "$WORKER_URL/")"
-          second="$(curl --fail --silent --show-error "$WORKER_URL/")"
+          first=""
+          for attempt in $(seq 1 15); do
+            if first="$(curl --fail --silent --show-error "$WORKER_URL/" 2>/tmp/probe-curl.err)"; then
+              break
+            fi
+            echo "Worker route not ready yet (attempt $attempt/15); retrying in 2s"
+            sleep 2
+          done
           test "$first" = "1"
+          second="$(curl --fail --silent --show-error "$WORKER_URL/")"
           test "$second" = "2"
       - name: Save claim details
         shell: bash
