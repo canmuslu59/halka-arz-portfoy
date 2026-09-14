@@ -2,6 +2,7 @@ import { createPushService } from '../backend/service.js';
 import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchYahooQuote } from './yahoo-quote.js';
+import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 
 const STATE_KEY = 'push-state-v1';
 const REVISION_KEY = 'push-state-revision-v1';
@@ -95,16 +96,6 @@ export class PushStateDurableObject {
     const store = this.localStore();
 
     try {
-      if (!status.isOpen) {
-        await store.runtimeWrite({
-          status:'market_closed',
-          startedAt:started.toISOString(),
-          finishedAt:new Date().toISOString(),
-          result:null,
-        });
-        return;
-      }
-
       const sender = createCloudflareFcmSender({
         serviceAccountJson:this.env.FIREBASE_SERVICE_ACCOUNT_JSON,
       });
@@ -113,10 +104,21 @@ export class PushStateDurableObject {
         sender,
         dataSources:{
           getQuote:ticker => fetchYahooQuote(ticker),
-          getIpoCalendar:async()=>[],
+          getIpoCalendar:() => fetchCloudflareIpoCalendar(),
         },
         now:()=>started,
       });
+      const ipo = await service.ipoCheck();
+      if (!status.isOpen) {
+        await store.runtimeWrite({
+          status:'market_closed',
+          startedAt:started.toISOString(),
+          finishedAt:new Date().toISOString(),
+          result:{ ipo },
+        });
+        return;
+      }
+
       const result = await service.marketCheck({
         maxUniqueTickers:MAX_UNIQUE_TICKERS,
         maxNotifications:MAX_NOTIFICATIONS,
@@ -125,7 +127,7 @@ export class PushStateDurableObject {
         status:result.partial ? 'partial' : 'checked',
         startedAt:started.toISOString(),
         finishedAt:new Date().toISOString(),
-        result,
+        result:{ ...result, ipo },
       });
     } catch (error) {
       await store.runtimeWrite({

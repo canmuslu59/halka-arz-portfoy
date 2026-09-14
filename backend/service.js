@@ -103,6 +103,7 @@ function offeringIdentity(item = {}) {
     item.offeringPeriod
       || item.demandPeriod
       || item.subscriptionPeriod
+      || item.offerDates
       || item.dates
       || item.dateRange
       || item.requestDates
