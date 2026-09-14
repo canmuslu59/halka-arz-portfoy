@@ -133,3 +133,15 @@ test('parseYahooChart collapses intraday candles into one row per Istanbul tradi
   assert.equal(out.current, 128);
   assert.equal(out.marketTime, new Date(aug31b * 1000).toISOString());
 });
+
+test('parseYahooChart never fabricates previous close from the current-session latest tick', () => {
+  const aug31 = Math.floor(new Date('2026-08-31T10:15:00Z').getTime()/1000);
+  const json = { chart: { result: [{
+    meta: { regularMarketPrice:128, regularMarketTime:aug31, exchangeTimezoneName:'Europe/Istanbul' },
+    timestamp:[aug31],
+    indicators:{ quote:[{ close:[128], high:[128], low:[128], open:[128] }] },
+  }] } };
+  const out = parseYahooChart(json, 'CITAS');
+  assert.equal(out.current, 128);
+  assert.equal(out.previousClose, null);
+});
