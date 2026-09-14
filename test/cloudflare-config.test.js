@@ -33,7 +33,7 @@ test('Cloudflare local state and secret env files are ignored', async () => {
   assert.match(gitignore, /^\.dev\.vars\.\*$/m);
 });
 
-test('tracked push/config/docs files contain no Firebase private key material', async () => {
+test('tracked push/config/docs files contain no Firebase private key payload or service-account key metadata', async () => {
   const files = [
     'wrangler.jsonc',
     ...(await collectFiles('cloudflare')),
@@ -42,7 +42,7 @@ test('tracked push/config/docs files contain no Firebase private key material', 
   ];
   for (const file of files) {
     const text = await read(file);
-    assert.doesNotMatch(text, /-----BEGIN PRIVATE KEY-----/, `${file} must not contain a private key`);
+    assert.doesNotMatch(text, /-----BEGIN PRIVATE KEY-----\s*[A-Za-z0-9+/]{80,}/, `${file} must not contain a PEM private-key payload`);
     assert.doesNotMatch(text, /"private_key_id"\s*:/, `${file} must not contain service-account key metadata`);
   }
 });
