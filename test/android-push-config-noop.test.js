@@ -13,34 +13,35 @@ function methodBody(source, signature, nextSignature) {
   return source.slice(start, end);
 }
 
-test('duplicate normalized push config is a true no-op before prefs, scheduler, and network sync', async () => {
+test('duplicate normalized push config avoids mutation but retries an unsynced registration', async () => {
   const source = await fs.readFile(PUSH_SYNC, 'utf8');
   const body = methodBody(source, 'static void saveConfig(Context context, String json)', 'static void saveToken(Context context, String token)');
 
   assert.match(body, /String nextConfig\s*=\s*safe\.toString\(\);/);
   assert.match(body, /String previousConfig\s*=\s*prefs\.getString\(CONFIG_KEY,\s*""\);/);
-  assert.match(body, /if\s*\(nextConfig\.equals\(previousConfig\)\)\s*return;/);
+  assert.match(body, /if\s*\(nextConfig\.equals\(previousConfig\)\)\s*\{[\s\S]*?ensureSynced\(context\);[\s\S]*?return;[\s\S]*?\}/);
 
-  const noOp = body.indexOf('if (nextConfig.equals(previousConfig)) return;');
+  const guard = body.indexOf('if (nextConfig.equals(previousConfig))');
+  const retry = body.indexOf('ensureSynced(context);', guard);
   const write = body.indexOf('putString(CONFIG_KEY, nextConfig)');
   const schedule = body.indexOf('BackgroundAlertScheduler.sync');
-  const network = body.indexOf('syncAsync(context)');
-  assert.ok(noOp >= 0 && write > noOp, 'duplicate guard must precede config persistence');
-  assert.ok(schedule > noOp, 'duplicate guard must precede scheduler work');
-  assert.ok(network > noOp, 'duplicate guard must precede backend sync');
+  assert.ok(guard >= 0 && retry > guard, 'duplicate config must check whether backend registration still needs retry');
+  assert.ok(write > retry, 'duplicate config must not rewrite persisted config');
+  assert.ok(schedule > retry, 'duplicate config must not reschedule work unnecessarily');
 });
 
-test('duplicate FCM token does not rewrite prefs or start another backend sync', async () => {
+test('duplicate FCM token avoids mutation but retries an unsynced registration', async () => {
   const source = await fs.readFile(PUSH_SYNC, 'utf8');
-  const body = methodBody(source, 'static void saveToken(Context context, String token)', 'static void syncAsync(Context context)');
+  const body = methodBody(source, 'static void saveToken(Context context, String token)', 'static void ensureSynced(Context context)');
 
   assert.match(body, /String safeToken\s*=\s*token\.trim\(\);/);
   assert.match(body, /String previousToken\s*=\s*prefs\.getString\(TOKEN_KEY,\s*""\);/);
-  assert.match(body, /if\s*\(safeToken\.equals\(previousToken\)\)\s*return;/);
+  assert.match(body, /if\s*\(safeToken\.equals\(previousToken\)\)\s*\{[\s\S]*?ensureSynced\(context\);[\s\S]*?return;[\s\S]*?\}/);
 
-  const noOp = body.indexOf('if (safeToken.equals(previousToken)) return;');
-  assert.ok(body.indexOf('putString(TOKEN_KEY, safeToken)') > noOp, 'duplicate token guard must precede token persistence');
-  assert.ok(body.indexOf('syncAsync(context)') > noOp, 'duplicate token guard must precede backend sync');
+  const guard = body.indexOf('if (safeToken.equals(previousToken))');
+  const retry = body.indexOf('ensureSynced(context);', guard);
+  assert.ok(retry > guard, 'duplicate token must retry only when the registration fingerprint is still unsynced');
+  assert.ok(body.indexOf('putString(TOKEN_KEY, safeToken)') > retry, 'duplicate token must not rewrite prefs');
 });
 
 test('push backend syncs are serialized so an older request cannot finish after a newer one', async () => {
