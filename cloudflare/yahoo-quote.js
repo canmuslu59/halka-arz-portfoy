@@ -31,7 +31,7 @@ export async function fetchYahooQuote(ticker, { fetchImpl = globalThis.fetch } =
   const meta = result.meta || {};
   const timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];
   const current = Number(meta.regularMarketPrice);
-  const previousClose = Number(meta.chartPreviousClose ?? meta.previousClose);
+  const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
   const lastTimestamp = Number(meta.regularMarketTime || timestamps.at(-1));
   const latestMarketDate = Number.isFinite(lastTimestamp) && lastTimestamp > 0
     ? dateInIstanbul(new Date(lastTimestamp * 1000))
