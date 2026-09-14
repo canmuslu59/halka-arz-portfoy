@@ -1,5 +1,7 @@
 import { evaluateDailyAlerts, notificationPayloadForEvent } from '../public/core/notification-rules.js';
 
+const WITHHOLDING_RATE = 0.175;
+
 function finite(value) {
   if (value == null || value === '') return null;
   const n = Number(value);
@@ -10,35 +12,55 @@ function normalizeTicker(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function salesForDay(item, day) {
+  return (Array.isArray(item?.sales) ? item.sales : [])
+    .filter(sale => sale?.date === day)
+    .map(sale => ({ lots:finite(sale?.lots), price:finite(sale?.price) }))
+    .filter(sale => sale.lots > 0 && sale.price > 0);
+}
+
 export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map(), day } = {}) {
   const holdings = [];
   let previousValue = 0;
-  let currentValue = 0;
+  let dailyProfit = 0;
   let expected = 0;
   let valid = 0;
 
   for (const item of Array.isArray(registration.holdings) ? registration.holdings : []) {
     const ticker = normalizeTicker(item?.ticker);
-    const lots = finite(item?.lots);
-    if (!ticker || lots == null || lots <= 0) continue;
+    const currentLots = Math.max(0, finite(item?.lots) ?? 0);
+    const todaySales = salesForDay(item, day);
+    const soldTodayLots = todaySales.reduce((sum, sale) => sum + sale.lots, 0);
+    const dailyBaseLots = currentLots + soldTodayLots;
+    if (!ticker || dailyBaseLots <= 0) continue;
+
     expected += 1;
     const quote = quotes instanceof Map ? quotes.get(ticker) : quotes?.[ticker];
     const current = finite(quote?.current);
     const previousClose = finite(quote?.previousClose);
     const dailySessionActive = Boolean(day && quote?.latestMarketDate === day);
     if (!(current > 0) || !(previousClose > 0) || !dailySessionActive) {
-      holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:false });
+      if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:false });
       continue;
     }
 
     valid += 1;
-    holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:true });
-    previousValue += previousClose * lots;
-    currentValue += current * lots;
+    if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:true });
+    previousValue += previousClose * dailyBaseLots;
+
+    let itemDailyProfit = currentLots * (current - previousClose);
+    const ipoPrice = finite(item?.ipoPrice);
+    for (const sale of todaySales) {
+      itemDailyProfit += sale.lots * (sale.price - previousClose);
+      if (ipoPrice > 0) {
+        itemDailyProfit -= Math.max(0, sale.lots * (sale.price - ipoPrice)) * WITHHOLDING_RATE;
+      }
+    }
+    dailyProfit += itemDailyProfit;
   }
 
   const portfolioPct = expected > 0 && valid === expected && previousValue > 0
-    ? ((currentValue - previousValue) / previousValue) * 100
+    ? (dailyProfit / previousValue) * 100
     : 0;
   const result = evaluateDailyAlerts({
     day:String(day || ''),
