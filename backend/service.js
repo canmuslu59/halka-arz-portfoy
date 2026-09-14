@@ -10,16 +10,31 @@ function clampThreshold(value) {
   return Math.round(Math.min(10, Math.max(1, finite)) * 2) / 2;
 }
 
+function cleanSales(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-32).map(sale => {
+    const date = String(sale?.date || '').trim();
+    const lots = Number(sale?.lots);
+    const price = Number(sale?.price);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !(lots > 0) || !(price > 0)) return null;
+    return { date, lots, price };
+  }).filter(Boolean);
+}
+
 function cleanHoldings(value) {
   if (!Array.isArray(value)) return [];
   const result = [];
   const seen = new Set();
-  for (const item of value) {
+  for (const item of value.slice(0, 100)) {
     const ticker = cleanTicker(item?.ticker);
-    const lots = Number(item?.lots);
-    if (!ticker || !Number.isFinite(lots) || lots <= 0 || seen.has(ticker)) continue;
+    const lotsValue = Number(item?.lots);
+    const lots = Number.isFinite(lotsValue) ? Math.max(0, lotsValue) : 0;
+    const ipoValue = Number(item?.ipoPrice);
+    const ipoPrice = Number.isFinite(ipoValue) && ipoValue > 0 ? ipoValue : 0;
+    const sales = cleanSales(item?.sales);
+    if (!ticker || (lots <= 0 && sales.length === 0) || seen.has(ticker)) continue;
     seen.add(ticker);
-    result.push({ ticker, lots });
+    result.push({ ticker, lots, ipoPrice, sales });
   }
   return result;
 }
