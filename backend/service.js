@@ -34,7 +34,10 @@ function cleanHoldings(value) {
     const sales = cleanSales(item?.sales);
     if (!ticker || (lots <= 0 && sales.length === 0) || seen.has(ticker)) continue;
     seen.add(ticker);
-    result.push({ ticker, lots, ipoPrice, sales });
+    const clean = { ticker, lots };
+    if (ipoPrice > 0) clean.ipoPrice = ipoPrice;
+    if (sales.length > 0) clean.sales = sales;
+    result.push(clean);
   }
   return result;
 }
