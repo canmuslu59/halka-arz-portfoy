@@ -1,8 +1,10 @@
 import { createPushService } from '../backend/service.js';
 import { getBistMarketStatus } from '../public/core/market-calendar.js';
-import { createD1Store } from './d1-store.js';
+import { PushStateDurableObject, createDurableStore } from './durable-store.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchYahooQuote } from './yahoo-quote.js';
+
+export { PushStateDurableObject };
 
 const POLL_INTERVAL_MS = 120_000;
 const ANDROID_FALLBACK_MINUTES = 15;
@@ -43,7 +45,7 @@ function asDate(value) {
 }
 
 export function createWorkerApp({
-  createStore = env => createD1Store(env.DB),
+  createStore = env => createDurableStore(env.PUSH_STATE),
   createSender = env => createCloudflareFcmSender({ serviceAccountJson:env.FIREBASE_SERVICE_ACCOUNT_JSON }),
   fetchQuote = ticker => fetchYahooQuote(ticker),
   marketStatus = getBistMarketStatus,
