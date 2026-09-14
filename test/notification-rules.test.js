@@ -52,7 +52,7 @@ test('ceiling and floor alerts are delivered once per ticker per day', () => {
   assert.deepEqual(duplicate.events, []);
 });
 
-test('portfolio positive levels are emitted and a new trading day resets delivery state', () => {
+test('portfolio signed levels are emitted and a new trading day resets delivery state', () => {
   const first = evaluateDailyAlerts({
     day:'2026-09-05', threshold:3, enabled:true,
     holdings:[], portfolioPct:6.1,
@@ -64,7 +64,7 @@ test('portfolio positive levels are emitted and a new trading day resets deliver
     holdings:[], portfolioPct:-9.1,
     previousState:first.state,
   });
-  assert.deepEqual(decline.events, []);
+  assert.deepEqual(decline.events.map(event => event.level), [-3, -6, -9]);
 
   const reset = evaluateDailyAlerts({
     day:'2026-09-06', threshold:3, enabled:true,

@@ -22,6 +22,7 @@ import java.util.Map;
 final class NotificationHelper {
     private static final String CHANNEL_MARKET = "market_moves_v2";
     private static final String CHANNEL_RISE = "market_rise_v1";
+    private static final String CHANNEL_FALL = "portfolio_fall_v1";
     private static final String CHANNEL_CEILING = "market_ceiling_coin_v1";
     private static final String CHANNEL_FLOOR = "market_floor_v1";
     private static final String CHANNEL_IPO = "new_ipos";
@@ -36,12 +37,14 @@ final class NotificationHelper {
         NotificationChannel market = new NotificationChannel(CHANNEL_MARKET, "Borsa hareketleri", NotificationManager.IMPORTANCE_HIGH);
         market.setDescription("Diğer borsa hareket bildirimleri");
         NotificationChannel rise = customSoundChannel(context, CHANNEL_RISE, "Portföy artışları", "Toplam portföy artış bildirimleri", com.innative.halkaarz.R.raw.notification_rise);
+        NotificationChannel fall = customSoundChannel(context, CHANNEL_FALL, "Portföy düşüşleri", "Toplam portföy düşüş bildirimleri", com.innative.halkaarz.R.raw.notification_floor);
         NotificationChannel ceiling = customSoundChannel(context, CHANNEL_CEILING, "Tavan bildirimleri", "Tavan fiyatına ulaşan hisseler", com.innative.halkaarz.R.raw.notification_ceiling_coin);
         NotificationChannel floor = customSoundChannel(context, CHANNEL_FLOOR, "Taban bildirimleri", "Taban fiyatına ulaşan hisseler", com.innative.halkaarz.R.raw.notification_floor);
         NotificationChannel ipo = new NotificationChannel(CHANNEL_IPO, "Yeni halka arzlar", NotificationManager.IMPORTANCE_DEFAULT);
         ipo.setDescription("Yeni açıklanan halka arz bildirimleri");
         manager.createNotificationChannel(market);
         manager.createNotificationChannel(rise);
+        manager.createNotificationChannel(fall);
         manager.createNotificationChannel(ceiling);
         manager.createNotificationChannel(floor);
         manager.createNotificationChannel(ipo);
@@ -76,11 +79,13 @@ final class NotificationHelper {
                 JSONObject channels = new JSONObject();
                 putChannelState(channels, manager, "market", CHANNEL_MARKET);
                 putChannelState(channels, manager, "portfolio", CHANNEL_RISE);
+                putChannelState(channels, manager, "portfolioFall", CHANNEL_FALL);
                 putChannelState(channels, manager, "ceiling", CHANNEL_CEILING);
                 putChannelState(channels, manager, "floor", CHANNEL_FLOOR);
                 putChannelState(channels, manager, "ipo", CHANNEL_IPO);
                 status.put("channels", channels);
             }
+            status.put("background", AlertDiagnostics.read(context));
             return status.toString();
         } catch (Exception error) {
             return "{\"permissionGranted\":false,\"notificationsEnabled\":false,\"error\":\"diagnostic_failed\"}";
@@ -117,6 +122,7 @@ final class NotificationHelper {
         if ("ipo".equals(kind)) channel = CHANNEL_IPO;
         else if ("ceiling".equals(kind)) channel = CHANNEL_CEILING;
         else if ("floor".equals(kind)) channel = CHANNEL_FLOOR;
+        else if ("portfolio_fall".equals(kind)) channel = CHANNEL_FALL;
         else if ("portfolio".equals(kind)) channel = CHANNEL_RISE;
         else channel = CHANNEL_MARKET;
 

@@ -16,7 +16,7 @@ export function normalizeAlertSettings(input = {}) {
 export function crossedThresholdLevels(percent, threshold) {
   const pct = finite(percent, 0);
   const step = normalizeAlertSettings({ threshold }).threshold;
-  const count = Math.floor((Math.abs(pct) + 1e-9) / step);
+  const count = Math.min(100, Math.floor((Math.abs(pct) + 1e-9) / step));
   if (count < 1) return [];
   const sign = pct < 0 ? -1 : 1;
   return Array.from({ length:count }, (_, index) => sign * step * (index + 1));
@@ -75,7 +75,7 @@ export function evaluateDailyAlerts({
 
   const portfolioDelivered = cleanDelivered(state.portfolio);
   const portfolioSet = new Set(portfolioDelivered.map(String));
-  for (const level of crossedThresholdLevels(portfolioPct, settings.threshold).filter(level => level > 0)) {
+  for (const level of crossedThresholdLevels(portfolioPct, settings.threshold)) {
     if (portfolioSet.has(String(level))) continue;
     portfolioDelivered.push(level);
     portfolioSet.add(String(level));
@@ -95,6 +95,7 @@ export function notificationPayloadForEvent(event = {}) {
   if (kind === 'floor') {
     return { kind, ticker, title:`${ticker} taban yaptı`, body:`${ticker} bugün taban fiyatına ulaştı.` };
   }
-  const level = Math.max(0, finite(event?.level, 0));
+  const level = finite(event?.level, 0);
+  if (level < 0) return { kind:'portfolio_fall', ticker:'', title:'Portföy düşüşü', body:`Toplam portföy bugün -%${Math.abs(level)} seviyesine düştü.` };
   return { kind:'portfolio', ticker:'', title:'Portföy yükselişi', body:`Toplam portföy bugün +%${Math.abs(level)} seviyesini geçti.` };
 }

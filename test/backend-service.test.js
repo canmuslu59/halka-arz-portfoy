@@ -52,7 +52,7 @@ test('market check fetches each unique ticker once, sends reached levels, and pe
     store,
     sender:{send:async(token,message)=>sent.push({token,message})},
     dataSources:{
-      getQuote:async ticker => { quoteCalls += 1; return {ticker,current:106,previousClose:100}; },
+      getQuote:async ticker => { quoteCalls += 1; return {ticker,current:106,previousClose:100,latestMarketDate:'2026-09-04'}; },
       getIpoCalendar:async()=>[],
     },
     now:()=>new Date('2026-09-04T10:00:00Z'),
@@ -71,7 +71,7 @@ test('failed market push does not advance alert state so the event can retry', a
   const service = createPushService({
     store,
     sender:{send:async()=>{ throw new Error('FCM down'); }},
-    dataSources:{getQuote:async ticker=>({ticker,current:103,previousClose:100}),getIpoCalendar:async()=>[]},
+    dataSources:{getQuote:async ticker=>({ticker,current:103,previousClose:100,latestMarketDate:'2026-09-04'}),getIpoCalendar:async()=>[]},
     now:()=>new Date('2026-09-04T10:00:00Z'),
   });
   await service.register(registration());

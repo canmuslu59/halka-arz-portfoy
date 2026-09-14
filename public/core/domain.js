@@ -147,9 +147,11 @@ export function calculateTotals(holdings) {
   let activePositionCount = 0;
   let missingActiveValueCount = 0;
   let missingDailyValueCount = 0;
+  const hasCurrentSession = holdings.some(holding => Number(holding.dailyBaseLots ?? holding.currentLots ?? 0) > 0 && holding.dailySessionActive !== false);
 
   for (const holding of holdings) {
     const active = Number(holding.currentLots || 0) > 0;
+    if (hasCurrentSession && Number(holding.dailyBaseLots ?? holding.currentLots ?? 0) > 0 && holding.dailySessionActive === false) missingDailyValueCount += 1;
     if (Number(holding.dailyBaseLots || 0) > 0 && holding.dailySessionActive !== false && !Number.isFinite(holding.dailyProfit)) missingDailyValueCount += 1;
     if (active) {
       activePositionCount += 1;

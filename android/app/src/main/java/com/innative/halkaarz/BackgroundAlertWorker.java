@@ -48,23 +48,32 @@ public class BackgroundAlertWorker extends Worker {
     @Override
     public Result doWork() {
         Context context = getApplicationContext();
+        AlertDiagnostics.record(context, "running", 0, 0, null);
         if (Build.VERSION.SDK_INT >= 33
                 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            AlertDiagnostics.record(context, "permission_blocked", 0, 0, null);
             return Result.success();
         }
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            AlertDiagnostics.record(context, "permission_blocked", 0, 0, null);
             return Result.success();
         }
 
         SharedPreferences prefs = context.getSharedPreferences(PushConfigSync.PREFS, Context.MODE_PRIVATE);
         String configRaw = prefs.getString(PushConfigSync.CONFIG_KEY, "");
-        if (configRaw == null || configRaw.trim().isEmpty()) return Result.success();
+        if (configRaw == null || configRaw.trim().isEmpty()) {
+            AlertDiagnostics.record(context, "no_config", 0, 0, null);
+            return Result.success();
+        }
 
         try {
             JSONObject config = new JSONObject(configRaw);
             boolean marketEnabled = config.optBoolean("enabled", true);
             boolean ipoEnabled = config.optBoolean("ipoEnabled", true);
-            if (!marketEnabled && !ipoEnabled) return Result.success();
+            if (!marketEnabled && !ipoEnabled) {
+                AlertDiagnostics.record(context, "disabled", 0, 0, null);
+                return Result.success();
+            }
 
             JSONArray holdings = marketEnabled ? config.optJSONArray("holdings") : new JSONArray();
             if (holdings == null) holdings = new JSONArray();
@@ -90,6 +99,12 @@ public class BackgroundAlertWorker extends Worker {
             int validTodayCount = 0;
             int expectedTodayCount = 0;
             boolean quoteRetryNeeded = false;
+            List<Map<Long, Double>> positionSamples = new java.util.ArrayList<>();
+            long monitoringSince = prefs.getLong(PushConfigSync.MONITORING_SINCE_KEY, 0L);
+            if (monitoringSince <= 0) {
+                monitoringSince = System.currentTimeMillis();
+                prefs.edit().putLong(PushConfigSync.MONITORING_SINCE_KEY, monitoringSince).apply();
+            }
 
             for (int i = 0; i < holdings.length(); i++) {
                 JSONObject item = holdings.optJSONObject(i);
@@ -109,6 +124,9 @@ public class BackgroundAlertWorker extends Worker {
                 }
                 if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)) continue;
                 validTodayCount += 1;
+                Map<Long, Double> samples = new java.util.TreeMap<>();
+                for (Map.Entry<Long, Double> sample : quote.sessionCloses.entrySet()) samples.put(sample.getKey(), sample.getValue() * lots);
+                positionSamples.add(samples);
 
                 JSONObject tickerLimits = limits.optJSONObject(ticker);
                 if (tickerLimits == null) tickerLimits = new JSONObject();
@@ -133,19 +151,28 @@ public class BackgroundAlertWorker extends Worker {
                 currentValue += quote.current * lots;
             }
 
+            Double checkedPercent = null;
+            boolean deliveryBlocked = false;
             if (validTodayCount > 0 && validTodayCount == expectedTodayCount && previousValue > 0) {
                 double portfolioPct = ((currentValue - previousValue) / previousValue) * 100.0;
-                if (portfolioPct > 0) {
-                    int reached = (int)Math.floor((portfolioPct + 1e-9) / threshold);
-                    for (int index = 1; index <= reached; index++) {
-                        double level = roundHalf(index * threshold);
+                checkedPercent = portfolioPct;
+                List<Double> observed = PortfolioAlertRules.sampledPercentages(positionSamples, previousValue, (monitoringSince + 999) / 1000);
+                observed.add(portfolioPct);
+                for (double observedPercent : observed) {
+                    for (double level : PortfolioAlertRules.levels(observedPercent, threshold)) {
                         if (portfolioDelivered.contains(level)) continue;
                         if (showPortfolioNotification(context, level)) {
                             portfolioDelivered.add(level);
+                        } else {
+                            deliveryBlocked = true;
                         }
                     }
                 }
             }
+            AlertDiagnostics.record(context,
+                    deliveryBlocked ? "channel_blocked" : expectedTodayCount == 0 ? "no_holdings"
+                    : validTodayCount < expectedTodayCount ? "waiting_quotes" : "checked",
+                    validTodayCount, expectedTodayCount, checkedPercent);
 
             state.put("day", day);
             state.put("limits", limits);
@@ -157,6 +184,7 @@ public class BackgroundAlertWorker extends Worker {
             return Result.success();
         } catch (Exception error) {
             Log.e(TAG, "Background alert worker failed", error);
+            AlertDiagnostics.record(context, "error", 0, 0, null);
             return BackgroundRetryPolicy.shouldRetry(error) ? Result.retry() : Result.success();
         }
     }
@@ -208,10 +236,13 @@ public class BackgroundAlertWorker extends Worker {
 
     private static boolean showPortfolioNotification(Context context, double level) {
         Map<String, String> data = new HashMap<>();
-        data.put("kind", "portfolio");
+        boolean falling = level < 0;
+        data.put("kind", falling ? "portfolio_fall" : "portfolio");
         data.put("ticker", "");
-        data.put("title", "Portföy yükselişi");
-        data.put("body", "Toplam portföy bugün +%" + formatLevel(level) + " seviyesini geçti.");
+        data.put("title", falling ? "Portföy düşüşü" : "Portföy yükselişi");
+        data.put("body", falling
+                ? "Toplam portföy bugün -%" + formatLevel(Math.abs(level)) + " seviyesine düştü."
+                : "Toplam portföy bugün +%" + formatLevel(level) + " seviyesini geçti.");
         return NotificationHelper.show(context, data);
     }
 
@@ -442,7 +473,17 @@ public class BackgroundAlertWorker extends Worker {
         if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;
         if (!Double.isFinite(previousClose)) previousClose = latestTickClose;
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
-        return new Quote(current, previousClose, effectiveMarketDate.toString());
+        Map<Long, Double> sessionCloses = new java.util.TreeMap<>();
+        if (closes != null && timestamps != null) {
+            int count = Math.min(closes.length(), timestamps.length());
+            for (int i = 0; i < count; i++) {
+                long epoch = timestamps.optLong(i, 0L);
+                double close = finite(closes.optDouble(i, Double.NaN));
+                if (epoch <= 0 || !(close > 0)) continue;
+                if (Instant.ofEpochSecond(epoch).atZone(ISTANBUL).toLocalDate().equals(effectiveMarketDate)) sessionCloses.put(epoch, close);
+            }
+        }
+        return new Quote(current, previousClose, effectiveMarketDate.toString(), sessionCloses);
     }
 
     private static double finite(double value) {
@@ -516,11 +557,13 @@ public class BackgroundAlertWorker extends Worker {
         final double current;
         final double previousClose;
         final String marketDate;
+        final Map<Long, Double> sessionCloses;
 
-        Quote(double current, double previousClose, String marketDate) {
+        Quote(double current, double previousClose, String marketDate, Map<Long, Double> sessionCloses) {
             this.current = current;
             this.previousClose = previousClose;
             this.marketDate = marketDate;
+            this.sessionCloses = sessionCloses;
         }
     }
 }

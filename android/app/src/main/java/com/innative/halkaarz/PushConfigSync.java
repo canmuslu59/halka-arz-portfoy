@@ -17,6 +17,7 @@ final class PushConfigSync {
     static final String INSTALL_ID_KEY = "push_install_id_v1";
     static final String TOKEN_KEY = "push_fcm_token_v1";
     static final String CONFIG_KEY = "push_config_v1";
+    static final String MONITORING_SINCE_KEY = "push_monitoring_since_v1";
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(
             runnable -> new Thread(runnable, "push-config-sync")
     );
@@ -48,7 +49,7 @@ final class PushConfigSync {
             String previousConfig = prefs.getString(CONFIG_KEY, "");
             if (nextConfig.equals(previousConfig)) return;
 
-            prefs.edit().putString(CONFIG_KEY, nextConfig).apply();
+            prefs.edit().putString(CONFIG_KEY, nextConfig).putLong(MONITORING_SINCE_KEY, System.currentTimeMillis()).apply();
             BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true) || safe.optBoolean("ipoEnabled", true));
             syncAsync(context);
         } catch (Exception ignored) {}

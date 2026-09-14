@@ -1,6 +1,7 @@
 import { evaluateDailyAlerts, notificationPayloadForEvent } from '../public/core/notification-rules.js';
 
 function finite(value) {
+  if (value == null || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -24,8 +25,8 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     const quote = quotes instanceof Map ? quotes.get(ticker) : quotes?.[ticker];
     const current = finite(quote?.current);
     const previousClose = finite(quote?.previousClose);
-    const dailySessionActive = !quote?.latestMarketDate || !day || quote.latestMarketDate === day;
-    if (current == null || previousClose == null || previousClose <= 0 || !dailySessionActive) {
+    const dailySessionActive = Boolean(day && quote?.latestMarketDate === day);
+    if (!(current > 0) || !(previousClose > 0) || !dailySessionActive) {
       holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:false });
       continue;
     }

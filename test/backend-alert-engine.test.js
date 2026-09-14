@@ -12,8 +12,8 @@ const registration = {
 
 test('emits stock limit events only and keeps threshold alerts at portfolio level', () => {
   const quotes = new Map([
-    ['AAA',{ticker:'AAA',current:110,previousClose:100}],
-    ['BBB',{ticker:'BBB',current:200,previousClose:200}],
+    ['AAA',{ticker:'AAA',current:110,previousClose:100,latestMarketDate:'2026-09-04'}],
+    ['BBB',{ticker:'BBB',current:200,previousClose:200,latestMarketDate:'2026-09-04'}],
   ]);
   const result = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-04' });
   assert.equal(result.events.some(event => event.kind === 'stock'), false);
@@ -27,14 +27,15 @@ test('emits stock limit events only and keeps threshold alerts at portfolio leve
 
 test('deduplicates delivered limit/portfolio alerts and resets on a new BIST day', () => {
   const quotes = new Map([
-    ['AAA',{ticker:'AAA',current:110,previousClose:100}],
-    ['BBB',{ticker:'BBB',current:200,previousClose:200}],
+    ['AAA',{ticker:'AAA',current:110,previousClose:100,latestMarketDate:'2026-09-04'}],
+    ['BBB',{ticker:'BBB',current:200,previousClose:200,latestMarketDate:'2026-09-04'}],
   ]);
   const first = evaluateRegistrationAlerts({ registration, quotes, day:'2026-09-04' });
   const sameDay = evaluateRegistrationAlerts({ registration:{...registration,alertState:first.state}, quotes, day:'2026-09-04' });
   assert.equal(sameDay.events.length, 0);
 
-  const newDay = evaluateRegistrationAlerts({ registration:{...registration,alertState:first.state}, quotes, day:'2026-09-05' });
+  const nextQuotes = new Map([...quotes].map(([ticker, quote]) => [ticker, {...quote, latestMarketDate:'2026-09-05'}]));
+  const newDay = evaluateRegistrationAlerts({ registration:{...registration,alertState:first.state}, quotes:nextQuotes, day:'2026-09-05' });
   assert.equal(newDay.events.length, first.events.length);
 });
 
