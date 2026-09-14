@@ -111,16 +111,21 @@ async function fetchIpo(ticker){
   if(!found&&!ahlatciScanComplete) throw new Error('Halka arz kaynaklarına ulaşılamadı.');
   if(!found)found={ticker:key,company:null,ipoPrice:null,firstTradeDate:null,offerDates:null,source:null}; ipoCache.set(key,{at:Date.now(),data:found}); return found;
 }
+const WITHHOLDING_RATE=0.175;
+function saleWithholding(quantity,price,cost){const q=Number(quantity),p=Number(price),c=Number(cost);if(!(q>0)||!(p>0)||!(c>0))return 0;return Math.max(0,q*(p-c))*WITHHOLDING_RATE;}
 function profitPct(profit,cost){return cost>0?(profit/cost)*100:0;}
 async function hydrateHolding(h){
   const [mr,ir]=await Promise.allSettled([fetchMarket(h.ticker),fetchIpo(h.ticker)]); const market=mr.status==='fulfilled'?mr.value:null,fetchedIpo=ir.status==='fulfilled'?ir.value:null;
   const ipoPrice=Number(h.ipoPriceOverride)>0?Number(h.ipoPriceOverride):fetchedIpo?.ipoPrice; const firstTradeDate=h.firstTradeDateOverride||fetchedIpo?.firstTradeDate||null;
   const initialLots=Number(h.initialLots||h.currentLots||0), currentLots=Number(h.currentLots||0), sales=Array.isArray(h.sales)?h.sales:[], current=market?.current??null, previousClose=market?.previousClose??null;
-  const invested=ipoPrice!=null?initialLots*ipoPrice:null, activeValue=current!=null?currentLots*current:null, salesProceeds=sales.reduce((s,x)=>s+Number(x.lots||0)*Number(x.price||0),0);
-  const realizedProfit=ipoPrice!=null?sales.reduce((s,x)=>s+Number(x.lots||0)*(Number(x.price||0)-ipoPrice),0):null;
+  const invested=ipoPrice!=null?initialLots*ipoPrice:null, activeValue=current!=null?currentLots*current:null, grossSalesProceeds=sales.reduce((s,x)=>s+Number(x.lots||0)*Number(x.price||0),0);
+  const grossRealizedProfit=ipoPrice!=null?sales.reduce((s,x)=>s+Number(x.lots||0)*(Number(x.price||0)-ipoPrice),0):null;
+  const withholdingTax=ipoPrice!=null?sales.reduce((s,x)=>s+saleWithholding(x.lots,x.price,ipoPrice),0):0;
+  const salesProceeds=grossSalesProceeds-withholdingTax;
+  const realizedProfit=grossRealizedProfit==null?null:grossRealizedProfit-withholdingTax;
   const unrealizedProfit=current!=null&&ipoPrice!=null?currentLots*(current-ipoPrice):null; const totalProfit=realizedProfit!=null&&unrealizedProfit!=null?realizedProfit+unrealizedProfit:null; const totalWealth=activeValue!=null?activeValue+salesProceeds:null;
   const dailyProfit=current!=null&&previousClose!=null?currentLots*(current-previousClose):null; const dailyPct=current!=null&&previousClose>0?((current-previousClose)/previousClose)*100:null;
-  return {...h,ticker:cleanTicker(h.ticker),company:fetchedIpo?.company||null,source:fetchedIpo?.source||null,ipoPrice,firstTradeDate,offerDates:fetchedIpo?.offerDates||null,currentPrice:current,previousClose,marketTime:market?.marketTime||null,invested,activeValue,salesProceeds,totalWealth,realizedProfit,unrealizedProfit,totalProfit,totalProfitPct:invested!=null&&totalProfit!=null?profitPct(totalProfit,invested):null,dailyProfit,dailyPct,history:market?.history||[],errors:{market:mr.status==='rejected'?(mr.reason?.message||'Fiyat verisi alınamadı.'):null,ipo:ipoPrice==null?'Halka arz fiyatı otomatik bulunamadı.':null}};
+  return {...h,ticker:cleanTicker(h.ticker),company:fetchedIpo?.company||null,source:fetchedIpo?.source||null,ipoPrice,firstTradeDate,offerDates:fetchedIpo?.offerDates||null,currentPrice:current,previousClose,marketTime:market?.marketTime||null,invested,activeValue,grossSalesProceeds,withholdingTax,salesProceeds,totalWealth,grossRealizedProfit,realizedProfit,unrealizedProfit,totalProfit,totalProfitPct:invested!=null&&totalProfit!=null?profitPct(totalProfit,invested):null,dailyProfit,dailyPct,history:market?.history||[],errors:{market:mr.status==='rejected'?(mr.reason?.message||'Fiyat verisi alınamadı.'):null,ipo:ipoPrice==null?'Halka arz fiyatı otomatik bulunamadı.':null}};
 }
 function makePortfolioHistory(holdings){
   const byDate=new Map();
@@ -135,12 +140,12 @@ function makePortfolioHistory(holdings){
       .sort((a,b)=>a.date.localeCompare(b.date));
     for(const row of h.history){
       if(!row?.date||row.date<start||!Number.isFinite(Number(row.close)))continue;
-      let soldLots=0,proceeds=0;
-      for(const sale of sales){if(sale.date>row.date)break;soldLots+=sale.lots;proceeds+=sale.lots*sale.price;}
+      let soldLots=0,netProceeds=0;
+      for(const sale of sales){if(sale.date>row.date)break;soldLots+=sale.lots;netProceeds+=sale.lots*sale.price-saleWithholding(sale.lots,sale.price,ipoPrice);}
       const activeLots=Math.max(0,initialLots-soldLots);
       if(!byDate.has(row.date))byDate.set(row.date,{date:row.date,value:0,cost:0});
       const p=byDate.get(row.date);
-      p.value+=Number(row.close)*activeLots+proceeds;
+      p.value+=Number(row.close)*activeLots+netProceeds;
       p.cost+=ipoPrice*initialLots;
     }
   }
