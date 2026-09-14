@@ -1,0 +1,70 @@
+name: Cloudflare Temporary Bootstrap
+
+on:
+  push:
+    branches: [fix/code28-signed-portfolio-alerts-20260914]
+    paths:
+      - .github/workflows/cloudflare-temporary-bootstrap.yml
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Deploy temporary Worker and D1
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.131.1 deploy --temporary --config wrangler.jsonc 2>&1 | tee /tmp/cloudflare-bootstrap.log
+          CLAIM_URL="$(grep -Eo 'https://dash\.cloudflare\.com/claim-preview\?claimToken=[^[:space:]]+' /tmp/cloudflare-bootstrap.log | tail -1)"
+          WORKER_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/cloudflare-bootstrap.log | tail -1)"
+          test -n "$CLAIM_URL"
+          test -n "$WORKER_URL"
+          echo "claim_url=$CLAIM_URL" >> "$GITHUB_OUTPUT"
+          echo "worker_url=$WORKER_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Apply D1 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.131.1 d1 migrations apply DB --remote --config wrangler.jsonc
+
+      - name: Verify temporary Worker health
+        env:
+          CLAIM_URL: ${{ steps.deploy.outputs.claim_url }}
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 "$WORKER_URL/api/health" -o /tmp/cloudflare-health.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const health = JSON.parse(fs.readFileSync('/tmp/cloudflare-health.json', 'utf8'));
+          if (health?.push?.pollIntervalMs !== 120000) throw new Error('Unexpected Worker cadence.');
+          if (health?.push?.androidFallbackMinutes !== 15) throw new Error('Unexpected Android fallback.');
+          fs.writeFileSync('/tmp/cloudflare-bootstrap-preview.json', JSON.stringify({
+            claimUrl:process.env.CLAIM_URL,
+            workerUrl:process.env.WORKER_URL,
+            firebaseSecretRequired:true,
+            health,
+          }, null, 2));
+          NODE
+
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: cloudflare-bootstrap-preview
+          path: /tmp/cloudflare-bootstrap-preview.json
+          if-no-files-found: error
+          retention-days: 1
