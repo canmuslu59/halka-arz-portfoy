@@ -23,7 +23,7 @@ function fakeD1(seed = {}) {
     return {
       bind(...next) { return statement(sql, next); },
       async all() {
-        if (/FROM installations/i.test(sql)) return { results:[...rows.values()].map(structuredClone) };
+        if (/FROM installations/i.test(sql)) return { results:[...rows.values()].map(row => structuredClone(row)) };
         return { results:[] };
       },
       async first() {
