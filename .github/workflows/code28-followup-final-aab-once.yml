@@ -1,0 +1,96 @@
+name: Code28 Follow-up Final AAB Once
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code28-followup-final-aab-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run all regressions
+        run: npm test
+      - name: Verify packaged web assets are synchronized
+        run: diff -qr public android/app/src/main/assets/www
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Inject Firebase Android config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "968125285231",
+              "project_id": "halka-arz-portfoyum",
+              "storage_bucket": "halka-arz-portfoyum.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:968125285231:android:5ae1a56cda03651d639e9a",
+                  "android_client_info": {
+                    "package_name": "com.innative.halkaarz"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  { "current_key": "AIzaSyBy0VbS3g2IPTKXqtMSpb7k3M2tdZ7eX_8" }
+                ],
+                "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+          node - <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('android/app/google-services.json','utf8'));
+          if (config?.project_info?.project_id !== 'halka-arz-portfoyum') throw new Error('Unexpected Firebase project');
+          const packages = (config.client || []).map(x => x?.client_info?.android_client_info?.package_name);
+          if (!packages.includes('com.innative.halkaarz')) throw new Error('Unexpected Android package');
+          NODE
+      - name: Install Android SDK 36
+        run: /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Build release AAB
+        run: gradle -p android --no-daemon bundleRelease
+      - name: Verify unsigned bundle inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          unzip -t "$AAB" >/dev/null
+          unzip -p "$AAB" base/dex/classes.dex | strings | grep -F "$PUSH_BACKEND_URL"
+          unzip -l "$AAB" | grep -F 'base/assets/www/app.js'
+          unzip -l "$AAB" | grep -F 'base/manifest/AndroidManifest.xml'
+          mkdir -p dist
+          cp "$AAB" dist/halka-arz-portfoyum-v2.4.6-code28-followup-final-unsigned.aab
+          sha256sum dist/*.aab > dist/SHA256SUMS.txt
+          printf 'branch=%s\ncommit=%s\nversionName=2.4.6\nversionCode=28\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" > dist/BUILD_INFO.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: code28-followup-final-unsigned
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
