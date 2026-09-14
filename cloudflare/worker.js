@@ -90,6 +90,9 @@ export function createWorkerApp({
 
       if (method === 'POST' && url.pathname === '/v1/installations') {
         const registered = await service.register(await readJson(request));
+        if (typeof store.ensureAlarm === 'function') {
+          await store.ensureAlarm(date.getTime() + 1_000);
+        }
         return json(200, {
           installId:registered.installId,
           enabled:registered.enabled,
