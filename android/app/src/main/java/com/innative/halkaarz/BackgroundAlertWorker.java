@@ -509,7 +509,6 @@ public class BackgroundAlertWorker extends Worker {
 
         if (!Double.isFinite(previousClose)) previousClose = previousSessionClose;
         if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;
-        if (!Double.isFinite(previousClose)) previousClose = latestTickClose;
         if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");
         Map<Long, Double> sessionCloses = new java.util.TreeMap<>();
         if (closes != null && timestamps != null) {

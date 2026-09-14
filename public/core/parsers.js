@@ -136,7 +136,7 @@ export function parseYahooChart(json, ticker) {
   // an older cached/daily row (e.g. Monday when Friday is missing from the series).
   const previousClose = Number.isFinite(meta.previousClose) ? meta.previousClose
     : previousRow?.close
-      ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : lastClose);
+      ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : null);
 
   const freshestTickWins = latestTick && (!Number.isFinite(metaEpoch) || latestTick.epoch > metaEpoch);
   const current = freshestTickWins
