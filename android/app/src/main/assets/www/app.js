@@ -193,20 +193,16 @@ function durationText(ms) {
 }
 
 function proAccessCard(access) {
-  const label = access.status === 'review'
-    ? 'Google Play inceleme erişimi'
-    : access.status === 'trial'
+  const label = access.status === 'trial'
+    ? '7 günlük ücretsiz deneme'
+    : access.status === 'not_started'
       ? '7 günlük ücretsiz deneme'
-      : access.status === 'not_started'
-        ? '7 günlük ücretsiz deneme'
-        : 'Deneme sona erdi';
-  const detail = access.status === 'review'
-    ? 'İnceleme için tam erişim etkin.'
-    : access.status === 'trial'
-      ? `Kalan süre: ${durationText(access.remainingMs)}`
-      : access.status === 'not_started'
-        ? 'Deneme henüz başlatılmadı.'
-        : 'Gelişmiş özellikleri kullanmaya devam etmek için Pro gerekecek.';
+      : 'Deneme sona erdi';
+  const detail = access.status === 'trial'
+    ? `Kalan süre: ${durationText(access.remainingMs)}`
+    : access.status === 'not_started'
+      ? 'Deneme henüz başlatılmadı.'
+      : 'Gelişmiş özellikleri kullanmaya devam etmek için Pro gerekecek.';
   return `
     <section class="pro-access-card ${access.hasAccess ? 'active' : 'pro-locked'}">
       <div><span class="eyebrow">PRO ERİŞİM</span><strong>${label}</strong><p>${detail}</p></div>
@@ -222,34 +218,13 @@ function proLockedGate(access) {
   return `
     <section class="pro-locked pro-gate">
       <span class="pro-lock-icon">✦</span><h3>Gelişmiş özellikler kilitli</h3>
-      
       ${trialAction}
-      <div class="review-access-box" hidden>
-        <span class="eyebrow">GOOGLE PLAY İNCELEME</span>
-        <strong>Google Play inceleme erişimi</strong>
-        <p>Bu alan yalnızca Google Play inceleme ekibi için sağlanmıştır.</p>
-        <form id="reviewAccessForm" class="review-access-form">
-          <input id="reviewAccessCode" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="İnceleme kodu" aria-label="Google Play inceleme kodu" required>
-          <button id="reviewAccessButton" class="secondary-btn" type="submit">İnceleme erişimini aç</button>
-        </form>
-      </div>
     </section>`;
 }
 
 function bindProGateControls() {
   $('#proTrialStart')?.addEventListener('click', () => {
     state.proAccess = proAccess.enterAdvanced();
-    renderProView();
-  });
-  $('#reviewAccessForm')?.addEventListener('submit', event => {
-    event.preventDefault();
-    const code = $('#reviewAccessCode')?.value || '';
-    if (!proAccess.enableReviewAccess(code)) {
-      toast('İnceleme kodu geçersiz.');
-      return;
-    }
-    state.proAccess = proAccess.getState();
-    toast('Google Play inceleme erişimi açıldı.');
     renderProView();
   });
 }
