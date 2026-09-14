@@ -40,3 +40,9 @@ test('native IPO dedupe identity includes the offering event, not ticker alone',
   assert.match(worker, /ticker\s*\+\s*"\\|"/);
 });
 
+test('notification delivery dedupes the same IPO across FCM and local fallback even when message bodies differ', async () => {
+  const helper = await read('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+
+  assert.match(helper, /"ipo"\.equals\(kind\)[\s\S]{0,180}kind\s*\+\s*":"\s*\+\s*ticker/,
+    'IPO delivery key must be based on event identity rather than source-specific notification body');
+});
