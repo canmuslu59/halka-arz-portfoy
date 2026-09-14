@@ -20,17 +20,29 @@ async function collectFiles(root) {
   return found;
 }
 
-test('Cloudflare config pins a two-minute cron and draft D1 binding without plaintext secrets', async () => {
+test('Cloudflare config pins two-minute cron and SQLite Durable Object persistence without D1', async () => {
   const wrangler = await read('wrangler.jsonc');
   assert.match(wrangler, /"crons"\s*:\s*\[\s*"\*\/2 \* \* \* \*"\s*\]/);
-  assert.match(wrangler, /"d1_databases"\s*:\s*\[\s*\{\s*"binding"\s*:\s*"DB"\s*\}\s*\]/);
+  assert.match(wrangler, /"durable_objects"\s*:/);
+  assert.match(wrangler, /"name"\s*:\s*"PUSH_STATE"/);
+  assert.match(wrangler, /"class_name"\s*:\s*"PushStateDurableObject"/);
+  assert.match(wrangler, /"new_sqlite_classes"\s*:\s*\[\s*"PushStateDurableObject"\s*\]/);
+  assert.doesNotMatch(wrangler, /"d1_databases"\s*:/);
   assert.doesNotMatch(wrangler, /BEGIN PRIVATE KEY|private_key_id/i);
 });
 
-test('temporary Cloudflare bootstrap deploys anonymously, provisions D1, and never embeds Firebase credentials', async () => {
+test('production Worker defaults to the Durable Object store rather than D1', async () => {
+  const worker = await read('cloudflare/worker.js');
+  assert.match(worker, /createDurableStore/);
+  assert.match(worker, /PushStateDurableObject/);
+  assert.match(worker, /env\.PUSH_STATE/);
+  assert.doesNotMatch(worker, /createD1Store|env\.DB/);
+});
+
+test('temporary Cloudflare bootstrap deploys anonymously without D1 provisioning or embedded Firebase credentials', async () => {
   const workflow = await read('.github/workflows/cloudflare-temporary-bootstrap.yml');
   assert.match(workflow, /wrangler@4\.131\.1\s+deploy\s+--temporary/);
-  assert.match(workflow, /d1\s+migrations\s+apply\s+DB\s+--remote/);
+  assert.doesNotMatch(workflow, /d1\s+(create|migrations)/i);
   assert.match(workflow, /cloudflare-bootstrap-preview/);
   assert.doesNotMatch(workflow, /FIREBASE_SERVICE_ACCOUNT_JSON/);
   assert.doesNotMatch(workflow, /BEGIN PRIVATE KEY/);
