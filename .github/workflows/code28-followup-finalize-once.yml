@@ -1,0 +1,38 @@
+name: Code28 Follow-up Finalize Once
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code28-followup-finalize-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code28-seven-issues-20260914
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Apply final follow-up changes
+        run: node scripts/code28-followup-finalize.mjs
+      - name: Sync packaged Android web assets
+        run: node scripts/sync-android-assets.mjs
+      - name: Run regressions before commit
+        run: npm test
+      - name: Commit final follow-up changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "canmuslu59"
+          git config user.email "301077922+canmuslu59@users.noreply.github.com"
+          git add public/app.js public/core/domain.js public/core/parsers.js android/app/src/main/assets/www test/android-background-parser-regression.test.js test/code28-followup-four-regressions.test.js
+          git diff --cached --quiet && { echo 'No finalization changes'; exit 1; }
+          git commit -m "fix: harden Code28 follow-up behavior"
+          git push origin HEAD:fix/code28-seven-issues-20260914
