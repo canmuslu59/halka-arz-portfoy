@@ -41,3 +41,15 @@ test('release runtime has no dependency on historical CI staging files and carri
   assert.deepEqual(references, [], `live release files still reference historical CI staging: ${references.join(', ')}`);
   await assert.rejects(fs.access('.' + 'ci'), { code: 'ENOENT' });
 });
+
+test('paid Render push runtime is removed and Cloudflare is the only production push runtime', async () => {
+  await assert.rejects(fs.access('render.yaml'), { code:'ENOENT' });
+  await assert.rejects(fs.access('push-server.js'), { code:'ENOENT' });
+  await assert.rejects(fs.access('backend/fcm-sender.js'), { code:'ENOENT' });
+  await assert.rejects(fs.access('test/push-server-runtime.test.js'), { code:'ENOENT' });
+  await assert.rejects(fs.access('test/fcm-sender.test.js'), { code:'ENOENT' });
+  await fs.access('cloudflare/worker.js');
+  await fs.access('cloudflare/fcm-sender.js');
+  await fs.access('cloudflare/d1-store.js');
+  await fs.access('wrangler.jsonc');
+});
