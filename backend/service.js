@@ -35,6 +35,12 @@ function dateInIstanbul(value) {
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
+function normalizedBudget(value) {
+  if (value === Infinity) return Infinity;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : Infinity;
+}
+
 function freshAlertState(day) {
   return { day, stocks: {}, portfolio: [], limits: {} };
 }
@@ -123,22 +129,27 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     });
   }
 
-  async function marketCheck() {
+  async function marketCheck({ maxUniqueTickers = Infinity, maxNotifications = Infinity } = {}) {
+    const quoteBudget = normalizedBudget(maxUniqueTickers);
+    const notificationBudget = normalizedBudget(maxNotifications);
     const snapshot = await store.read();
     const registrations = Object.values(snapshot?.installations || {})
       .filter(item => item && item.enabled !== false && Array.isArray(item.holdings) && item.holdings.length > 0);
 
-    const tickers = new Set();
+    const tickerSet = new Set();
     for (const registration of registrations) {
       for (const holding of registration.holdings) {
         const ticker = cleanTicker(holding?.ticker);
-        if (ticker) tickers.add(ticker);
+        if (ticker) tickerSet.add(ticker);
       }
     }
 
+    const allTickers = [...tickerSet];
+    const checkedTickerList = Number.isFinite(quoteBudget) ? allTickers.slice(0, quoteBudget) : allTickers;
+    const tickerBudgetReached = checkedTickerList.length < allTickers.length;
     const quotes = new Map();
     if (typeof dataSources.getQuote === 'function') {
-      await Promise.all([...tickers].map(async ticker => {
+      await Promise.all(checkedTickerList.map(async ticker => {
         try {
           const quote = await dataSources.getQuote(ticker);
           if (quote) quotes.set(ticker, quote);
@@ -151,6 +162,8 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     const day = dateInIstanbul(now());
     let sent = 0;
     let failed = 0;
+    let notificationAttempts = 0;
+    let notificationBudgetReached = false;
 
     for (const registration of registrations) {
       const evaluated = evaluateRegistrationAlerts({ registration, quotes, day });
@@ -158,6 +171,11 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
       let changed = false;
 
       for (const event of evaluated.events) {
+        if (notificationAttempts >= notificationBudget) {
+          notificationBudgetReached = true;
+          break;
+        }
+        notificationAttempts += 1;
         try {
           await sender.send(registration.fcmToken, notificationForAlert(event));
           delivered = deliveredStateAfter(delivered, day, event);
@@ -177,9 +195,25 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
           }
         });
       }
+
+      if (notificationBudgetReached) break;
     }
 
-    return { sent, failed };
+    const partial = tickerBudgetReached || notificationBudgetReached;
+    const reason = notificationBudgetReached
+      ? 'notification_budget'
+      : tickerBudgetReached
+        ? 'ticker_budget'
+        : null;
+    return {
+      sent,
+      failed,
+      partial,
+      reason,
+      totalTickers:allTickers.length,
+      checkedTickers:checkedTickerList.length,
+      notificationAttempts,
+    };
   }
 
   async function ipoCheck() {
