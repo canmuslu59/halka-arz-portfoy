@@ -72,7 +72,7 @@ test('historical and Phase1-only workflows are retired from the release tree', a
   assert.ok(workflows.includes('release-candidate.yml'), 'release-candidate.yml must remain as the release verification path');
 });
 
-test('README documents direct-source Android verification without retired release workflows', async () => {
+test('README documents direct-source Android verification and the current Code28 release path', async () => {
   const readme = await read('README.md');
   assert.doesNotMatch(readme, /\.github\/workflows\/android-apk\.yml/);
   assert.doesNotMatch(readme, /Actions\s*[→>-]+\s*Build Android APK/i);
@@ -81,7 +81,8 @@ test('README documents direct-source Android verification without retired releas
   assert.doesNotMatch(readme, /compileDebugJavaWithJavac/);
   assert.doesNotMatch(readme, /Audit Current Clean Source/);
   assert.doesNotMatch(readme, /Phase1 TDD Contracts/);
-  assert.match(readme, /Build v2\.4\.0 Release Candidate/);
+  assert.match(readme, /Code28 release/);
+  assert.match(readme, /versionName 2\.4\.6 \/ versionCode 28/);
 });
 
 test('native bridge avoids Charset overload unavailable on older Android APIs', async () => {
