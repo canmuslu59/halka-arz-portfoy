@@ -25,3 +25,5 @@ await replaceExact(
   `        if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;\n        if (!Double.isFinite(previousClose)) previousClose = latestTickClose;\n        if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");`,
   `        if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;\n        if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");`,
 );
+
+// Issue 2 verification marker: production sources now reject fabricated previous closes.
