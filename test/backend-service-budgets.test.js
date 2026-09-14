@@ -91,3 +91,43 @@ test('notification budget leaves unsent portfolio levels eligible for the next c
   assert.deepEqual(sent, [3,4]);
   assert.deepEqual((await store.read()).installations.id.alertState.portfolio, [1,2,3,4]);
 });
+
+test('permanently invalid FCM token is pruned without consuming the only delivery slot', async () => {
+  const registration = (installId, token) => ({
+    installId,
+    fcmToken:token,
+    enabled:true,
+    threshold:1,
+    ipoEnabled:true,
+    holdings:[{ticker:'AAA',lots:1}],
+    alertState:null,
+    ipoState:null,
+    createdAt:'2026-09-14T09:00:00.000Z',
+    updatedAt:'2026-09-14T09:00:00.000Z',
+  });
+  const store = memoryStore({ installations:{
+    bad:registration('bad','bad-token'),
+    good:registration('good','good-token'),
+  }});
+  const delivered = [];
+  const service = createPushService({
+    store,
+    sender:{send:async token => {
+      if (token === 'bad-token') {
+        const error = new Error('FCM token is unregistered.');
+        error.code = 'FCM_TOKEN_INVALID';
+        error.permanentToken = true;
+        throw error;
+      }
+      delivered.push(token);
+    }},
+    dataSources:{getQuote:async ticker => ({ticker,current:101,previousClose:100,latestMarketDate:'2026-09-14'})},
+    now:()=>new Date('2026-09-14T10:00:00Z'),
+  });
+
+  const result = await service.marketCheck({ maxUniqueTickers:30, maxNotifications:1 });
+  assert.deepEqual(delivered, ['good-token']);
+  assert.equal(result.sent, 1);
+  assert.equal(result.failed, 1);
+  assert.equal((await store.read()).installations.bad, undefined);
+});
