@@ -44,8 +44,8 @@ function tradingDay(iso) {
   return !isWeekend(iso) && !isFullHoliday(iso);
 }
 
-function localStamp(iso, hour) {
-  return `${iso}T${String(hour).padStart(2,'0')}:00:00+03:00`;
+function localStamp(iso, hour, minute = 0) {
+  return `${iso}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00+03:00`;
 }
 
 function nextTradingOpen(fromDate, includeSame = false) {
@@ -63,8 +63,10 @@ export function getBistMarketStatus(now = new Date()) {
   const iso = local.date;
   const minuteOfDay = local.hour * 60 + local.minute + local.second / 60;
   const openMinute = 10 * 60;
-  const closeHour = isHalfDay(iso) ? 13 : 18;
-  const closeMinute = closeHour * 60;
+  const halfDay = isHalfDay(iso);
+  const closeHour = halfDay ? 12 : 18;
+  const closeMinutePart = halfDay ? 40 : 10;
+  const closeMinute = closeHour * 60 + closeMinutePart;
 
   if (!tradingDay(iso)) {
     return {
@@ -90,9 +92,9 @@ export function getBistMarketStatus(now = new Date()) {
     return {
       isOpen:true,
       label:'AÇIK',
-      reason:isHalfDay(iso) ? 'Yarım gün seansı' : 'Pay Piyasası açık',
+      reason:halfDay ? 'Yarım gün seansı' : 'Pay Piyasası açık',
       nextOpenAt:null,
-      closesAt:localStamp(iso, closeHour),
+      closesAt:localStamp(iso, closeHour, closeMinutePart),
     };
   }
 
