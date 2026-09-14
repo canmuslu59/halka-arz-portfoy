@@ -4,6 +4,11 @@ android/.gradle/
 android/**/build/
 android/local.properties
 
+# Cloudflare local state and secrets
+.wrangler/
+.dev.vars
+.dev.vars.*
+
 # Firebase client configuration is injected by release CI
 android/app/google-services.json
 
