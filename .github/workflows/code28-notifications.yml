@@ -19,7 +19,18 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: npm ci
-      - run: npm test
+      - name: Run Node tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee npm-test.log
+      - uses: actions/upload-artifact@v7.0.1
+        if: failure()
+        with:
+          name: code28-test-diagnostics
+          path: npm-test.log
+          if-no-files-found: error
+          retention-days: 7
       - run: |
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
