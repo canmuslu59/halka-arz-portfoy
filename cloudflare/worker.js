@@ -3,6 +3,7 @@ import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { PushStateDurableObject, createDurableStore } from './durable-store.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchYahooQuote } from './yahoo-quote.js';
+import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 
 export { PushStateDurableObject };
 
@@ -48,6 +49,7 @@ export function createWorkerApp({
   createStore = env => createDurableStore(env.PUSH_STATE),
   createSender = env => createCloudflareFcmSender({ serviceAccountJson:env.FIREBASE_SERVICE_ACCOUNT_JSON }),
   fetchQuote = ticker => fetchYahooQuote(ticker),
+  fetchIpoCalendar = () => fetchCloudflareIpoCalendar(),
   marketStatus = getBistMarketStatus,
   now = () => Date.now(),
 } = {}) {
@@ -59,7 +61,7 @@ export function createWorkerApp({
       sender,
       dataSources:{
         getQuote:ticker => fetchQuote(ticker),
-        getIpoCalendar:async()=>[],
+        getIpoCalendar:() => fetchIpoCalendar(),
       },
       now:()=>date,
     });
@@ -118,17 +120,18 @@ export function createWorkerApp({
     const { store, service } = serviceFor(env, date);
     const startedAt = date.toISOString();
 
-    if (!marketStatus(date).isOpen) {
-      await store.runtimeWrite({
-        status:'market_closed',
-        startedAt,
-        finishedAt:asDate(now()).toISOString(),
-        result:null,
-      });
-      return;
-    }
-
     try {
+      const ipo = await service.ipoCheck();
+      if (!marketStatus(date).isOpen) {
+        await store.runtimeWrite({
+          status:'market_closed',
+          startedAt,
+          finishedAt:asDate(now()).toISOString(),
+          result:{ ipo },
+        });
+        return;
+      }
+
       const result = await service.marketCheck({
         maxUniqueTickers:MAX_UNIQUE_TICKERS,
         maxNotifications:MAX_NOTIFICATIONS,
@@ -137,7 +140,7 @@ export function createWorkerApp({
         status:result.partial ? 'partial' : 'checked',
         startedAt,
         finishedAt:asDate(now()).toISOString(),
-        result,
+        result:{ ...result, ipo },
       });
     } catch (error) {
       await store.runtimeWrite({
