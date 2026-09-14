@@ -2,8 +2,10 @@ import fs from 'node:fs/promises';
 
 async function replaceExact(path, from, to) {
   const original = await fs.readFile(path, 'utf8');
-  if (original.includes(to)) return false;
-  if (!original.includes(from)) throw new Error(`Expected source fragment not found in ${path}`);
+  if (!original.includes(from)) {
+    if (original.includes(to)) return false;
+    throw new Error(`Expected source fragment not found in ${path}`);
+  }
   const next = original.replace(from, to);
   if (next === original) throw new Error(`Patch made no change in ${path}`);
   await fs.writeFile(path, next);
