@@ -116,6 +116,10 @@ function permanentTokenFailure(error) {
   return error?.permanentToken === true || error?.code === 'FCM_TOKEN_INVALID';
 }
 
+function permanentTokenFailure(error) {
+  return error?.permanentToken === true || error?.code === 'FCM_TOKEN_INVALID';
+}
+
 function ipoMessage(item = {}) {
   const ticker = cleanTicker(item.ticker || item.symbol || item.code);
   const company = String(item.company || item.name || ticker).trim();

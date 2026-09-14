@@ -3,6 +3,7 @@ import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchYahooQuote } from './yahoo-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
+import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 
 const STATE_KEY = 'push-state-v1';
 const REVISION_KEY = 'push-state-revision-v1';
