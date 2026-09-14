@@ -24,6 +24,7 @@ async function loadHydrateHoldingFunction({ market, ipo }) {
   return Function('fetchMarket','fetchIpo', `
     "use strict";
     const WITHHOLDING_RATE=0.175;
+    function cleanTicker(value){return String(value||'').toUpperCase().replace(/\\.IS$/i,'').replace(/\\.E$/i,'').replace(/[^A-Z0-9]/g,'').slice(0,8);}
     function profitPct(profit,cost){return cost>0?(profit/cost)*100:0;}
     function saleWithholding(quantity,price,cost){
       const q=Number(quantity),p=Number(price),c=Number(cost);
