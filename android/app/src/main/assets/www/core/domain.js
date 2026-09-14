@@ -115,7 +115,7 @@ export function calculateHolding(holding, { today = null } = {}) {
   const totalProfit = realizedProfit == null || unrealizedProfit == null ? null : realizedProfit + unrealizedProfit;
   const totalWealth = activeValue == null ? null : activeValue + salesProceeds;
   const latestMarketDate = holding.latestMarketDate || null;
-  const sessionIsToday = !today || !latestMarketDate || latestMarketDate === today;
+  const sessionIsToday = !today || latestMarketDate === today;
   const todaySales = today ? sales.filter(sale => sale.date === today) : [];
   const soldTodayLots = todaySales.reduce((sum, sale) => sum + Number(sale.lots || 0), 0);
   const dailyBaseLots = currentLots + soldTodayLots;

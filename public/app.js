@@ -1106,7 +1106,6 @@ else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(wind
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'app.local') navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 initTheme();
-syncPushConfiguration();
 applyNavigationState(window.history.state);
 renderMarketStatus();
 loadPortfolio();

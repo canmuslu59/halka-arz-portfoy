@@ -16,6 +16,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
@@ -150,6 +151,7 @@ public class MainActivity extends ComponentActivity {
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);
         view.addJavascriptInterface(new AndroidBridge(this), "AndroidBridge");
+        view.setWebChromeClient(new WebChromeClient());
         view.setWebViewClient(new LocalAssetClient(this) {
             @Override
             public void onPageFinished(WebView webView, String url) {
