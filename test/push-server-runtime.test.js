@@ -8,12 +8,11 @@ import path from 'node:path';
 async function startServer(t) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'halka-push-'));
   const port = 31000 + Math.floor(Math.random() * 20000);
-  const child = spawn(process.execPath, ['server.js'], {
+  const child = spawn(process.execPath, ['push-server.js'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
       PORT: String(port),
-      APP_PIN: '',
       PUSH_DATA_FILE: path.join(tempDir, 'push.json'),
       PUSH_POLL_INTERVAL_MS: '60000',
       FCM_DRY_RUN: '1',
@@ -26,7 +25,7 @@ async function startServer(t) {
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`server start timeout: ${stderr}`)), 8000);
     child.stdout.on('data', chunk => {
-      if (chunk.toString().includes('Halka Arz Portföyü:')) {
+      if (chunk.toString().includes('Push backend:')) {
         clearTimeout(timer);
         resolve();
       }
