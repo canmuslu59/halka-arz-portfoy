@@ -75,10 +75,20 @@ export function profitPct(profit, cost) {
   return Number(cost) > 0 ? (Number(profit) / Number(cost)) * 100 : 0;
 }
 
+export const WITHHOLDING_RATE = 0.175;
+
 function nullableFiniteNumber(value) {
   if (value == null || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+export function saleWithholding(lots, salePrice, costPrice) {
+  const quantity = Number(lots || 0);
+  const price = Number(salePrice || 0);
+  const cost = Number(costPrice || 0);
+  if (!(quantity > 0) || !(price > 0) || !(cost > 0)) return 0;
+  return Math.max(0, quantity * (price - cost)) * WITHHOLDING_RATE;
 }
 
 export function calculateHolding(holding, { today = null } = {}) {
@@ -92,29 +102,40 @@ export function calculateHolding(holding, { today = null } = {}) {
 
   const invested = ipoPrice == null ? null : initialLots * ipoPrice;
   const activeValue = currentLots === 0 ? 0 : currentPrice == null ? null : currentLots * currentPrice;
-  const salesProceeds = sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * Number(sale.price || 0), 0);
-  const realizedProfit = ipoPrice == null
+  const grossSalesProceeds = sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * Number(sale.price || 0), 0);
+  const grossRealizedProfit = ipoPrice == null
     ? null
     : sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - ipoPrice), 0);
+  const withholdingTax = ipoPrice == null
+    ? 0
+    : sales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, ipoPrice), 0);
+  const salesProceeds = grossSalesProceeds - withholdingTax;
+  const realizedProfit = grossRealizedProfit == null ? null : grossRealizedProfit - withholdingTax;
   const unrealizedProfit = currentLots === 0 ? 0 : currentPrice == null || ipoPrice == null ? null : currentLots * (currentPrice - ipoPrice);
   const totalProfit = realizedProfit == null || unrealizedProfit == null ? null : realizedProfit + unrealizedProfit;
   const totalWealth = activeValue == null ? null : activeValue + salesProceeds;
   const latestMarketDate = holding.latestMarketDate || null;
   const sessionIsToday = !today || !latestMarketDate || latestMarketDate === today;
   const todaySales = today ? sales.filter(sale => sale.date === today) : [];
-  const soldTodayLots = todaySales.reduce((sum,sale) => sum + Number(sale.lots),0);
+  const soldTodayLots = todaySales.reduce((sum, sale) => sum + Number(sale.lots || 0), 0);
   const dailyBaseLots = currentLots + soldTodayLots;
-  const saleDayGain = previousClose == null ? null : todaySales.reduce((sum,sale) => sum + Number(sale.lots)*(Number(sale.price)-previousClose),0);
+  const saleDayGain = previousClose == null
+    ? null
+    : todaySales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - previousClose), 0);
+  const todayWithholdingTax = ipoPrice == null
+    ? 0
+    : todaySales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, ipoPrice), 0);
   const dailyProfit = !sessionIsToday
     ? 0
     : (currentLots > 0 && currentPrice == null) || previousClose == null
       ? null
-      : (currentLots === 0 ? 0 : currentLots * (currentPrice - previousClose)) + saleDayGain;
+      : (currentLots === 0 ? 0 : currentLots * (currentPrice - previousClose)) + saleDayGain - todayWithholdingTax;
+  const dailyBase = previousClose != null && dailyBaseLots > 0 ? previousClose * dailyBaseLots : 0;
   const dailyPct = !sessionIsToday
     ? 0
-    : currentPrice == null || !(previousClose > 0)
+    : dailyProfit == null || !(dailyBase > 0)
       ? null
-      : ((currentPrice - previousClose) / previousClose) * 100;
+      : (dailyProfit / dailyBase) * 100;
 
   return {
     ...holding,
@@ -128,8 +149,11 @@ export function calculateHolding(holding, { today = null } = {}) {
     sales,
     invested,
     activeValue,
+    grossSalesProceeds,
+    withholdingTax,
     salesProceeds,
     totalWealth,
+    grossRealizedProfit,
     realizedProfit,
     unrealizedProfit,
     totalProfit,
@@ -142,7 +166,7 @@ export function calculateHolding(holding, { today = null } = {}) {
 }
 
 export function calculateTotals(holdings) {
-  const keys = ['invested', 'activeValue', 'salesProceeds', 'totalWealth', 'totalProfit', 'realizedProfit', 'unrealizedProfit', 'dailyProfit'];
+  const keys = ['invested', 'activeValue', 'grossSalesProceeds', 'withholdingTax', 'salesProceeds', 'totalWealth', 'totalProfit', 'grossRealizedProfit', 'realizedProfit', 'unrealizedProfit', 'dailyProfit'];
   const totals = Object.fromEntries(keys.map(key => [key, 0]));
   let activePositionCount = 0;
   let missingActiveValueCount = 0;
@@ -219,7 +243,7 @@ function historyStateOnDate(holding, date) {
   for (const sale of normalizedSales(holding)) {
     if (sale.date > date) break;
     soldLots += sale.lots;
-    proceeds += sale.lots * sale.price;
+    proceeds += sale.lots * sale.price - saleWithholding(sale.lots, sale.price, ipoPrice);
   }
   const activeLots = Math.max(0, initialLots - soldLots);
   if (close == null && activeLots > 0) return null;
