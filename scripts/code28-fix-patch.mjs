@@ -57,3 +57,16 @@ await replaceExact(
   `        result,\n      });`,
   `        result:{ ...result, ipo },\n      });`,
 );
+
+// Issue 4: permanently invalid FCM registrations are removed and do not consume delivery budget.
+await replaceExact(
+  'backend/service.js',
+  `function ipoMessage(item = {}) {`,
+  `function permanentTokenFailure(error) {\n  return error?.permanentToken === true || error?.code === 'FCM_TOKEN_INVALID';\n}\n\nfunction ipoMessage(item = {}) {`,
+);
+
+await replaceExact(
+  'backend/service.js',
+  `      let delivered = registration.alertState ?? null;\n      let changed = false;\n\n      for (const event of evaluated.events) {\n        if (notificationAttempts >= notificationBudget) {\n          notificationBudgetReached = true;\n          break;\n        }\n        notificationAttempts += 1;\n        try {\n          await sender.send(registration.fcmToken, notificationForAlert(event));\n          delivered = deliveredStateAfter(delivered, day, event);\n          changed = true;\n          sent += 1;\n        } catch {\n          failed += 1;\n        }\n      }\n\n      if (changed) {`,
+  `      let delivered = registration.alertState ?? null;\n      let changed = false;\n      let invalidRegistration = false;\n\n      for (const event of evaluated.events) {\n        if (notificationAttempts >= notificationBudget) {\n          notificationBudgetReached = true;\n          break;\n        }\n        notificationAttempts += 1;\n        try {\n          await sender.send(registration.fcmToken, notificationForAlert(event));\n          delivered = deliveredStateAfter(delivered, day, event);\n          changed = true;\n          sent += 1;\n        } catch (error) {\n          failed += 1;\n          if (permanentTokenFailure(error)) {\n            notificationAttempts = Math.max(0, notificationAttempts - 1);\n            invalidRegistration = true;\n            await store.mutate(state => {\n              if (state.installations) delete state.installations[registration.installId];\n            });\n            break;\n          }\n        }\n      }\n\n      if (invalidRegistration) {\n        notificationBudgetReached = false;\n        continue;\n      }\n\n      if (changed) {`,
+);
