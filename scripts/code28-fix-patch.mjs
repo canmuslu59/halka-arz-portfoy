@@ -10,6 +10,7 @@ async function replaceExact(path, from, to) {
   return true;
 }
 
+// Issue 2: never fabricate a previous close from the current-session tick.
 const parserBefore = `  const previousClose = Number.isFinite(meta.previousClose) ? meta.previousClose\n    : previousRow?.close\n      ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : lastClose);`;
 const parserAfter = `  const previousClose = Number.isFinite(meta.previousClose) ? meta.previousClose\n    : previousRow?.close\n      ?? (Number.isFinite(meta.chartPreviousClose) ? meta.chartPreviousClose : null);`;
 
@@ -26,4 +27,33 @@ await replaceExact(
   `        if (!Double.isFinite(previousClose)) previousClose = chartPreviousClose;\n        if (!(current > 0) || !(previousClose > 0)) throw new IllegalStateException("Eksik fiyat verisi.");`,
 );
 
-// Issue 2 verification marker: production sources now reject fabricated previous closes.
+// Issue 3: IPO identities include the offer window, so a ticker can be offered again without being suppressed.
+await replaceExact(
+  'backend/service.js',
+  `      || item.subscriptionPeriod\n      || item.dates`,
+  `      || item.subscriptionPeriod\n      || item.offerDates\n      || item.dates`,
+);
+
+await replaceExact(
+  'cloudflare/durable-store.js',
+  `import { fetchYahooQuote } from './yahoo-quote.js';`,
+  `import { fetchYahooQuote } from './yahoo-quote.js';\nimport { fetchCloudflareIpoCalendar } from './ipo-calendar.js';`,
+);
+
+await replaceExact(
+  'cloudflare/durable-store.js',
+  `          getQuote:ticker => fetchYahooQuote(ticker),\n          getIpoCalendar:async()=>[],`,
+  `          getQuote:ticker => fetchYahooQuote(ticker),\n          getIpoCalendar:() => fetchCloudflareIpoCalendar(),`,
+);
+
+await replaceExact(
+  'cloudflare/durable-store.js',
+  `    try {\n      if (!status.isOpen) {\n        await store.runtimeWrite({\n          status:'market_closed',\n          startedAt:started.toISOString(),\n          finishedAt:new Date().toISOString(),\n          result:null,\n        });\n        return;\n      }\n\n      const sender = createCloudflareFcmSender({\n        serviceAccountJson:this.env.FIREBASE_SERVICE_ACCOUNT_JSON,\n      });\n      const service = createPushService({\n        store,\n        sender,\n        dataSources:{\n          getQuote:ticker => fetchYahooQuote(ticker),\n          getIpoCalendar:() => fetchCloudflareIpoCalendar(),\n        },\n        now:()=>started,\n      });\n      const result = await service.marketCheck({`,
+  `    try {\n      const sender = createCloudflareFcmSender({\n        serviceAccountJson:this.env.FIREBASE_SERVICE_ACCOUNT_JSON,\n      });\n      const service = createPushService({\n        store,\n        sender,\n        dataSources:{\n          getQuote:ticker => fetchYahooQuote(ticker),\n          getIpoCalendar:() => fetchCloudflareIpoCalendar(),\n        },\n        now:()=>started,\n      });\n      const ipo = await service.ipoCheck();\n      if (!status.isOpen) {\n        await store.runtimeWrite({\n          status:'market_closed',\n          startedAt:started.toISOString(),\n          finishedAt:new Date().toISOString(),\n          result:{ ipo },\n        });\n        return;\n      }\n\n      const result = await service.marketCheck({`,
+);
+
+await replaceExact(
+  'cloudflare/durable-store.js',
+  `        result,\n      });`,
+  `        result:{ ...result, ipo },\n      });`,
+);
