@@ -1,6 +1,15 @@
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const DEFAULT_TOKEN_URI = 'https://oauth2.googleapis.com/token';
 
+export class PermanentFcmTokenError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'PermanentFcmTokenError';
+    this.code = 'FCM_TOKEN_INVALID';
+    this.permanentToken = true;
+  }
+}
+
 function parseAccount(value) {
   if (!value) return null;
   if (typeof value === 'string') {
@@ -77,7 +86,15 @@ async function signedAssertion(account, cryptoImpl, nowMs) {
 }
 
 async function readError(response) {
-  try { return (await response.text()).slice(0, 500); } catch { return ''; }
+  try { return (await response.text()).slice(0, 2000); } catch { return ''; }
+}
+
+function permanentTokenFailure(status, detail) {
+  const text = String(detail || '');
+  if (/"errorCode"\s*:\s*"UNREGISTERED"/i.test(text)) return true;
+  if (/registration token is not a valid fcm registration token/i.test(text)) return true;
+  if (/requested entity was not found/i.test(text) && Number(status) === 404) return true;
+  return false;
 }
 
 export function createCloudflareFcmSender({
@@ -148,7 +165,11 @@ export function createCloudflareFcmSender({
       },
     );
     if (!response?.ok) {
-      throw new Error(`FCM send failed (${response?.status || 'unknown'}): ${await readError(response)}`);
+      const detail = await readError(response);
+      if (permanentTokenFailure(response?.status, detail)) {
+        throw new PermanentFcmTokenError(`FCM token is no longer registered: ${detail}`);
+      }
+      throw new Error(`FCM send failed (${response?.status || 'unknown'}): ${detail}`);
     }
     return response.json();
   }
