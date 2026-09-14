@@ -103,3 +103,30 @@ test('Worker FCM sender rejects incomplete service account before delivery', asy
     assert.equal(calls, 0);
   }
 });
+
+test('Worker FCM sender marks an UNREGISTERED response as a permanent token failure', async () => {
+  const account = await serviceAccount();
+  const sender = createCloudflareFcmSender({
+    serviceAccountJson:account,
+    cryptoImpl:webcrypto,
+    now:()=>Date.parse('2026-09-14T10:00:00Z'),
+    fetchImpl:async url => {
+      if (String(url) === account.token_uri) {
+        return new Response(JSON.stringify({access_token:'access-token',expires_in:3600}), {status:200});
+      }
+      return new Response(JSON.stringify({
+        error:{
+          code:404,
+          status:'NOT_FOUND',
+          message:'Requested entity was not found.',
+          details:[{'@type':'type.googleapis.com/google.firebase.fcm.v1.FcmError',errorCode:'UNREGISTERED'}],
+        },
+      }), {status:404,headers:{'content-type':'application/json'}});
+    },
+  });
+
+  await assert.rejects(
+    () => sender.send('expired-token', {title:'x',body:'y',data:{kind:'portfolio'}}),
+    error => error?.permanentToken === true && error?.code === 'FCM_TOKEN_INVALID',
+  );
+});
