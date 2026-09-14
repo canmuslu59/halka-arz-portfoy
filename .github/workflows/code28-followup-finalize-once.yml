@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           git config user.name "canmuslu59"
           git config user.email "301077922+canmuslu59@users.noreply.github.com"
-          git add public/app.js public/core/domain.js public/core/parsers.js android/app/src/main/assets/www test/android-background-parser-regression.test.js test/code28-followup-four-regressions.test.js
+          git add public/app.js public/core/domain.js public/core/parsers.js public/core/gedik-calendar.js public/core/portfolio-service.js android/app/src/main/assets/www test/android-background-parser-regression.test.js test/code28-followup-four-regressions.test.js
           git diff --cached --quiet && { echo 'No finalization changes'; exit 1; }
           git commit -m "fix: harden Code28 follow-up behavior"
           git push origin HEAD:fix/code28-seven-issues-20260914
