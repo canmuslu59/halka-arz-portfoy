@@ -3,6 +3,11 @@
   "name": "halka-arz-portfoy-push",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-09-14",
+  "d1_databases": [
+    {
+      "binding": "DB"
+    }
+  ],
   "triggers": {
     "crons": ["*/2 * * * *"]
   }
