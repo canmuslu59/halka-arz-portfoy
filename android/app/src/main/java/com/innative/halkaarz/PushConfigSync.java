@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,6 +19,7 @@ final class PushConfigSync {
     static final String TOKEN_KEY = "push_fcm_token_v1";
     static final String CONFIG_KEY = "push_config_v1";
     static final String MONITORING_SINCE_KEY = "push_monitoring_since_v1";
+    static final String SYNCED_FINGERPRINT_KEY = "push_synced_fingerprint_v1";
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(
             runnable -> new Thread(runnable, "push-config-sync")
     );
@@ -47,11 +49,14 @@ final class PushConfigSync {
             SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             String nextConfig = safe.toString();
             String previousConfig = prefs.getString(CONFIG_KEY, "");
-            if (nextConfig.equals(previousConfig)) return;
+            if (nextConfig.equals(previousConfig)) {
+                ensureSynced(context);
+                return;
+            }
 
             prefs.edit().putString(CONFIG_KEY, nextConfig).putLong(MONITORING_SINCE_KEY, System.currentTimeMillis()).apply();
             BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true) || safe.optBoolean("ipoEnabled", true));
-            syncAsync(context);
+            ensureSynced(context);
         } catch (Exception ignored) {}
     }
 
@@ -62,10 +67,36 @@ final class PushConfigSync {
 
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String previousToken = prefs.getString(TOKEN_KEY, "");
-        if (safeToken.equals(previousToken)) return;
+        if (safeToken.equals(previousToken)) {
+            ensureSynced(context);
+            return;
+        }
 
         prefs.edit().putString(TOKEN_KEY, safeToken).apply();
+        ensureSynced(context);
+    }
+
+    static void ensureSynced(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String token = prefs.getString(TOKEN_KEY, "");
+        String config = prefs.getString(CONFIG_KEY, "");
+        if (token == null || token.isEmpty() || config == null || config.isEmpty()) return;
+        String fingerprint = registrationFingerprint(token, config);
+        if (fingerprint.equals(prefs.getString(SYNCED_FINGERPRINT_KEY, ""))) return;
         syncAsync(context);
+    }
+
+    static String registrationFingerprint(String token, String config) {
+        String source = String.valueOf(token) + "\n" + String.valueOf(config);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(source.getBytes("UTF-8"));
+            StringBuilder result = new StringBuilder(bytes.length * 2);
+            for (byte value : bytes) result.append(String.format("%02x", value & 0xff));
+            return result.toString();
+        } catch (Exception ignored) {
+            return source;
+        }
     }
 
     static void syncAsync(Context context) {
@@ -80,6 +111,7 @@ final class PushConfigSync {
         String token = prefs.getString(TOKEN_KEY, "");
         String config = prefs.getString(CONFIG_KEY, "");
         if (token == null || token.isEmpty() || config == null || config.isEmpty()) return;
+        String fingerprint = registrationFingerprint(token, config);
         HttpURLConnection connection = null;
         try {
             JSONObject configObject = new JSONObject(config);
@@ -98,7 +130,10 @@ final class PushConfigSync {
             byte[] bytes = body.toString().getBytes("UTF-8");
             connection.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream output = connection.getOutputStream()) { output.write(bytes); }
-            connection.getResponseCode();
+            int responseCode = connection.getResponseCode();
+            if (responseCode >= 200 && responseCode < 300) {
+                prefs.edit().putString(SYNCED_FINGERPRINT_KEY, fingerprint).apply();
+            }
         } catch (Exception ignored) {
         } finally {
             if (connection != null) connection.disconnect();
