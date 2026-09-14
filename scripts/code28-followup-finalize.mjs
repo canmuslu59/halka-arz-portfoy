@@ -75,6 +75,45 @@ function replaceOnce(source, before, after, label) {
   await write(path, source);
 }
 
+// Remove Array.at() from the Gedik calendar parser.
+{
+  const path = 'public/core/gedik-calendar.js';
+  let source = await read(path);
+  source = replaceOnce(source,
+    '  return `${days[0]}-${days.at(-1)} ${match[2]}`;',
+    '  return `${days[0]}-${days[days.length - 1]} ${match[2]}`;',
+    'Gedik last offer day');
+  await write(path, source);
+}
+
+// Remove Array.at() from portfolio history/quote hydration paths.
+{
+  const path = 'public/core/portfolio-service.js';
+  let source = await read(path);
+  source = replaceOnce(source,
+`  const priorRecentDate = latestMarketDate
+    ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort().at(-1) || null
+    : null;`,
+`  const priorRecentDates = latestMarketDate
+    ? validRecentRows.filter(row => row.date < latestMarketDate).map(row => row.date).sort()
+    : [];
+  const priorRecentDate = priorRecentDates.length ? priorRecentDates[priorRecentDates.length - 1] : null;`,
+    'portfolio prior recent date');
+  source = replaceOnce(source,
+    '    const quoteLatestMarketDate = quote.latestMarketDate || quoteHistory.at(-1)?.date || null;',
+    '    const quoteLatestMarketDate = quote.latestMarketDate || (quoteHistory.length ? quoteHistory[quoteHistory.length - 1]?.date : null) || null;',
+    'portfolio quote latest date');
+  source = replaceOnce(source,
+    '    const latestMarketDate = quoteLatestMarketDate || history.at(-1)?.date || null;',
+    '    const latestMarketDate = quoteLatestMarketDate || (history.length ? history[history.length - 1]?.date : null) || null;',
+    'portfolio history latest date');
+  source = replaceOnce(source,
+    '    const lastHistory = history.at(-1);',
+    '    const lastHistory = history.length ? history[history.length - 1] : null;',
+    'portfolio last history');
+  await write(path, source);
+}
+
 // Update stale regression: scheduling is independent, but startup must not overwrite saved config with [].
 {
   const path = 'test/android-background-parser-regression.test.js';
