@@ -3,9 +3,18 @@
   "name": "halka-arz-portfoy-push",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-09-14",
-  "d1_databases": [
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PUSH_STATE",
+        "class_name": "PushStateDurableObject"
+      }
+    ]
+  },
+  "migrations": [
     {
-      "binding": "DB"
+      "tag": "v1",
+      "new_sqlite_classes": ["PushStateDurableObject"]
     }
   ],
   "triggers": {
