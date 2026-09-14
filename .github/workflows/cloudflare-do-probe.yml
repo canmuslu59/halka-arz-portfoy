@@ -1,0 +1,54 @@
+name: Cloudflare Durable Object Probe
+on:
+  push:
+    branches: [fix/code28-signed-portfolio-alerts-20260914]
+    paths:
+      - 'cloudflare/do-probe.js'
+      - 'wrangler-do-probe.jsonc'
+      - '.github/workflows/cloudflare-do-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Deploy temporary Durable Object probe
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx -y wrangler@4.131.1 deploy --temporary --config wrangler-do-probe.jsonc 2>&1 | tee /tmp/do-probe.log
+          CLAIM_URL="$(grep -Eo 'https://dash\.cloudflare\.com/claim-preview\?claimToken=[^[:space:]]+' /tmp/do-probe.log | tail -1)"
+          WORKER_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/do-probe.log | tail -1)"
+          test -n "$CLAIM_URL"
+          test -n "$WORKER_URL"
+          echo "claim_url=$CLAIM_URL" >> "$GITHUB_OUTPUT"
+          echo "worker_url=$WORKER_URL" >> "$GITHUB_OUTPUT"
+      - name: Verify durable persistence
+        shell: bash
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        run: |
+          set -euo pipefail
+          first="$(curl --fail --silent --show-error "$WORKER_URL/")"
+          second="$(curl --fail --silent --show-error "$WORKER_URL/")"
+          test "$first" = "1"
+          test "$second" = "2"
+      - name: Save claim details
+        shell: bash
+        env:
+          CLAIM_URL: ${{ steps.deploy.outputs.claim_url }}
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        run: |
+          printf 'worker_url=%s\nclaim_url=%s\n' "$WORKER_URL" "$CLAIM_URL" > cloudflare-do-probe.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: cloudflare-do-probe
+          path: cloudflare-do-probe.txt
+          retention-days: 1
