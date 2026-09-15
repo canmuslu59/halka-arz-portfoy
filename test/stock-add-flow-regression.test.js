@@ -7,6 +7,7 @@ const css = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'u
 const androidApp = fs.readFileSync(new URL('../android/app/src/main/assets/www/app.js', import.meta.url), 'utf8');
 const androidCss = fs.readFileSync(new URL('../android/app/src/main/assets/www/styles.css', import.meta.url), 'utf8');
 const androidManifest = fs.readFileSync(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8');
+const mainActivity = fs.readFileSync(new URL('../android/app/src/main/java/com/innative/halkaarz/MainActivity.java', import.meta.url), 'utf8');
 
 test('closing add sheet skips stale duplicate add-sheet history entries', () => {
   assert.match(app, /let closingAddSheetHistory = false;/);
@@ -30,11 +31,16 @@ test('add sheet follows the visual viewport so the keyboard cannot cover ticker 
   assert.match(app, /window\.visualViewport/);
   assert.match(app, /--keyboard-inset/);
   assert.match(app, /visualViewport\?\.addEventListener\('resize', syncKeyboardInset/);
-  assert.match(css, /#addSheet\{bottom:var\(--keyboard-inset,0px\);max-height:calc\(92dvh - var\(--keyboard-inset,0px\)\)\}/);
 });
 
-test('Android activity uses adjustResize so WebView receives IME viewport changes', () => {
+test('Android activity uses adjustResize so WebView receives IME viewport changes where supported', () => {
   assert.match(androidManifest, /<activity[\s\S]*android:name="com\.innative\.halkaarz\.MainActivity"[\s\S]*android:windowSoftInputMode="adjustResize"/);
+});
+
+test('Android native IME inset is delivered to CSS and only the add sheet consumes the fallback', () => {
+  assert.match(mainActivity, /WindowInsetsCompat\.Type\.ime\(\)/);
+  assert.match(mainActivity, /--android-ime-bottom/);
+  assert.match(css, /#addSheet\{bottom:max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\);max-height:calc\(92dvh - max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\)\)\}/);
 });
 
 test('Android packaged assets exactly mirror the verified web source', () => {
