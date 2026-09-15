@@ -1,0 +1,53 @@
+name: Code29 Market Reference Verify Once
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code29-market-reference-verify-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code28-seven-issues-20260914
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run all regressions
+        run: npm test
+      - name: Verify packaged web assets are synchronized
+        run: diff -qr public android/app/src/main/assets/www
+      - name: Live trusted-reference smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { fetchTrustedMarketReference } from './cloudflare/market-quote.js';
+          const reference = await fetchTrustedMarketReference('VEYAS', { now:() => Date.now() });
+          if (!reference) throw new Error('VEYAS trusted reference unavailable');
+          if (!(reference.previousClose > 0 && reference.floorPrice > 0 && reference.ceilingPrice > reference.floorPrice)) {
+            throw new Error('VEYAS trusted reference invalid');
+          }
+          console.log(JSON.stringify({ ticker:reference.ticker, source:reference.source, previousClose:reference.previousClose, floorPrice:reference.floorPrice, ceilingPrice:reference.ceilingPrice }));
+          NODE
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK 36
+        run: /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Compile release Java
+        run: gradle -p android --no-daemon compileReleaseJavaWithJavac
