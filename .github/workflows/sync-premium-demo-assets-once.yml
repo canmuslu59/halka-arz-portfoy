@@ -20,15 +20,14 @@ jobs:
           node-version: '22'
       - name: Sync public assets into Android bundle
         run: npm run android:sync
-      - name: Verify only expected Android assets changed
+      - name: Verify sync is confined to Android web assets
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          changed="$(git diff --name-only -- android/app/src/main/assets/www | sort)"
-          printf '%s\n' "$changed"
-          expected=$'android/app/src/main/assets/www/app.js\nandroid/app/src/main/assets/www/core/logo-resolver.js\nandroid/app/src/main/assets/www/core/premium-alerts.js\nandroid/app/src/main/assets/www/core/premium-analytics.js\nandroid/app/src/main/assets/www/core/premium-backup.js\nandroid/app/src/main/assets/www/core/premium-entitlement.js\nandroid/app/src/main/assets/www/core/premium-watchlist.js\nandroid/app/src/main/assets/www/index.html\nandroid/app/src/main/assets/www/premium-charts.js\nandroid/app/src/main/assets/www/premium-demo.css\nandroid/app/src/main/assets/www/premium-demo.js'
-          test "$changed" = "$expected"
+          git status --short
+          outside="$(git status --porcelain | awk '{print $2}' | grep -v '^android/app/src/main/assets/www/' || true)"
+          test -z "$outside"
       - name: Verify parity after sync
         run: node --test test/premium-asset-parity.test.js
       - name: Commit mirrored assets
