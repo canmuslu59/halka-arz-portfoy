@@ -28,19 +28,23 @@ test('Premium overlay is viewport-sized and visually independent from the normal
 });
 
 test('Premium landing communicates the requested value proposition with six large destinations', () => {
-  assert.match(premium, /Premium’u Keşfet/);
-  assert.match(premium, /Gelişmiş grafikler, akıllı alarmlar, Halka Arz Pro ve portföy analizleri\./);
-  for (const label of ['Gelişmiş Grafikler', 'Akıllı Alarmlar', 'Halka Arz Pro', 'Portföy Analizi', 'Takip Listesi', 'Yedekleme & Aktarım']) {
-    assert.match(premium, new RegExp(label));
+  assert.match(index, /Premium’u Keşfet/);
+  assert.match(index, /Gelişmiş grafikler, akıllı alarmlar, Halka Arz Pro ve portföy analizleri\./);
+  for (const label of ['Gelişmiş Grafikler', 'Akıllı Alarmlar', 'Halka Arz Pro', 'Portföy Analizi', 'Takip Listesi']) {
+    assert.match(index, new RegExp(label));
   }
+  assert.match(index, /Yedekleme\s*&amp;\s*Aktarım/);
   for (const ticker of ['ASELS', 'THYAO', 'TUPRS', 'BIMAS', 'KCHOL']) {
-    assert.match(premium, new RegExp(ticker));
+    assert.match(index, new RegExp(ticker));
   }
 });
 
-test('Premium analytics contains a real-data allocation donut contract', () => {
-  assert.match(premium, /premium-allocation-donut/);
-  assert.match(premium, /conic-gradient/);
+test('Premium landing contains a real-data allocation donut contract', () => {
+  assert.match(index, /premium-allocation-donut/);
+  assert.match(app, /premiumAllocationSegments/);
+  assert.match(app, /activeValue/);
+  assert.match(app, /conic-gradient/);
+  assert.match(css, /\.premium-allocation-donut/);
 });
 
 test('Premium membership stays explicitly test-only with requested example pricing', () => {
@@ -50,7 +54,8 @@ test('Premium membership stays explicitly test-only with requested example prici
   assert.match(premium, /Premium Test Aktif/i);
 });
 
-test('Premium APK workflow remains isolated and every build cycle stays below 25 minutes', () => {
+test('Premium APK workflow applies the isolated transform before tests and stays below 25 minutes', () => {
+  assert.match(workflow, /node scripts\/apply-premium-fullscreen-demo\.mjs/);
   assert.match(workflow, /applicationIdSuffix '\.premiumtest'/);
   assert.match(workflow, /Halka Arz Premium Test/);
   const timeout = workflow.match(/timeout-minutes:\s*(\d+)/);
