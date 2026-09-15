@@ -16,8 +16,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Patch only Premium entry integration
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           from pathlib import Path
 
           app = Path('public/app.js')
@@ -41,7 +43,7 @@ jobs:
               catch { return false; }
             },
           });
-"""
+          """
           assert text.count(old_init) == 1
           text = text.replace(old_init, new_init, 1)
 
@@ -49,7 +51,7 @@ jobs:
             state.proAccess = proAccess.getState();
             const root = $('#proContent');
             if (!root) return;
-"""
+          """
           new_render = """function renderProView({ selectedTicker = null } = {}) {
             const root = $('#proContent');
             if (!root) return;
@@ -63,7 +65,7 @@ jobs:
               return;
             }
             state.proAccess = proAccess.getState();
-"""
+          """
           assert text.count(old_render) == 1
           text = text.replace(old_render, new_render, 1)
           app.write_text(text)
@@ -80,6 +82,7 @@ jobs:
           assert html.count('<span class="pro-badge">7 gün ücretsiz</span>') == 1
           html = html.replace('<span class="pro-badge">7 gün ücretsiz</span>', '<span class="pro-badge">Tümü açık · Demo</span>', 1)
           index.write_text(html)
+          PY
       - name: Verify patch scope
         shell: bash
         run: |
