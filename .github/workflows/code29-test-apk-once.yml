@@ -76,9 +76,11 @@ jobs:
             "configuration_version": "1"
           }
           JSON
-      - uses: android-actions/setup-android@v4
-      - name: Install Android SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Install Android SDK 36 on hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v6.3.0
         with:
           gradle-version: '8.11.1'
