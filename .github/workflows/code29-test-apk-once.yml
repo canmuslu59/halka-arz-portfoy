@@ -1,0 +1,122 @@
+name: Code29 Verified Test APK Once
+
+on:
+  push:
+    branches: [fix/background-market-alert-20260915]
+    paths:
+      - .github/workflows/code29-test-apk-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+      - name: Verify focused regressions
+        run: node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js
+      - name: Run complete regression suite
+        run: npm test
+      - name: Verify Code29 identity and synchronized assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq "applicationId ['\"]com\.innative\.halkaarz['\"]" android/app/build.gradle
+          grep -Eq 'versionCode[[:space:]]+29' android/app/build.gradle
+          grep -Eq "versionName ['\"]2\.4\.6['\"]" android/app/build.gradle
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+      - name: Inject Firebase Android config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "968125285231",
+              "project_id": "halka-arz-portfoyum",
+              "storage_bucket": "halka-arz-portfoyum.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:968125285231:android:5ae1a56cda03651d639e9a",
+                  "android_client_info": {
+                    "package_name": "com.innative.halkaarz"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyBy0VbS3g2IPTKXqtMSpb7k3M2tdZ7eX_8"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Compile debug Java
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
+      - name: Build configured debug APK
+        run: gradle -p android --no-daemon assembleDebug
+      - name: Verify and package APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          /usr/local/lib/android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" | tee apk-signature.txt
+          /usr/local/lib/android/sdk/build-tools/36.0.0/aapt dump badging "$APK" | tee apk-badging.txt
+          grep -F "package: name='com.innative.halkaarz' versionCode='29' versionName='2.4.6'" apk-badging.txt
+          unzip -p "$APK" classes.dex | strings | grep -F "$PUSH_BACKEND_URL"
+          mkdir -p dist
+          cp "$APK" dist/halka-arz-portfoyum-v2.4.6-code29-test.apk
+          sha256sum dist/halka-arz-portfoyum-v2.4.6-code29-test.apk > dist/SHA256SUMS.txt
+          {
+            echo "versionName=2.4.6"
+            echo "versionCode=29"
+            echo "package=com.innative.halkaarz"
+            echo "sourceCommit=${GITHUB_SHA}"
+            echo "backend=${PUSH_BACKEND_URL}"
+            echo "variant=debug-test"
+          } > dist/BUILD-INFO.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code29-verified-test-apk
+          path: |
+            dist/halka-arz-portfoyum-v2.4.6-code29-test.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            apk-signature.txt
+            apk-badging.txt
+          if-no-files-found: error
+          retention-days: 7
