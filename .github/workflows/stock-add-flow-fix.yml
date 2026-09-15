@@ -1,0 +1,201 @@
+name: Stock add flow isolated fix
+
+on:
+  push:
+    branches:
+      - fix/stock-add-flow-20260915
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Add focused regression test and prove it fails first
+        shell: bash
+        run: |
+          cat > test/stock-add-flow-regression.test.js <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+
+          const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+          const css = fs.readFileSync(new URL('../public/styles.css', import.meta.url), 'utf8');
+          const androidApp = fs.readFileSync(new URL('../android/app/src/main/assets/www/app.js', import.meta.url), 'utf8');
+          const androidCss = fs.readFileSync(new URL('../android/app/src/main/assets/www/styles.css', import.meta.url), 'utf8');
+
+          test('closing add sheet skips stale duplicate add-sheet history entries', () => {
+            assert.match(app, /let closingAddSheetHistory = false;/);
+            assert.match(app, /closingAddSheetHistory && nav\?\.sheet === '#addSheet'/);
+            assert.match(app, /if \(currentSheet === '#addSheet'\) closingAddSheetHistory = true;/);
+          });
+
+          test('opening add sheet is idempotent and does not reset or repush an already-open add sheet', () => {
+            assert.match(app, /const addSheet = \$\('#addSheet'\);/);
+            assert.match(app, /window\.history\.state\?\.sheet === '#addSheet' \|\| addSheet\?\.hidden === false/);
+            assert.match(app, /if \(addSheet\?\.hidden !== false\) showSheet\('#addSheet'\);/);
+          });
+
+          test('add form suppresses duplicate submits while save is in flight', () => {
+            assert.match(app, /if \(addForm\.dataset\.saving === 'true'\) return;/);
+            assert.match(app, /addForm\.dataset\.saving = 'true';/);
+            assert.match(app, /addForm\.dataset\.saving = 'false';/);
+          });
+
+          test('add sheet follows the visual viewport so the keyboard cannot cover ticker input', () => {
+            assert.match(app, /window\.visualViewport/);
+            assert.match(app, /--keyboard-inset/);
+            assert.match(app, /visualViewport\?\.addEventListener\('resize', syncKeyboardInset/);
+            assert.match(css, /#addSheet\{bottom:var\(--keyboard-inset,0px\);max-height:calc\(92dvh - var\(--keyboard-inset,0px\)\)\}/);
+          });
+
+          test('Android packaged assets exactly mirror the verified web source', () => {
+            assert.equal(androidApp, app);
+            assert.equal(androidCss, css);
+          });
+          EOF
+
+          set +e
+          node --test test/stock-add-flow-regression.test.js
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'Regression test unexpectedly passed before the fix.' >&2
+            exit 1
+          fi
+          echo 'RED confirmed: current stock-add flow fails the focused regression contract.'
+
+      - name: Apply minimal stock-add UI fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('public/app.js')
+          text = path.read_text(encoding='utf-8')
+
+          old = """function closeSheets({ useHistory = true } = {}) {
+            hideSheets();
+            if (useHistory && window.history.state?.sheet) window.history.back();
+          }
+
+          function applyNavigationState(nav) {
+            switchView(nav?.view || 'portfolio', { push:false, selectedTicker:nav?.selectedTicker || null });
+          """
+          new = """let closingAddSheetHistory = false;
+          function closeSheets({ useHistory = true } = {}) {
+            const currentSheet = window.history.state?.sheet || null;
+            hideSheets();
+            if (useHistory && currentSheet) {
+              if (currentSheet === '#addSheet') closingAddSheetHistory = true;
+              window.history.back();
+            }
+          }
+
+          function applyNavigationState(nav) {
+            if (closingAddSheetHistory && nav?.sheet === '#addSheet') {
+              window.history.back();
+              return;
+            }
+            closingAddSheetHistory = false;
+            switchView(nav?.view || 'portfolio', { push:false, selectedTicker:nav?.selectedTicker || null });
+          """
+          assert text.count(old) == 1, 'close/apply navigation block changed unexpectedly'
+          text = text.replace(old, new)
+
+          old = """$('#addForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const addForm = event.currentTarget;
+            const btn = $('#addSubmit');
+          """
+          new = """$('#addForm').addEventListener('submit', async event => {
+            event.preventDefault();
+            const addForm = event.currentTarget;
+            if (addForm.dataset.saving === 'true') return;
+            addForm.dataset.saving = 'true';
+            const btn = $('#addSubmit');
+          """
+          assert text.count(old) == 1, 'add submit start changed unexpectedly'
+          text = text.replace(old, new)
+
+          old = """  finally { btn.disabled = false; btn.textContent = 'Otomatik bul ve ekle'; }
+          });
+          """
+          new = """  finally { addForm.dataset.saving = 'false'; btn.disabled = false; btn.textContent = 'Otomatik bul ve ekle'; }
+          });
+          """
+          assert text.count(old) == 1, 'add submit finally block changed unexpectedly'
+          text = text.replace(old, new)
+
+          old = """function openAddSheet({ push = true } = {}) {
+            resetAddEntryForm();
+            openSheet('#addSheet', {}, { push });
+            setTimeout(() => $('#tickerInput').focus(),100);
+          }
+          """
+          new = """function openAddSheet({ push = true } = {}) {
+            const addSheet = $('#addSheet');
+            if (push && (window.history.state?.sheet === '#addSheet' || addSheet?.hidden === false)) {
+              if (addSheet?.hidden !== false) showSheet('#addSheet');
+              setTimeout(() => $('#tickerInput')?.focus(), 100);
+              return;
+            }
+            resetAddEntryForm();
+            openSheet('#addSheet', {}, { push });
+            setTimeout(() => $('#tickerInput')?.focus(),100);
+          }
+
+          function syncKeyboardInset() {
+            const viewport = window.visualViewport;
+            const inset = viewport
+              ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+              : 0;
+            document.documentElement.style.setProperty('--keyboard-inset', `${Math.round(inset)}px`);
+          }
+          window.visualViewport?.addEventListener('resize', syncKeyboardInset, { passive:true });
+          window.visualViewport?.addEventListener('scroll', syncKeyboardInset, { passive:true });
+          syncKeyboardInset();
+          """
+          assert text.count(old) == 1, 'openAddSheet block changed unexpectedly'
+          text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+
+          css_path = Path('public/styles.css')
+          css = css_path.read_text(encoding='utf-8')
+          marker = "#addSheet{bottom:var(--keyboard-inset,0px);max-height:calc(92dvh - var(--keyboard-inset,0px))}"
+          assert marker not in css, 'keyboard rule already present unexpectedly'
+          css = css.rstrip() + "\n\n/* Keep the stock-add sheet above the on-screen keyboard. */\n" + marker + "\n"
+          css_path.write_text(css, encoding='utf-8')
+          PY
+
+          npm run android:sync
+
+      - name: Run focused stock-add tests
+        run: node --test test/stock-add-flow-regression.test.js test/navigation-contract.test.js test/portfolio-service.test.js
+
+      - name: Run full regression suite
+        run: npm test
+
+      - name: Verify clean patch and commit
+        shell: bash
+        run: |
+          git diff --check
+          git status --short
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/app.js public/styles.css android/app/src/main/assets/www/app.js android/app/src/main/assets/www/styles.css test/stock-add-flow-regression.test.js
+          git commit -m 'fix: isolate stock add sheet flow'
+          git push origin HEAD:fix/stock-add-flow-20260915
