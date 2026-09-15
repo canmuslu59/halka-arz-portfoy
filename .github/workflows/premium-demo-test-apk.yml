@@ -3,7 +3,10 @@ name: Premium Demo Test APK
 on:
   push:
     branches: [feature/premium-demo-20260915]
-    paths: [.github/workflows/premium-demo-test-apk.yml]
+    paths:
+      - .github/workflows/premium-demo-test-apk.yml
+      - scripts/apply-premium-fullscreen-demo.mjs
+      - test/premium-fullscreen-shell.test.js
   workflow_dispatch:
 
 permissions:
