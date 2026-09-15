@@ -1,0 +1,127 @@
+name: Code29 Final AAB
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code29-final-aab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-code29:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+      - name: Run complete regression suite
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee npm-test.log
+      - name: Verify Code29 identity and synchronized assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Eq "applicationId ['\"]com\.innative\.halkaarz['\"]" android/app/build.gradle
+          grep -Eq 'versionCode[[:space:]]+29' android/app/build.gradle
+          grep -Eq "versionName ['\"]2\.4\.6['\"]" android/app/build.gradle
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+      - name: Inject Firebase Android config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "968125285231",
+              "project_id": "halka-arz-portfoyum",
+              "storage_bucket": "halka-arz-portfoyum.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:968125285231:android:5ae1a56cda03651d639e9a",
+                  "android_client_info": {
+                    "package_name": "com.innative.halkaarz"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyBy0VbS3g2IPTKXqtMSpb7k3M2tdZ7eX_8"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+          node - <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('android/app/google-services.json','utf8'));
+          if (config?.project_info?.project_id !== 'halka-arz-portfoyum') throw new Error('Unexpected Firebase project.');
+          const packages = (config.client || []).map(x => x?.client_info?.android_client_info?.package_name);
+          if (!packages.includes('com.innative.halkaarz')) throw new Error('Unexpected Android package.');
+          NODE
+      - uses: android-actions/setup-android@v4.0.1
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Compile release Java
+        run: gradle -p android --no-daemon compileReleaseJavaWithJavac
+      - name: Build configured Code29 release AAB
+        run: gradle -p android --no-daemon bundleRelease
+      - name: Verify and package unsigned Code29 bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          unzip -t "$AAB" >/dev/null
+          unzip -p "$AAB" base/dex/classes.dex | strings | grep -F "$PUSH_BACKEND_URL"
+          unzip -l "$AAB" | grep -E 'base/resources.pb|base/manifest/AndroidManifest.xml'
+          mkdir -p dist
+          cp "$AAB" dist/halka-arz-portfoyum-v2.4.6-code29-configured-unsigned.aab
+          sha256sum dist/halka-arz-portfoyum-v2.4.6-code29-configured-unsigned.aab > dist/SHA256SUMS-UNSIGNED.txt
+          {
+            echo "versionName=2.4.6"
+            echo "versionCode=29"
+            echo "package=com.innative.halkaarz"
+            echo "sourceCommit=${GITHUB_SHA}"
+            echo "backend=${PUSH_BACKEND_URL}"
+          } > dist/BUILD-INFO.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: code29-configured-unsigned-aab
+          path: |
+            dist/halka-arz-portfoyum-v2.4.6-code29-configured-unsigned.aab
+            dist/SHA256SUMS-UNSIGNED.txt
+            dist/BUILD-INFO.txt
+            npm-test.log
+          if-no-files-found: error
+          retention-days: 14
