@@ -1,7 +1,7 @@
 import { createPushService } from '../backend/service.js';
 import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
-import { fetchYahooQuote } from './yahoo-quote.js';
+import { fetchVerifiedMarketQuote } from './market-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 
 const STATE_KEY = 'push-state-v1';
@@ -103,7 +103,7 @@ export class PushStateDurableObject {
         store,
         sender,
         dataSources:{
-          getQuote:ticker => fetchYahooQuote(ticker),
+          getQuote:ticker => fetchVerifiedMarketQuote(ticker, { fetchImpl:globalThis.fetch, now:()=>startedMs }),
           getIpoCalendar:() => fetchCloudflareIpoCalendar(),
         },
         now:()=>started,
