@@ -13,7 +13,7 @@ test('closed-app Durable Object uses the same verified market reference path as 
   assert.match(durableStore, /now:\(\)=>startedMs/);
 });
 
-test('closed-app alert evaluation ignores an unverified market reference but alerts at -2% with a verified reference', () => {
+test('closed-app portfolio alert ignores an unverified reference but crosses -1% and -2% with a verified -2% quote', () => {
   const registration = {
     enabled:true,
     threshold:1,
@@ -37,5 +37,9 @@ test('closed-app alert evaluation ignores an unverified market reference but ale
       ticker:'TEST', current:98, previousClose:100, latestMarketDate:day, referenceVerified:true,
     }]]),
   });
-  assert.ok(verified.events.some(event => event.kind === 'stock' && event.ticker === 'TEST' && event.dailyPct <= -2));
+  assert.equal(verified.portfolioPct, -2);
+  assert.deepEqual(verified.events.map(event => [event.kind, event.level]), [
+    ['portfolio', -1],
+    ['portfolio', -2],
+  ]);
 });
