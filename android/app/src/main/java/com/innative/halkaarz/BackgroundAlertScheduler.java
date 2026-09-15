@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 final class BackgroundAlertScheduler {
     private static final String WORK_NAME = "background_market_alerts_v2";
     private static final String IMMEDIATE_WORK_NAME = "background_alert_immediate_v2";
+    private static final String CLOSE_FALLBACK_WORK_NAME = "portfolio_close_fallback_v1";
+    private static final String CLOSE_FALLBACK_IMMEDIATE_WORK_NAME = "portfolio_close_fallback_immediate_v1";
 
     private BackgroundAlertScheduler() {}
 
@@ -38,6 +40,8 @@ final class BackgroundAlertScheduler {
         if (!enabled) {
             manager.cancelUniqueWork(WORK_NAME);
             manager.cancelUniqueWork(IMMEDIATE_WORK_NAME);
+            manager.cancelUniqueWork(CLOSE_FALLBACK_WORK_NAME);
+            manager.cancelUniqueWork(CLOSE_FALLBACK_IMMEDIATE_WORK_NAME);
             return;
         }
         Constraints constraints = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
@@ -46,5 +50,12 @@ final class BackgroundAlertScheduler {
         PeriodicWorkRequest periodic = new PeriodicWorkRequest.Builder(BackgroundAlertWorker.class, 15, TimeUnit.MINUTES)
                 .setConstraints(constraints).build();
         manager.enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, periodic);
+
+        OneTimeWorkRequest fallbackImmediate = new OneTimeWorkRequest.Builder(PortfolioCloseFallbackWorker.class)
+                .setConstraints(constraints).build();
+        manager.enqueueUniqueWork(CLOSE_FALLBACK_IMMEDIATE_WORK_NAME, ExistingWorkPolicy.REPLACE, fallbackImmediate);
+        PeriodicWorkRequest fallbackPeriodic = new PeriodicWorkRequest.Builder(PortfolioCloseFallbackWorker.class, 15, TimeUnit.MINUTES)
+                .setConstraints(constraints).build();
+        manager.enqueueUniquePeriodicWork(CLOSE_FALLBACK_WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, fallbackPeriodic);
     }
 }
