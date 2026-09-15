@@ -5,6 +5,7 @@ on:
     branches: [fix/code28-seven-issues-20260914]
     paths:
       - .github/workflows/code29-market-reference-once.yml
+      - test/service-worker-cache.test.js
 
 permissions:
   contents: write
