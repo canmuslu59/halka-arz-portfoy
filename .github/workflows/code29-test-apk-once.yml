@@ -41,6 +41,15 @@ jobs:
           diff -qr public android/app/src/main/assets/www
           git diff --exit-code -- android/app/src/main/assets/www
           git diff --check
+      - name: Keep production package id for Firebase-capable test APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i "/applicationIdSuffix '.test'/d" android/app/build.gradle
+          sed -i "/versionNameSuffix '-test'/d" android/app/build.gradle
+          grep -Eq "applicationId ['\"]com\.innative\.halkaarz['\"]" android/app/build.gradle
+          ! grep -q "applicationIdSuffix" android/app/build.gradle
+          ! grep -q "versionNameSuffix" android/app/build.gradle
       - name: Inject Firebase Android config
         shell: bash
         run: |
@@ -111,7 +120,7 @@ jobs:
             echo "package=com.innative.halkaarz"
             echo "sourceCommit=${GITHUB_SHA}"
             echo "backend=${PUSH_BACKEND_URL}"
-            echo "variant=debug-test"
+            echo "variant=debug-test-production-package"
           } > dist/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
