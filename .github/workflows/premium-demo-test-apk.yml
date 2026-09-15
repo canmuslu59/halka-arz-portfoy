@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TEST_VERSION_CODE=$((30000 + GITHUB_RUN_NUMBER))
+          TEST_VERSION_CODE=$((31000 + GITHUB_RUN_NUMBER))
           echo "TEST_VERSION_CODE=$TEST_VERSION_CODE" >> "$GITHUB_ENV"
           python3 - "$TEST_VERSION_CODE" <<'PY'
           from pathlib import Path
@@ -59,14 +59,15 @@ jobs:
           if n != 1:
               raise SystemExit('versionCode replacement failed')
           needle = """        release {\n            minifyEnabled false\n"""
-          replacement = """        release {\n            applicationIdSuffix '.test'\n            versionNameSuffix '-premium-demo'\n            resValue 'string', 'app_name', 'Halka Arz Portföyüm Test'\n            minifyEnabled false\n"""
+          replacement = """        release {\n            applicationIdSuffix '.premiumtest'\n            versionNameSuffix '-premium-test'\n            resValue 'string', 'app_name', 'Halka Arz Premium Test'\n            minifyEnabled false\n"""
           if needle not in text:
               raise SystemExit('release block shape changed')
           text = text.replace(needle, replacement, 1)
           path.write_text(text)
           PY
-          grep -F "applicationIdSuffix '.test'" android/app/build.gradle
-          grep -F "versionNameSuffix '-premium-demo'" android/app/build.gradle
+          grep -F "applicationIdSuffix '.premiumtest'" android/app/build.gradle
+          grep -F "versionNameSuffix '-premium-test'" android/app/build.gradle
+          grep -F "resValue 'string', 'app_name', 'Halka Arz Premium Test'" android/app/build.gradle
           grep -F "versionCode $TEST_VERSION_CODE" android/app/build.gradle
       - name: Install Android SDK 36
         shell: bash
@@ -92,8 +93,8 @@ jobs:
           curl -fsSL "$BASE/testkey.x509.pem" -o /tmp/aosp-testkey.x509.pem
           BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
           UNSIGNED=android/app/build/outputs/apk/release/app-release-unsigned.apk
-          ALIGNED=/tmp/premium-demo-aligned.apk
-          SIGNED=/tmp/premium-demo-signed.apk
+          ALIGNED=/tmp/premium-test-aligned.apk
+          SIGNED=/tmp/premium-test-signed.apk
           test -s "$UNSIGNED"
           "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
           "$BUILD_TOOLS/apksigner" sign \
@@ -104,35 +105,36 @@ jobs:
             --v3-signing-enabled true \
             --out "$SIGNED" "$ALIGNED"
           mkdir -p dist
-          cp "$SIGNED" dist/halka-arz-portfoyum-premium-demo.apk
+          cp "$SIGNED" dist/halka-arz-portfoyum-premium-test.apk
       - name: Verify APK identity and signature
         shell: bash
         run: |
           set -euo pipefail
-          APK=dist/halka-arz-portfoyum-premium-demo.apk
+          APK=dist/halka-arz-portfoyum-premium-test.apk
           BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
           test -s "$APK"
           unzip -t "$APK" >/dev/null
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/apk-signature.txt
           "$BUILD_TOOLS/aapt" dump badging "$APK" | tee dist/apk-badging.txt
-          grep -F "package: name='com.innative.halkaarz.test' versionCode='${TEST_VERSION_CODE}' versionName='2.4.7-premium-demo'" dist/apk-badging.txt
-          grep -F "application-label:'Halka Arz Portföyüm Test'" dist/apk-badging.txt
+          grep -F "package: name='com.innative.halkaarz.premiumtest' versionCode='${TEST_VERSION_CODE}' versionName='2.4.7-premium-test'" dist/apk-badging.txt
+          grep -F "application-label:'Halka Arz Premium Test'" dist/apk-badging.txt
           grep -F "Signer #1 certificate SHA-256 digest: a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc" dist/apk-signature.txt
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
           {
-            echo "package=com.innative.halkaarz.test"
-            echo "versionName=2.4.7-premium-demo"
+            echo "package=com.innative.halkaarz.premiumtest"
+            echo "versionName=2.4.7-premium-test"
             echo "versionCode=${TEST_VERSION_CODE}"
             echo "sourceCommit=${GITHUB_SHA}"
             echo "signing=AOSP public testkey pinned at ${AOSP_BUILD_COMMIT}"
-            echo "firebase=not configured for separate test package"
+            echo "coexistsWith=com.innative.halkaarz,com.innative.halkaarz.test"
+            echo "firebase=not configured for separate premium test package"
             echo "premium=demo entitlement forced open"
           } > dist/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
           name: premium-demo-test-apk
           path: |
-            dist/halka-arz-portfoyum-premium-demo.apk
+            dist/halka-arz-portfoyum-premium-test.apk
             dist/SHA256SUMS.txt
             dist/BUILD-INFO.txt
             dist/apk-signature.txt
