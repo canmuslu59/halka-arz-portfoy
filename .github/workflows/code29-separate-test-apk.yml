@@ -1,0 +1,163 @@
+name: Code29 Separate Test APK
+
+on:
+  push:
+    branches: [test/code29-separate-apk-20260915]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+      AOSP_BUILD_COMMIT: 897e2ff8232b9f7a96493855e57f7a01f999109e
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - run: npm ci
+
+      - name: Verify focused regressions
+        run: node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js
+
+      - name: Run complete regression suite
+        run: npm test
+
+      - name: Sync Android assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+
+      - name: Configure isolated test release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_VERSION_CODE=$((29000 + GITHUB_RUN_NUMBER))
+          echo "TEST_VERSION_CODE=$TEST_VERSION_CODE" >> "$GITHUB_ENV"
+          python3 - "$TEST_VERSION_CODE" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          version_code = sys.argv[1]
+          path = Path('android/app/build.gradle')
+          text = path.read_text()
+          text, n = re.subn(r'versionCode\s+\d+', f'versionCode {version_code}', text, count=1)
+          if n != 1:
+              raise SystemExit('versionCode replacement failed')
+          needle = """        release {\n            minifyEnabled false\n"""
+          replacement = """        release {\n            applicationIdSuffix '.test'\n            versionNameSuffix '-test'\n            resValue 'string', 'app_name', 'Halka Arz Portföyüm Test'\n            minifyEnabled false\n"""
+          if needle not in text:
+              raise SystemExit('release block shape changed')
+          text = text.replace(needle, replacement, 1)
+          path.write_text(text)
+          PY
+          grep -F "applicationIdSuffix '.test'" android/app/build.gradle
+          grep -F "versionNameSuffix '-test'" android/app/build.gradle
+          grep -F "versionCode $TEST_VERSION_CODE" android/app/build.gradle
+
+      - name: Install Android SDK 36 on hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile and build isolated release APK
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          gradle -p android --no-daemon assembleRelease
+
+      - name: Sign with pinned AOSP public test key
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://raw.githubusercontent.com/aosp-mirror/platform_build/${AOSP_BUILD_COMMIT}/target/product/security"
+          curl -fsSL "$BASE/testkey.pk8" -o /tmp/aosp-testkey.pk8
+          curl -fsSL "$BASE/testkey.x509.pem" -o /tmp/aosp-testkey.x509.pem
+          test -s /tmp/aosp-testkey.pk8
+          test -s /tmp/aosp-testkey.x509.pem
+
+          BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
+          UNSIGNED=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          ALIGNED=/tmp/halka-test-aligned.apk
+          SIGNED=/tmp/halka-test-signed.apk
+          test -s "$UNSIGNED"
+          "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign \
+            --key /tmp/aosp-testkey.pk8 \
+            --cert /tmp/aosp-testkey.x509.pem \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$SIGNED" \
+            "$ALIGNED"
+
+          mkdir -p dist
+          cp "$SIGNED" dist/halka-arz-portfoyum-test.apk
+
+      - name: Verify APK identity, signature and backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=dist/halka-arz-portfoyum-test.apk
+          BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/apk-signature.txt
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee dist/apk-badging.txt
+          grep -F "package: name='com.innative.halkaarz.test' versionCode='${TEST_VERSION_CODE}' versionName='2.4.6-test'" dist/apk-badging.txt
+          grep -F "application-label:'Halka Arz Portföyüm Test'" dist/apk-badging.txt
+          found_backend=0
+          while IFS= read -r dex; do
+            if unzip -p "$APK" "$dex" | strings | grep -Fq "$PUSH_BACKEND_URL"; then
+              found_backend=1
+              break
+            fi
+          done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
+          test "$found_backend" -eq 1
+          sha256sum "$APK" | tee dist/SHA256SUMS.txt
+          {
+            echo "package=com.innative.halkaarz.test"
+            echo "versionName=2.4.6-test"
+            echo "versionCode=${TEST_VERSION_CODE}"
+            echo "sourceCommit=${GITHUB_SHA}"
+            echo "backend=${PUSH_BACKEND_URL}"
+            echo "signing=AOSP public testkey pinned at ${AOSP_BUILD_COMMIT}"
+            echo "firebase=not configured for separate test package"
+          } > dist/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code29-separate-test-apk
+          path: |
+            dist/halka-arz-portfoyum-test.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/apk-signature.txt
+            dist/apk-badging.txt
+          if-no-files-found: error
+          retention-days: 14
