@@ -1,0 +1,32 @@
+name: Premium Demo CI
+
+on:
+  push:
+    branches: [feature/premium-demo-20260915]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Premium focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          tests=(test/premium-*.test.js)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo 'No premium tests yet.'
+          else
+            node --test "${tests[@]}"
+          fi
+      - name: Existing regression suite
+        run: npm test
