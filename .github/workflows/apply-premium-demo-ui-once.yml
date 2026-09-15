@@ -1,0 +1,99 @@
+name: Apply Premium Demo UI Once
+
+on:
+  push:
+    branches: [feature/premium-demo-20260915]
+    paths: [.github/workflows/apply-premium-demo-ui-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch only Premium entry integration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          app = Path('public/app.js')
+          text = app.read_text()
+          old_import = "import { createRefreshGate } from './core/refresh-coordinator.js';\n"
+          new_import = old_import + "import { createPremiumDemoController } from './premium-demo.js';\n"
+          assert text.count(old_import) == 1
+          text = text.replace(old_import, new_import, 1)
+
+          old_init = "const proAccess = createProAccess(globalThis.localStorage);\n"
+          new_init = old_init + """const premiumDemo = createPremiumDemoController({
+            storage:globalThis.localStorage,
+            demo:true,
+            loadCalendar:() => ipoService.getCalendar(),
+            loadIpoDetail:item => ipoService.getDetail(item),
+            loadPortfolioData:() => repository.load(),
+            savePortfolio:data => repository.save(data),
+            showToast:message => toast(message),
+            showLocalNotification:payload => {
+              try { return Boolean(window.AndroidBridge?.showLocalNotification?.(JSON.stringify(payload))); }
+              catch { return false; }
+            },
+          });
+"""
+          assert text.count(old_init) == 1
+          text = text.replace(old_init, new_init, 1)
+
+          old_render = """function renderProView({ selectedTicker = null } = {}) {
+            state.proAccess = proAccess.getState();
+            const root = $('#proContent');
+            if (!root) return;
+"""
+          new_render = """function renderProView({ selectedTicker = null } = {}) {
+            const root = $('#proContent');
+            if (!root) return;
+            if (premiumDemo.enabled) {
+              premiumDemo.render(root, {
+                portfolio:state.portfolio,
+                history:Array.isArray(state.portfolio?.history) ? state.portfolio.history : state.chartRows,
+                calendar:state.calendar,
+                selectedTicker,
+              });
+              return;
+            }
+            state.proAccess = proAccess.getState();
+"""
+          assert text.count(old_render) == 1
+          text = text.replace(old_render, new_render, 1)
+          app.write_text(text)
+
+          index = Path('public/index.html')
+          html = index.read_text()
+          style = '  <link rel="stylesheet" href="./styles.css" />\n'
+          assert html.count(style) == 1
+          html = html.replace(style, style + '  <link rel="stylesheet" href="./premium-demo.css" />\n', 1)
+          old_hero = '<span class="eyebrow">GELİŞMİŞ</span>\n          <h2>Halka Arz Pro</h2>'
+          new_hero = '<span class="eyebrow">PREMIUM</span>\n          <h2>Premium Deneyimi</h2>'
+          assert html.count(old_hero) == 1
+          html = html.replace(old_hero, new_hero, 1)
+          assert html.count('<span class="pro-badge">7 gün ücretsiz</span>') == 1
+          html = html.replace('<span class="pro-badge">7 gün ücretsiz</span>', '<span class="pro-badge">Tümü açık · Demo</span>', 1)
+          index.write_text(html)
+      - name: Verify patch scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          printf '%s\n' "$changed"
+          test "$changed" = $'public/app.js\npublic/index.html'
+      - name: Commit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Premium Demo Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add public/app.js public/index.html
+          git commit -m 'feat: connect isolated premium demo UI'
+          git push origin HEAD:feature/premium-demo-20260915
