@@ -1,0 +1,94 @@
+name: Apply verified Code30 native IME fix
+
+on:
+  push:
+    branches: [release/v2.4.7-code30]
+    paths:
+      - .github/workflows/code30-apply-native-ime.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply only the device-verified IME fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin test/code29-separate-apk-20260915
+          git checkout origin/test/code29-separate-apk-20260915 -- \
+            android/app/src/main/AndroidManifest.xml \
+            android/app/src/main/java/com/innative/halkaarz/MainActivity.java \
+            public/styles.css \
+            test/stock-add-flow-regression.test.js
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path, old, new, count=None):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found == 0:
+                  raise SystemExit(f'{path}: expected text not found: {old!r}')
+              if count is not None and found != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {found}: {old!r}')
+              p.write_text(text.replace(old, new))
+
+          replace_exact('android/app/build.gradle', 'versionCode 29', 'versionCode 30', 1)
+          replace_exact('android/app/build.gradle', "versionName '2.4.6'", "versionName '2.4.7'", 1)
+          replace_exact('public/index.html', 'v2.4.6 • Build 29', 'v2.4.7 • Build 30', 1)
+
+          replace_exact('test/release-identity.test.js', 'versionCode 29 / versionName 2.4.6', 'versionCode 30 / versionName 2.4.7', 1)
+          replace_exact('test/release-identity.test.js', '/versionCode 29/', '/versionCode 30/', 1)
+          replace_exact('test/release-identity.test.js', "/versionName ['\"]2\\.4\\.6['\"]/", "/versionName ['\"]2\\.4\\.7['\"]/", 1)
+          replace_exact('test/release-identity.test.js', 'v2\\.4\\.6\\s*•\\s*Build 29', 'v2\\.4\\.7\\s*•\\s*Build 30', 1)
+
+          replace_exact('test/android-contract.test.js', '/versionCode 29/', '/versionCode 30/', 1)
+          replace_exact('test/android-contract.test.js', "/versionName ['\"]2\\.4\\.6['\"]/", "/versionName ['\"]2\\.4\\.7['\"]/", 1)
+          replace_exact('test/ui-contract.test.js', 'v2\\.4\\.6 • Build 29', 'v2\\.4\\.7 • Build 30', 1)
+          PY
+
+          npm ci
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --check
+      - name: Verify focused regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js
+      - name: Run complete regression suite
+        run: npm test
+      - name: Commit verified release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            android/app/build.gradle \
+            android/app/src/main/AndroidManifest.xml \
+            android/app/src/main/java/com/innative/halkaarz/MainActivity.java \
+            public/index.html \
+            public/styles.css \
+            android/app/src/main/assets/www/index.html \
+            android/app/src/main/assets/www/styles.css \
+            test/release-identity.test.js \
+            test/android-contract.test.js \
+            test/ui-contract.test.js \
+            test/stock-add-flow-regression.test.js
+          git diff --cached --stat
+          git commit -m 'release: v2.4.7 code30 with verified IME fix'
+          git push origin HEAD:release/v2.4.7-code30
