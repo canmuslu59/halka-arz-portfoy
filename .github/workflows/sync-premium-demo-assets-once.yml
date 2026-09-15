@@ -1,0 +1,42 @@
+name: Sync Premium Demo Assets Once
+
+on:
+  push:
+    branches: [feature/premium-demo-20260915]
+    paths: [.github/workflows/sync-premium-demo-assets-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sync public assets into Android bundle
+        run: npm run android:sync
+      - name: Verify only expected Android assets changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          changed="$(git diff --name-only -- android/app/src/main/assets/www | sort)"
+          printf '%s\n' "$changed"
+          expected=$'android/app/src/main/assets/www/app.js\nandroid/app/src/main/assets/www/core/logo-resolver.js\nandroid/app/src/main/assets/www/core/premium-alerts.js\nandroid/app/src/main/assets/www/core/premium-analytics.js\nandroid/app/src/main/assets/www/core/premium-backup.js\nandroid/app/src/main/assets/www/core/premium-entitlement.js\nandroid/app/src/main/assets/www/core/premium-watchlist.js\nandroid/app/src/main/assets/www/index.html\nandroid/app/src/main/assets/www/premium-charts.js\nandroid/app/src/main/assets/www/premium-demo.css\nandroid/app/src/main/assets/www/premium-demo.js'
+          test "$changed" = "$expected"
+      - name: Verify parity after sync
+        run: node --test test/premium-asset-parity.test.js
+      - name: Commit mirrored assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Premium Demo Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add android/app/src/main/assets/www
+          git commit -m 'chore: mirror premium demo Android assets'
+          git push origin HEAD:feature/premium-demo-20260915
