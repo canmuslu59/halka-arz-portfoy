@@ -1,0 +1,38 @@
+name: Code29 Market Reference Once
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code29-market-reference-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code28-seven-issues-20260914
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Apply trusted reference integration
+        run: node scripts/apply-market-reference-integration.mjs
+      - name: Sync packaged Android assets
+        run: node scripts/sync-android-assets.mjs
+      - name: Run regression suite
+        run: npm test
+      - name: Commit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "canmuslu59"
+          git config user.email "301077922+canmuslu59@users.noreply.github.com"
+          git add public backend cloudflare android/app/src/main/assets/www android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java
+          git diff --cached --quiet && { echo 'No integration changes'; exit 1; }
+          git commit -m "fix: verify market references before alerts"
+          git push origin HEAD:fix/code28-seven-issues-20260914
