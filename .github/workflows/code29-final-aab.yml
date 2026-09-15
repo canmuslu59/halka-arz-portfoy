@@ -2,9 +2,13 @@ name: Code29 Final AAB
 
 on:
   push:
-    branches: [fix/code28-seven-issues-20260914]
+    branches: [fix/code29-close-fallback-20260915]
     paths:
       - .github/workflows/code29-final-aab.yml
+      - android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java
+      - android/app/src/main/java/com/innative/halkaarz/MarketCloseFallback.java
+      - test/code29-close-fallback.test.js
+      - test/fixtures/MarketCloseFallbackProbe.java
   workflow_dispatch:
 
 permissions:
