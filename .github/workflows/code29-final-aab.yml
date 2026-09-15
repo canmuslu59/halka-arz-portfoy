@@ -6,7 +6,9 @@ on:
     paths:
       - .github/workflows/code29-final-aab.yml
       - android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java
+      - android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java
       - android/app/src/main/java/com/innative/halkaarz/MarketCloseFallback.java
+      - android/app/src/main/java/com/innative/halkaarz/PortfolioCloseFallbackWorker.java
       - test/code29-close-fallback.test.js
       - test/fixtures/MarketCloseFallbackProbe.java
   workflow_dispatch:
