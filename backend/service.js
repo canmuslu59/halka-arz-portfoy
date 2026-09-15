@@ -209,6 +209,10 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
     if (!installId || !fcmToken) throw new Error('installId and fcmToken are required.');
 
     const config = payload.config && typeof payload.config === 'object' ? payload.config : {};
+    const marketReferenceProtocol = Number(config.marketReferenceProtocol);
+    const marketEnabled = Number.isFinite(marketReferenceProtocol) && marketReferenceProtocol >= 2
+      ? config.trustedMarketEnabled !== false
+      : config.enabled !== false;
     const stamp = now().toISOString();
     return store.mutate(state => {
       state.installations ||= {};
@@ -217,7 +221,7 @@ export function createPushService({ store, sender, dataSources = {}, now = () =>
         ...previous,
         installId,
         fcmToken,
-        enabled: config.enabled !== false,
+        enabled: marketEnabled,
         threshold: clampThreshold(config.threshold),
         ipoEnabled: config.ipoEnabled !== false,
         holdings: cleanHoldings(config.holdings),

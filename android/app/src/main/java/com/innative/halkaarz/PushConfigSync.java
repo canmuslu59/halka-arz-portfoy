@@ -20,6 +20,8 @@ final class PushConfigSync {
     static final String CONFIG_KEY = "push_config_v1";
     static final String MONITORING_SINCE_KEY = "push_monitoring_since_v1";
     static final String SYNCED_FINGERPRINT_KEY = "push_synced_fingerprint_v1";
+    static final String LAST_SYNC_AT_KEY = "push_last_sync_at_v1";
+    private static final long RESYNC_INTERVAL_MS = 60L * 60L * 1000L;
     private static final ExecutorService SYNC_EXECUTOR = Executors.newSingleThreadExecutor(
             runnable -> new Thread(runnable, "push-config-sync")
     );
@@ -43,6 +45,7 @@ final class PushConfigSync {
             double threshold = parsed.optDouble("threshold", 3.0);
             safe.put("threshold", Math.max(1.0, Math.min(10.0, threshold)));
             safe.put("ipoEnabled", parsed.optBoolean("ipoEnabled", true));
+            safe.put("marketReferenceProtocol", 2);
             org.json.JSONArray holdings = parsed.optJSONArray("holdings") == null ? new org.json.JSONArray() : parsed.optJSONArray("holdings");
             safe.put("holdings", holdings);
 
@@ -82,7 +85,9 @@ final class PushConfigSync {
         String config = prefs.getString(CONFIG_KEY, "");
         if (token == null || token.isEmpty() || config == null || config.isEmpty()) return;
         String fingerprint = registrationFingerprint(token, config);
-        if (fingerprint.equals(prefs.getString(SYNCED_FINGERPRINT_KEY, ""))) return;
+        long lastSyncAt = prefs.getLong(LAST_SYNC_AT_KEY, 0L);
+        boolean recentlySynced = System.currentTimeMillis() - lastSyncAt < RESYNC_INTERVAL_MS;
+        if (fingerprint.equals(prefs.getString(SYNCED_FINGERPRINT_KEY, "")) && recentlySynced) return;
         syncAsync(context);
     }
 
@@ -115,10 +120,16 @@ final class PushConfigSync {
         HttpURLConnection connection = null;
         try {
             JSONObject configObject = new JSONObject(config);
+            JSONObject remoteConfig = new JSONObject(configObject.toString());
+            remoteConfig.put("trustedMarketEnabled", configObject.optBoolean("enabled", true));
+            // Legacy production workers do not understand the verified-reference protocol.
+            // Send enabled=false so they cannot emit stale Yahoo-based market alerts.
+            // A protocol-aware worker restores the user's market setting from trustedMarketEnabled.
+            remoteConfig.put("enabled", false);
             JSONObject body = new JSONObject();
             body.put("installId", installId(context));
             body.put("fcmToken", token);
-            body.put("config", configObject);
+            body.put("config", remoteConfig);
             URL url = new URL(base.replaceAll("/+$", "") + "/v1/installations");
             if (!"https".equalsIgnoreCase(url.getProtocol())) return;
             connection = (HttpURLConnection) url.openConnection();
@@ -132,7 +143,10 @@ final class PushConfigSync {
             try (OutputStream output = connection.getOutputStream()) { output.write(bytes); }
             int responseCode = connection.getResponseCode();
             if (responseCode >= 200 && responseCode < 300) {
-                prefs.edit().putString(SYNCED_FINGERPRINT_KEY, fingerprint).apply();
+                prefs.edit()
+                        .putString(SYNCED_FINGERPRINT_KEY, fingerprint)
+                        .putLong(LAST_SYNC_AT_KEY, System.currentTimeMillis())
+                        .apply();
             }
         } catch (Exception ignored) {
         } finally {
