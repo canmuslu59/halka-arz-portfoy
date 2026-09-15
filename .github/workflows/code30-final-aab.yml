@@ -1,0 +1,102 @@
+name: Code30 Final Production AAB
+
+on:
+  push:
+    branches: [release/v2.4.7-code30]
+    paths:
+      - .github/workflows/code30-final-aab.yml
+
+permissions:
+  contents: read
+
+env:
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+
+jobs:
+  build-aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install JS dependencies
+        run: npm ci
+      - name: Verify focused regressions
+        run: node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js
+      - name: Run complete regression suite
+        run: npm test
+      - name: Sync and verify Android assets and release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+          grep -F "applicationId 'com.innative.halkaarz'" android/app/build.gradle
+          grep -F 'versionCode 30' android/app/build.gradle
+          grep -F "versionName '2.4.7'" android/app/build.gradle
+          grep -F 'v2.4.7 • Build 30' public/index.html
+          grep -F 'android:windowSoftInputMode="adjustResize"' android/app/src/main/AndroidManifest.xml
+          grep -F 'WindowInsetsCompat.Type.ime()' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -F -- '--android-ime-bottom' public/styles.css
+      - name: Configure production Firebase client
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > android/app/google-services.json <<'JSON'
+          {"project_info":{"project_number":"181104463772","project_id":"halka-arz-portfoyum-d86ff","storage_bucket":"halka-arz-portfoyum-d86ff.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:181104463772:android:0079989b9d3c4ef85fcb9d","android_client_info":{"package_name":"com.innative.halkaarz"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyByYlMz5g9cwzXUjfVFlLIM0A564z-fO88"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
+          JSON
+          grep -F '"package_name":"com.innative.halkaarz"' android/app/google-services.json
+          ! grep -F '.test' android/app/google-services.json
+          grep -F '"project_id":"halka-arz-portfoyum-d86ff"' android/app/google-services.json
+          test "${PUSH_BACKEND_URL#https://}" != "$PUSH_BACKEND_URL"
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+          cache-read-only: true
+      - name: Compile and bundle production release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          gradle -p android --no-daemon bundleRelease
+      - name: Verify production AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          unzip -t "$AAB" >/dev/null
+          test -f android/app/google-services.json
+          grep -F '"package_name":"com.innative.halkaarz"' android/app/google-services.json
+          ! grep -F '.test' android/app/google-services.json
+          grep -R -F "${PUSH_BACKEND_URL}" android/app/build/generated android/app/build/intermediates >/dev/null
+          mkdir -p dist
+          cp "$AAB" dist/halka-arz-portfoyum-v2.4.7-code30-unsigned.aab
+          sha256sum dist/halka-arz-portfoyum-v2.4.7-code30-unsigned.aab | tee dist/SHA256SUMS.txt
+          printf 'package=com.innative.halkaarz\nversionName=2.4.7\nversionCode=30\nsourceCommit=%s\nbackend=%s\nfirebase=production\n' "$GITHUB_SHA" "$PUSH_BACKEND_URL" > dist/BUILD-INFO.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code30-production-aab-unsigned
+          path: |
+            dist/halka-arz-portfoyum-v2.4.7-code30-unsigned.aab
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 14
