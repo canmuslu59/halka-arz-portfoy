@@ -5,13 +5,67 @@ on:
     branches:
       - fix/background-market-alert-20260915
 
+permissions:
+  contents: write
+
 jobs:
   regression:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - run: npm ci
-      - run: node --test test/background-closed-alert-regression.test.js
+
+      - name: Confirm regression is red before fix
+        shell: bash
+        run: |
+          set +e
+          node --test test/background-closed-alert-regression.test.js
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'Regression unexpectedly passed before fix.' >&2
+            exit 1
+          fi
+          echo 'RED confirmed: closed-app path does not use verified market references.'
+
+      - name: Apply minimal closed-app market reference fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('cloudflare/durable-store.js')
+          text = path.read_text(encoding='utf-8')
+          old_import = "import { fetchYahooQuote } from './yahoo-quote.js';"
+          new_import = "import { fetchVerifiedMarketQuote } from './market-quote.js';"
+          assert text.count(old_import) == 1, 'Yahoo quote import changed unexpectedly'
+          text = text.replace(old_import, new_import)
+
+          old_quote = "getQuote:ticker => fetchYahooQuote(ticker),"
+          new_quote = "getQuote:ticker => fetchVerifiedMarketQuote(ticker, { fetchImpl:globalThis.fetch, now:()=>startedMs }),"
+          assert text.count(old_quote) == 1, 'Durable Object quote source changed unexpectedly'
+          text = text.replace(old_quote, new_quote)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Focused verification
+        run: node --test test/background-closed-alert-regression.test.js test/verified-market-reference.test.js test/cloudflare-durable-store.test.js test/backend-alert-engine.test.js test/backend-service.test.js
+
+      - name: Full regression suite
+        run: npm test
+
+      - name: Commit verified fix
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare/durable-store.js test/background-closed-alert-regression.test.js
+          git commit -m 'fix: verify market references in closed-app alerts'
+          git push origin HEAD:fix/background-market-alert-20260915
