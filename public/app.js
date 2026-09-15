@@ -736,12 +736,22 @@ function openSheet(id, navigation = {}, { push = true } = {}) {
   }
 }
 
+let closingAddSheetHistory = false;
 function closeSheets({ useHistory = true } = {}) {
+  const currentSheet = window.history.state?.sheet || null;
   hideSheets();
-  if (useHistory && window.history.state?.sheet) window.history.back();
+  if (useHistory && currentSheet) {
+    if (currentSheet === '#addSheet') closingAddSheetHistory = true;
+    window.history.back();
+  }
 }
 
 function applyNavigationState(nav) {
+  if (closingAddSheetHistory && nav?.sheet === '#addSheet') {
+    window.history.back();
+    return;
+  }
+  closingAddSheetHistory = false;
   switchView(nav?.view || 'portfolio', { push:false, selectedTicker:nav?.selectedTicker || null });
   if (nav?.sheet === '#addSheet') {
     openAddSheet({ push:false });
@@ -888,6 +898,8 @@ $('#tickerInput').addEventListener('input', event => {
 $('#addForm').addEventListener('submit', async event => {
   event.preventDefault();
   const addForm = event.currentTarget;
+  if (addForm.dataset.saving === 'true') return;
+  addForm.dataset.saving = 'true';
   const btn = $('#addSubmit');
   const form = new FormData(addForm);
   btn.disabled = true;
@@ -900,7 +912,7 @@ $('#addForm').addEventListener('submit', async event => {
     await loadPortfolio({ quiet:true });
     toast(result.autoIpoFound ? `${result.holding.ticker} eklendi.` : `${result.holding.ticker} eklendi; halka arz bilgisi kontrol edin.`);
   } catch (error) { toast(error.message); }
-  finally { btn.disabled = false; btn.textContent = 'Otomatik bul ve ekle'; }
+  finally { addForm.dataset.saving = 'false'; btn.disabled = false; btn.textContent = 'Otomatik bul ve ekle'; }
 });
 
 function chartWindow() {
@@ -1023,10 +1035,27 @@ function resetAddEntryForm() {
 }
 
 function openAddSheet({ push = true } = {}) {
+  const addSheet = $('#addSheet');
+  if (push && (window.history.state?.sheet === '#addSheet' || addSheet?.hidden === false)) {
+    if (addSheet?.hidden !== false) showSheet('#addSheet');
+    setTimeout(() => $('#tickerInput')?.focus(), 100);
+    return;
+  }
   resetAddEntryForm();
   openSheet('#addSheet', {}, { push });
-  setTimeout(() => $('#tickerInput').focus(),100);
+  setTimeout(() => $('#tickerInput')?.focus(),100);
 }
+
+function syncKeyboardInset() {
+  const viewport = window.visualViewport;
+  const inset = viewport
+    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    : 0;
+  document.documentElement.style.setProperty('--keyboard-inset', `${Math.round(inset)}px`);
+}
+window.visualViewport?.addEventListener('resize', syncKeyboardInset, { passive:true });
+window.visualViewport?.addEventListener('scroll', syncKeyboardInset, { passive:true });
+syncKeyboardInset();
 
 let dockLastScrollY = Math.max(0, window.scrollY || 0);
 let dockScrollFrame = 0;

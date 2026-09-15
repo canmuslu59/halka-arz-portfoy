@@ -329,3 +329,6 @@ body{
 @media(prefers-reduced-motion:reduce){
   .bottom-nav{transition:opacity .01ms linear,transform .01ms linear}
 }
+
+/* Keep the stock-add sheet above the on-screen keyboard. */
+#addSheet{bottom:var(--keyboard-inset,0px);max-height:calc(92dvh - var(--keyboard-inset,0px))}
