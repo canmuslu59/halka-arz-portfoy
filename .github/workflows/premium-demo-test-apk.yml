@@ -12,7 +12,7 @@ permissions:
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 24
     env:
       PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
       AOSP_BUILD_COMMIT: 897e2ff8232b9f7a96493855e57f7a01f999109e
@@ -27,6 +27,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - run: npm ci
+      - name: Apply isolated Premium fullscreen transform
+        run: node scripts/apply-premium-fullscreen-demo.mjs
       - name: Verify Premium and critical regressions
         shell: bash
         run: |
@@ -34,13 +36,12 @@ jobs:
           node --test test/premium-*.test.js test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js test/navigation.test.js
       - name: Run complete regression suite
         run: npm test
-      - name: Verify Android asset parity
+      - name: Verify transformed Android asset parity
         shell: bash
         run: |
           set -euo pipefail
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
-          git diff --exit-code -- android/app/src/main/assets/www
           git diff --check
       - name: Configure isolated Premium demo identity
         shell: bash
@@ -129,6 +130,7 @@ jobs:
             echo "coexistsWith=com.innative.halkaarz,com.innative.halkaarz.test"
             echo "firebase=not configured for separate premium test package"
             echo "premium=demo entitlement forced open"
+            echo "premiumFullscreenTransform=scripts/apply-premium-fullscreen-demo.mjs"
           } > dist/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
