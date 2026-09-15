@@ -57,8 +57,16 @@ export function evaluateDailyAlerts({
     const currentPrice = finite(holding?.currentPrice, NaN);
     const previousClose = finite(holding?.previousClose, NaN);
     if (!(currentPrice > 0) || !(previousClose > 0)) continue;
-    const ceiling = ceilingPrice(previousClose);
-    const floor = floorPrice(previousClose);
+
+    // Production quote paths explicitly mark whether Foreks/OYAK daily references
+    // were verified. Keep the legacy calculated fallback only for callers/tests that
+    // predate this flag; an explicit false must never emit a limit alert.
+    if (holding?.referenceVerified === false) continue;
+    const hasTrustedLimits = holding?.referenceVerified === true
+      && finite(holding?.ceilingPrice, NaN) > 0
+      && finite(holding?.floorPrice, NaN) > 0;
+    const ceiling = hasTrustedLimits ? finite(holding.ceilingPrice, NaN) : ceilingPrice(previousClose);
+    const floor = hasTrustedLimits ? finite(holding.floorPrice, NaN) : floorPrice(previousClose);
     const ceilingStep = bistTickSize(ceiling) || 0.01;
     const floorStep = bistTickSize(floor) || 0.01;
     const limitState = { ...(state.limits[ticker] || {}) };

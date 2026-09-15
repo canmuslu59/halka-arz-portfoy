@@ -38,14 +38,17 @@ export function evaluateRegistrationAlerts({ registration = {}, quotes = new Map
     const quote = quotes instanceof Map ? quotes.get(ticker) : quotes?.[ticker];
     const current = finite(quote?.current);
     const previousClose = finite(quote?.previousClose);
-    const dailySessionActive = Boolean(day && quote?.latestMarketDate === day);
+    const floorPrice = finite(quote?.floorPrice);
+    const ceilingPrice = finite(quote?.ceilingPrice);
+    const referenceVerified = quote?.referenceVerified !== false;
+    const dailySessionActive = Boolean(day && quote?.latestMarketDate === day && referenceVerified);
     if (!(current > 0) || !(previousClose > 0) || !dailySessionActive) {
-      if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:false });
+      if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, floorPrice, ceilingPrice, referenceVerified:false, dailySessionActive:false });
       continue;
     }
 
     valid += 1;
-    if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, dailySessionActive:true });
+    if (currentLots > 0) holdings.push({ ticker, currentPrice:current, previousClose, floorPrice, ceilingPrice, referenceVerified:quote?.referenceVerified === true ? true : undefined, dailySessionActive:true });
     previousValue += previousClose * dailyBaseLots;
 
     let itemDailyProfit = currentLots * (current - previousClose);

@@ -14,7 +14,10 @@ final class NativeHttpPolicy {
             "gedik.com",
             "www.gedik.com",
             "fintables.com",
-            "www.fintables.com"
+            "www.fintables.com",
+            "webservice.foreks.com",
+            "oyakyatirim.com.tr",
+            "www.oyakyatirim.com.tr"
     ));
 
     private NativeHttpPolicy() {}

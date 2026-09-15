@@ -29,6 +29,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class BackgroundAlertWorker extends Worker {
     private static final String TAG = "BackgroundAlertWorker";
@@ -135,14 +137,19 @@ public class BackgroundAlertWorker extends Worker {
                 expectedTodayCount += 1;
 
                 Quote quote;
+                MarketReference reference;
                 try {
                     quote = fetchQuote(ticker);
+                    reference = fetchTrustedMarketReference(ticker);
                 } catch (Exception error) {
-                    Log.w(TAG, "Quote fetch failed for " + ticker, error);
+                    Log.w(TAG, "Quote/reference fetch failed for " + ticker, error);
                     quoteRetryNeeded |= BackgroundRetryPolicy.shouldRetry(error);
                     continue;
                 }
-                if (quote == null || !day.equals(quote.marketDate) || !(quote.current > 0) || !(quote.previousClose > 0)) continue;
+                if (quote == null || reference == null || !day.equals(quote.marketDate) || !(quote.current > 0)
+                        || !(reference.previousClose > 0) || !(reference.floorPrice > 0) || !(reference.ceilingPrice > reference.floorPrice)) continue;
+                double rangeTolerance = Math.max(0.005, tickSize(quote.current) / 2.0 + 1e-8);
+                if (quote.current < reference.floorPrice - rangeTolerance || quote.current > reference.ceilingPrice + rangeTolerance) continue;
                 validTodayCount += 1;
 
                 if (soldTodayLots > 0) {
@@ -156,8 +163,8 @@ public class BackgroundAlertWorker extends Worker {
                 if (currentLots > 0) {
                     JSONObject tickerLimits = limits.optJSONObject(ticker);
                     if (tickerLimits == null) tickerLimits = new JSONObject();
-                    double ceiling = ceilingPrice(quote.previousClose);
-                    double floor = floorPrice(quote.previousClose);
+                    double ceiling = reference.ceilingPrice;
+                    double floor = reference.floorPrice;
                     double ceilingTolerance = Math.max(0.005, tickSize(ceiling) / 2.0 + 1e-8);
                     double floorTolerance = Math.max(0.005, tickSize(floor) / 2.0 + 1e-8);
 
@@ -183,8 +190,8 @@ public class BackgroundAlertWorker extends Worker {
                     if (saleLots > 0 && salePrice > 0) saleDayGain += saleLots * (salePrice - quote.previousClose);
                 }
 
-                previousValue += quote.previousClose * dailyBaseLots;
-                dailyProfitValue += currentLots * (quote.current - quote.previousClose) + saleDayGain - todayWithholdingTax;
+                previousValue += reference.previousClose * dailyBaseLots;
+                dailyProfitValue += currentLots * (quote.current - reference.previousClose) + saleDayGain - todayWithholdingTax;
             }
 
             Double checkedPercent = null;
@@ -443,6 +450,82 @@ public class BackgroundAlertWorker extends Worker {
                 .replace("&#39;", "'").replaceAll("\\s+", " ").trim();
     }
 
+    private static final Pattern FOREKS_CEILING = Pattern.compile("(?i)(?:^|\\s)Tavan\\s+([0-9][0-9.,]*)");
+    private static final Pattern FOREKS_FLOOR = Pattern.compile("(?i)(?:^|\\s)Taban\\s+([0-9][0-9.,]*)");
+    private static final Pattern FOREKS_PREVIOUS = Pattern.compile("(?i)Önceki\\s+G\\.?\\s*Kapanış\\s+([0-9][0-9.,]*)");
+
+    private static MarketReference fetchTrustedMarketReference(String ticker) throws Exception {
+        Exception firstError = null;
+        try {
+            String html = fetchText("https://webservice.foreks.com/foreks-web-widget/singlepage/" + ticker + "?lang=tr", MAX_RESPONSE_BYTES);
+            MarketReference reference = parseForeksReference(stripHtml(html));
+            if (reference != null) return reference;
+        } catch (Exception error) {
+            firstError = error;
+        }
+        try {
+            String html = fetchText("https://www.oyakyatirim.com.tr/hisse-detay/" + ticker, MAX_RESPONSE_BYTES);
+            MarketReference reference = parseOyakReference(stripHtml(html));
+            if (reference != null) return reference;
+        } catch (Exception error) {
+            if (firstError != null) error.addSuppressed(firstError);
+            throw error;
+        }
+        if (firstError != null) throw firstError;
+        throw new IllegalStateException("Doğrulanmış piyasa referansı bulunamadı.");
+    }
+
+    private static MarketReference parseForeksReference(String text) {
+        double ceiling = matchedMarketNumber(FOREKS_CEILING, text);
+        double floor = matchedMarketNumber(FOREKS_FLOOR, text);
+        double previous = matchedMarketNumber(FOREKS_PREVIOUS, text);
+        return validReference(previous, floor, ceiling) ? new MarketReference(previous, floor, ceiling) : null;
+    }
+
+    private static MarketReference parseOyakReference(String text) {
+        Pattern row = Pattern.compile("(?i)Taban\\s+Tavan\\s+Saat\\s+([0-9.,]+)\\s+[-+0-9.,]+\\s+%?[-+0-9.,]+\\s+([0-9.,]+)\\s+([0-9.,]+)\\s+([0-9.,]+)\\s+([0-9.,]+)\\s+\\d{1,2}:\\d{2}");
+        Matcher rowMatch = row.matcher(text);
+        double floor = Double.NaN;
+        double ceiling = Double.NaN;
+        if (rowMatch.find()) {
+            floor = marketNumber(rowMatch.group(4));
+            ceiling = marketNumber(rowMatch.group(5));
+        }
+        double previous = Double.NaN;
+        Matcher markerMatch = Pattern.compile("(?i)Önceki\\s+Kapanış").matcher(text);
+        if (markerMatch.find()) {
+            String tail = text.substring(markerMatch.end());
+            Matcher dailyMatch = Pattern.compile("(?i)\\bGünlük\\b").matcher(tail);
+            if (dailyMatch.find()) {
+                Matcher numbers = Pattern.compile("[0-9]+(?:[.,][0-9]+)*").matcher(tail.substring(dailyMatch.end()));
+                int seen = 0;
+                while (numbers.find()) {
+                    seen += 1;
+                    if (seen == 4) { previous = marketNumber(numbers.group()); break; }
+                }
+            }
+        }
+        return validReference(previous, floor, ceiling) ? new MarketReference(previous, floor, ceiling) : null;
+    }
+
+    private static double matchedMarketNumber(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text);
+        return matcher.find() ? marketNumber(matcher.group(1)) : Double.NaN;
+    }
+
+    private static double marketNumber(String value) {
+        if (value == null) return Double.NaN;
+        String text = value.trim().replace(" ", "");
+        if (text.contains(",")) text = text.replace(".", "").replace(',', '.');
+        try { return Double.parseDouble(text.replaceAll("[^0-9.+-]", "")); }
+        catch (Exception ignored) { return Double.NaN; }
+    }
+
+    private static boolean validReference(double previous, double floor, double ceiling) {
+        return previous > 0 && floor > 0 && ceiling > floor
+                && Double.isFinite(previous) && Double.isFinite(floor) && Double.isFinite(ceiling);
+    }
+
     private static Quote fetchQuote(String ticker) throws Exception {
         String urlText = "https://query1.finance.yahoo.com/v8/finance/chart/" + ticker + ".IS?range=5d&interval=5m&includePrePost=false&events=div%2Csplits";
         String body = fetchBody(
@@ -587,6 +670,18 @@ public class BackgroundAlertWorker extends Worker {
                 output.write(chunk, 0, read);
             }
             return output.toString("UTF-8");
+        }
+    }
+
+    private static final class MarketReference {
+        final double previousClose;
+        final double floorPrice;
+        final double ceilingPrice;
+
+        MarketReference(double previousClose, double floorPrice, double ceilingPrice) {
+            this.previousClose = previousClose;
+            this.floorPrice = floorPrice;
+            this.ceilingPrice = ceilingPrice;
         }
     }
 

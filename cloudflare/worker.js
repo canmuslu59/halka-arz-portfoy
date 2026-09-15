@@ -2,7 +2,7 @@ import { createPushService } from '../backend/service.js';
 import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { PushStateDurableObject, createDurableStore } from './durable-store.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
-import { fetchYahooQuote } from './yahoo-quote.js';
+import { fetchVerifiedMarketQuote } from './market-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 
 export { PushStateDurableObject };
@@ -48,7 +48,7 @@ function asDate(value) {
 export function createWorkerApp({
   createStore = env => createDurableStore(env.PUSH_STATE),
   createSender = env => createCloudflareFcmSender({ serviceAccountJson:env.FIREBASE_SERVICE_ACCOUNT_JSON }),
-  fetchQuote = ticker => fetchYahooQuote(ticker),
+  fetchQuote = ticker => fetchVerifiedMarketQuote(ticker),
   fetchIpoCalendar = () => fetchCloudflareIpoCalendar(),
   marketStatus = getBistMarketStatus,
   now = () => Date.now(),

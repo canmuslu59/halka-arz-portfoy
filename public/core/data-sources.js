@@ -1,6 +1,7 @@
 import { cleanTicker } from './domain.js';
 import { parseYahooChart, parseAhlatciList, parseAhlatciDetail, parseAhlatciCalendar, parseFintablesSector } from './parsers.js';
 import { parseGedikCalendar } from './gedik-calendar.js';
+import { parseForeksReferenceText, parseOyakReferenceText, applyTrustedMarketReference } from './market-reference.js';
 
 const MAX_AHLATCI_ARCHIVE_PAGES = 40;
 
@@ -20,12 +21,37 @@ export function createDataSources({ getJson, getText }) {
     throw new TypeError('HTTP veri fonksiyonları gerekli.');
   }
 
+  const referenceCache = new Map();
+  const REFERENCE_TTL_MS = 10 * 60 * 1000;
+
+  async function getTrustedReference(key) {
+    const cached = referenceCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    let reference = null;
+    try {
+      const text = await getText(`https://webservice.foreks.com/foreks-web-widget/singlepage/${encodeURIComponent(key)}?lang=tr`);
+      reference = parseForeksReferenceText(text, key);
+    } catch {}
+    if (!reference) {
+      try {
+        const text = await getText(`https://www.oyakyatirim.com.tr/hisse-detay/${encodeURIComponent(key)}`);
+        reference = parseOyakReferenceText(text, key);
+      } catch {}
+    }
+    referenceCache.set(key, { value:reference, expiresAt:Date.now() + REFERENCE_TTL_MS });
+    return reference;
+  }
+
   async function getQuote(ticker) {
     const key = cleanTicker(ticker);
     if (!key) throw new Error('Geçerli bir hisse kodu girin.');
     const symbol = `${key}.IS`;
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=5m&includePrePost=false&events=div%2Csplits`;
-    return parseYahooChart(await getJson(url), key);
+    const [json, reference] = await Promise.all([
+      getJson(url),
+      getTrustedReference(key).catch(() => null),
+    ]);
+    return applyTrustedMarketReference(parseYahooChart(json, key), reference);
   }
 
   async function getHistory(ticker, startDate) {

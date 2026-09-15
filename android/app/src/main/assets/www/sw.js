@@ -1,8 +1,8 @@
-const CACHE = 'halka-arz-portfoy-v7';
+const CACHE = 'halka-arz-portfoy-v8';
 const ASSETS = [
   './',
   './styles.css', './app.js', './notification-recovery.js', './icon.svg', './manifest.webmanifest', './privacy.html',
-  './core/http.js', './core/data-sources.js', './core/gedik-calendar.js', './core/parsers.js', './core/domain.js',
+  './core/http.js', './core/data-sources.js', './core/market-reference.js', './core/gedik-calendar.js', './core/parsers.js', './core/domain.js',
   './core/analytics.js', './core/ipo-analytics.js', './core/ipo-service.js', './core/market-calendar.js',
   './core/navigation.js', './core/notification-rules.js', './core/portfolio-service.js', './core/pro-access.js',
   './core/refresh-coordinator.js', './core/repository.js', './core/theme.js'

@@ -431,12 +431,14 @@ function evaluateLocalAlerts(portfolio) {
   const permission = readNativeNotificationPermission();
   if (permission !== 'granted' && permission !== 'not_required') return;
   const previousState = safeParseLocalJson(LOCAL_ALERT_STATE_KEY);
+  const activeHoldings = (portfolio.holdings || []).filter(item => Number(item.currentLots || 0) > 0);
+  const referencesReady = activeHoldings.length > 0 && activeHoldings.every(item => item.referenceVerified === true);
   const result = evaluateDailyAlerts({
     day:todayIstanbul(),
     threshold:state.alertSettings.threshold,
     enabled:state.alertSettings.enabled,
-    holdings:(portfolio.holdings || []).filter(item => Number(item.currentLots || 0) > 0),
-    portfolioPct:Number(portfolio.totals?.dailyPct || 0),
+    holdings:activeHoldings,
+    portfolioPct:referencesReady ? Number(portfolio.totals?.dailyPct || 0) : 0,
     previousState,
   });
   let deliveredCount = 0;
