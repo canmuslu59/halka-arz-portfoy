@@ -331,4 +331,4 @@ body{
 }
 
 /* Keep the stock-add sheet above the on-screen keyboard. */
-#addSheet{bottom:var(--keyboard-inset,0px);max-height:calc(92dvh - var(--keyboard-inset,0px))}
+#addSheet{bottom:max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px));max-height:calc(92dvh - max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px)))}

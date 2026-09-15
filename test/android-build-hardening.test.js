@@ -18,7 +18,7 @@ test('Android API 36 build uses compatible AGP and enables AndroidX', async () =
 test('Milestone release advances the Play identity to Code26', async () => {
   const appGradle = await read('android/app/build.gradle');
 
-  assert.match(appGradle, /versionCode 29/);
-  assert.match(appGradle, /versionName ['"]2\.4\.6['"]/);
+  assert.match(appGradle, /versionCode 30/);
+  assert.match(appGradle, /versionName ['"]2\.4\.7['"]/);
 });
 

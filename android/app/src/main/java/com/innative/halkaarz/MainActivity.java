@@ -80,6 +80,7 @@ public class MainActivity extends ComponentActivity {
     private int safeBottomCssPx;
     private int safeLeftCssPx;
     private int safeRightCssPx;
+    private int imeBottomCssPx;
     private long lastBackPressMs;
 
     @Override
@@ -113,11 +114,13 @@ public class MainActivity extends ComponentActivity {
     private void applyInsets(WebView view) {
         ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
             float density = Math.max(1f, getResources().getDisplayMetrics().density);
             safeTopCssPx = Math.round(bars.top / density);
             safeBottomCssPx = Math.round(bars.bottom / density);
             safeLeftCssPx = Math.round(bars.left / density);
             safeRightCssPx = Math.round(bars.right / density);
+            imeBottomCssPx = Math.round(ime.bottom / density);
             deliverSafeInsets();
             return insets;
         });
@@ -129,7 +132,8 @@ public class MainActivity extends ComponentActivity {
         String script = "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-bottom','" + safeBottomCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
-                + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');";
+                + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');"
+                + "document.documentElement.style.setProperty('--android-ime-bottom','" + imeBottomCssPx + "px');";
         webView.post(() -> webView.evaluateJavascript(script, null));
     }
 

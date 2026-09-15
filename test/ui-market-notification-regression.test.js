@@ -13,15 +13,15 @@ test('Android shell and bundled UI follow the Milestone Code26 release identity'
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 29/);
-  assert.match(gradle, /versionName '2\.4\.6'/);
+  assert.match(gradle, /versionCode 30/);
+  assert.match(gradle, /versionName '2\.4\.7'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
   assert.match(gradle, /androidx\.fragment:fragment:1\.9\.0/);
   assert.match(java, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\)/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
-  assert.match(html, /v2\.4\.6 • Build 29/);
+  assert.match(html, /v2\.4\.7 • Build 30/);
 });
 
 test('BIST daily upper/lower limits use valid price-step rounding', () => {
