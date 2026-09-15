@@ -58,12 +58,20 @@ jobs:
           replace_exact('test/android-contract.test.js', '/versionCode 29/', '/versionCode 30/', 1)
           replace_exact('test/android-contract.test.js', "/versionName ['\"]2\\.4\\.6['\"]/", "/versionName ['\"]2\\.4\\.7['\"]/", 1)
           replace_exact('test/ui-contract.test.js', 'v2\\.4\\.6 • Build 29', 'v2\\.4\\.7 • Build 30', 1)
+
+          replace_exact('test/android-build-hardening.test.js', '/versionCode 29/', '/versionCode 30/', 1)
+          replace_exact('test/android-build-hardening.test.js', "/versionName ['\"]2\\.4\\.6['\"]/", "/versionName ['\"]2\\.4\\.7['\"]/", 1)
+          replace_exact('test/milestone-release.test.js', '/versionCode 29/', '/versionCode 30/', 1)
+          replace_exact('test/milestone-release.test.js', "/versionName ['\"]2\\.4\\.6['\"]/", "/versionName ['\"]2\\.4\\.7['\"]/", 1)
+          replace_exact('test/milestone-release.test.js', 'v2\\.4\\.6\\s*•\\s*Build 29', 'v2\\.4\\.7\\s*•\\s*Build 30', 1)
           PY
 
           npm ci
           npm run android:sync
           diff -qr public android/app/src/main/assets/www
           git diff --check
+          echo 'Remaining current-version assertions:'
+          grep -R -n -E 'versionCode 29|v2\\.4\\.6.*Build 29|versionName.*2\\.4\\.6' test || true
       - name: Verify focused regressions
         shell: bash
         run: |
@@ -88,6 +96,8 @@ jobs:
             test/release-identity.test.js \
             test/android-contract.test.js \
             test/ui-contract.test.js \
+            test/android-build-hardening.test.js \
+            test/milestone-release.test.js \
             test/stock-add-flow-regression.test.js
           git diff --cached --stat
           git commit -m 'release: v2.4.7 code30 with verified IME fix'
