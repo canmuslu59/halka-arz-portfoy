@@ -10,6 +10,7 @@ import { normalizeAlertSettings, evaluateDailyAlerts, notificationPayloadForEven
 import { createProAccess } from './core/pro-access.js';
 import { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';
 import { createRefreshGate } from './core/refresh-coordinator.js';
+import { createPremiumDemoController } from './premium-demo.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -30,6 +31,19 @@ const ipoService = createIpoService({
   storage: globalThis.localStorage,
 });
 const proAccess = createProAccess(globalThis.localStorage);
+const premiumDemo = createPremiumDemoController({
+  storage:globalThis.localStorage,
+  demo:true,
+  loadCalendar:() => ipoService.getCalendar(),
+  loadIpoDetail:item => ipoService.getDetail(item),
+  loadPortfolioData:() => repository.load(),
+  savePortfolio:data => repository.save(data),
+  showToast:message => toast(message),
+  showLocalNotification:payload => {
+    try { return Boolean(window.AndroidBridge?.showLocalNotification?.(JSON.stringify(payload))); }
+    catch { return false; }
+  },
+});
 
 const state = {
   portfolio: null,
@@ -297,9 +311,18 @@ async function ensureProCalendar() {
 }
 
 function renderProView({ selectedTicker = null } = {}) {
-  state.proAccess = proAccess.getState();
   const root = $('#proContent');
   if (!root) return;
+  if (premiumDemo.enabled) {
+    premiumDemo.render(root, {
+      portfolio:state.portfolio,
+      history:Array.isArray(state.portfolio?.history) ? state.portfolio.history : state.chartRows,
+      calendar:state.calendar,
+      selectedTicker,
+    });
+    return;
+  }
+  state.proAccess = proAccess.getState();
   if (!state.proAccess.hasAccess) { renderProList(); return; }
   root.innerHTML = `${proAccessCard(state.proAccess)}<div class="calendar-empty">Gelişmiş alan hazırlanıyor…</div>`;
   bindBetaControls();
