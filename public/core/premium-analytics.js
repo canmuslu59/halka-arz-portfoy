@@ -33,7 +33,7 @@ function cutoffDate(lastDate, range) {
 export function buildPremiumSeries({ history = [], metric = 'value', range = 'ALL' } = {}) {
   const rows = validHistoryRows(history);
   if (!rows.length) return [];
-  const lastDate = rows.at(-1).date;
+  const lastDate = rows[rows.length - 1].date;
   const cutoff = cutoffDate(lastDate, range);
   const selected = cutoff ? rows.filter(row => row.date >= cutoff) : rows;
   const yFor = row => {
@@ -61,7 +61,7 @@ export function buildPremiumAnalytics({ portfolio = null, history = [] } = {}) {
   const totals = portfolio?.totals || {};
   const holdings = Array.isArray(portfolio?.holdings) ? portfolio.holdings : [];
   const rows = validHistoryRows(history);
-  const currentValue = rows.length ? rows.at(-1).value : finite(totals.totalWealth) ?? finite(totals.activeValue) ?? 0;
+  const currentValue = rows.length ? rows[rows.length - 1].value : finite(totals.totalWealth) ?? finite(totals.activeValue) ?? 0;
   const peakValue = rows.length ? Math.max(...rows.map(row => row.value)) : currentValue;
   const currentDrawdownPct = peakValue > 0 ? ((currentValue - peakValue) / peakValue) * 100 : 0;
   const maxDrawdownPct = rows.length ? Math.min(...rows.map(row => row.drawdownPct)) : 0;
