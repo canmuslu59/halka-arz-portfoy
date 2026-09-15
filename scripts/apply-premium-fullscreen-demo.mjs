@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const read = path => fs.readFileSync(path, 'utf8');
 const write = (path, content) => fs.writeFileSync(path, content);
@@ -28,7 +29,81 @@ if (!app.includes('function openPremiumLayer(')) {
   app = replaceOnce(appPath, app, backHandler, backReplacement);
 
   const hintAnchor = `window.__showBackExitHint = () => toast('Çıkmak için tekrar geri basın.');`;
-  const premiumLayerCode = `function premiumAllocationSegments(portfolio) {\n  const holdings = (portfolio?.holdings || []).filter(item => Number(item.currentLots || 0) > 0 && Number(item.activeValue || 0) > 0);\n  const total = holdings.reduce((sum, item) => sum + Number(item.activeValue || 0), 0);\n  if (!holdings.length || total <= 0) return [];\n  return holdings.slice().sort((a,b) => Number(b.activeValue || 0) - Number(a.activeValue || 0)).map(item => ({\n    ticker:String(item.ticker || '—'),\n    pct:Number(item.activeValue || 0) / total * 100,\n  }));\n}\n\nfunction renderPremiumAllocation() {\n  const donut = $('#premiumAllocationDonut');\n  const caption = $('#premiumAllocationCaption');\n  if (!donut || !caption) return;\n  const rows = premiumAllocationSegments(state.portfolio);\n  if (!rows.length) {\n    donut.style.background = 'rgba(255,255,255,.06)';\n    donut.innerHTML = '<span>0<small>hisse</small></span>';\n    caption.textContent = 'Hisse eklediğinde gerçek dağılım burada görünecek';\n    return;\n  }\n  const palette = ['#8268ff','#38d7a1','#4fa4ff','#ffb65a','#d77cff','#ff7485','#77d5df'];\n  let cursor = 0;\n  const slices = rows.map((row, index) => {\n    const start = cursor;\n    cursor += row.pct;\n    return \\`${'${palette[index % palette.length]}'} ${'${start.toFixed(2)}'}% ${'${cursor.toFixed(2)}'}%\\`;\n  });\n  donut.style.background = \\`conic-gradient(${'${slices.join(\',\')}'} )\\`;\n  donut.innerHTML = \\`<span>${'${rows.length}'}<small>hisse</small></span>\\`;\n  const top = rows.slice(0, 3).map(row => \\`${'${row.ticker}'} %${'${row.pct.toFixed(1)}'}\\`).join(' · ');\n  caption.textContent = top;\n}\n\nfunction renderPremiumLayer(section = 'home') {\n  const root = $('#premiumOverlayContent');\n  if (!root) return;\n  premiumDemo.render(root, {\n    portfolio:state.portfolio,\n    history:Array.isArray(state.portfolio?.history) ? state.portfolio.history : state.chartRows,\n    calendar:state.calendar,\n  });\n  renderPremiumAllocation();\n  if (section && section !== 'home') {\n    requestAnimationFrame(() => root.querySelector(\\`[data-premium-section="${'${section}'}"]\\`)?.click());\n  }\n}\n\nfunction openPremiumLayer(section = 'home') {\n  const overlay = $('#premiumOverlay');\n  if (!overlay) return;\n  overlay.hidden = false;\n  document.body.classList.add('premium-overlay-open');\n  renderPremiumLayer(section);\n  requestAnimationFrame(() => $('#premiumOverlayClose')?.focus());\n}\n\nfunction closePremiumLayer() {\n  const overlay = $('#premiumOverlay');\n  if (!overlay || overlay.hidden) return;\n  overlay.hidden = true;\n  document.body.classList.remove('premium-overlay-open');\n  $('#premiumEntry')?.focus();\n}\n\n$('#premiumEntry')?.addEventListener('click', () => openPremiumLayer('home'));\n$('#premiumOverlayClose')?.addEventListener('click', closePremiumLayer);\n$('#premiumOverlay')?.addEventListener('click', event => { if (event.target === event.currentTarget) closePremiumLayer(); });\n$$('[data-premium-open-section]').forEach(button => button.addEventListener('click', () => {\n  renderPremiumLayer(button.dataset.premiumOpenSection || 'home');\n  $('#premiumWorkspace')?.scrollIntoView({ behavior:'smooth', block:'start' });\n}));\nwindow.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#premiumOverlay')?.hidden === false) closePremiumLayer(); });\n\n${hintAnchor}`;
+  const premiumLayerCode = [
+    'function premiumAllocationSegments(portfolio) {',
+    '  const holdings = (portfolio?.holdings || []).filter(item => Number(item.currentLots || 0) > 0 && Number(item.activeValue || 0) > 0);',
+    '  const total = holdings.reduce((sum, item) => sum + Number(item.activeValue || 0), 0);',
+    '  if (!holdings.length || total <= 0) return [];',
+    "  return holdings.slice().sort((a,b) => Number(b.activeValue || 0) - Number(a.activeValue || 0)).map(item => ({ ticker:String(item.ticker || '—'), pct:Number(item.activeValue || 0) / total * 100 }));",
+    '}',
+    '',
+    'function renderPremiumAllocation() {',
+    "  const donut = $('#premiumAllocationDonut');",
+    "  const caption = $('#premiumAllocationCaption');",
+    '  if (!donut || !caption) return;',
+    '  const rows = premiumAllocationSegments(state.portfolio);',
+    '  if (!rows.length) {',
+    "    donut.style.background = 'rgba(255,255,255,.06)';",
+    "    donut.innerHTML = '<span>0<small>hisse</small></span>';",
+    "    caption.textContent = 'Hisse eklediğinde gerçek dağılım burada görünecek';",
+    '    return;',
+    '  }',
+    "  const palette = ['#8268ff','#38d7a1','#4fa4ff','#ffb65a','#d77cff','#ff7485','#77d5df'];",
+    '  let cursor = 0;',
+    '  const slices = rows.map((row, index) => {',
+    '    const start = cursor;',
+    '    cursor += row.pct;',
+    "    return palette[index % palette.length] + ' ' + start.toFixed(2) + '% ' + cursor.toFixed(2) + '%';",
+    '  });',
+    "  donut.style.background = 'conic-gradient(' + slices.join(',') + ')';",
+    "  donut.innerHTML = '<span>' + rows.length + '<small>hisse</small></span>';",
+    "  const top = rows.slice(0, 3).map(row => row.ticker + ' %' + row.pct.toFixed(1)).join(' · ');",
+    '  caption.textContent = top;',
+    '}',
+    '',
+    "function renderPremiumLayer(section = 'home') {",
+    "  const root = $('#premiumOverlayContent');",
+    '  if (!root) return;',
+    '  premiumDemo.render(root, {',
+    '    portfolio:state.portfolio,',
+    '    history:Array.isArray(state.portfolio?.history) ? state.portfolio.history : state.chartRows,',
+    '    calendar:state.calendar,',
+    '  });',
+    '  renderPremiumAllocation();',
+    "  if (section && section !== 'home') {",
+    "    const target = '[data-premium-section=\"' + section + '\"]';",
+    '    requestAnimationFrame(() => root.querySelector(target)?.click());',
+    '  }',
+    '}',
+    '',
+    "function openPremiumLayer(section = 'home') {",
+    "  const overlay = $('#premiumOverlay');",
+    '  if (!overlay) return;',
+    '  overlay.hidden = false;',
+    "  document.body.classList.add('premium-overlay-open');",
+    '  renderPremiumLayer(section);',
+    "  requestAnimationFrame(() => $('#premiumOverlayClose')?.focus());",
+    '}',
+    '',
+    'function closePremiumLayer() {',
+    "  const overlay = $('#premiumOverlay');",
+    '  if (!overlay || overlay.hidden) return;',
+    '  overlay.hidden = true;',
+    "  document.body.classList.remove('premium-overlay-open');",
+    "  $('#premiumEntry')?.focus();",
+    '}',
+    '',
+    "$('#premiumEntry')?.addEventListener('click', () => openPremiumLayer('home'));",
+    "$('#premiumOverlayClose')?.addEventListener('click', closePremiumLayer);",
+    "$('#premiumOverlay')?.addEventListener('click', event => { if (event.target === event.currentTarget) closePremiumLayer(); });",
+    "$$('[data-premium-open-section]').forEach(button => button.addEventListener('click', () => {",
+    "  renderPremiumLayer(button.dataset.premiumOpenSection || 'home');",
+    "  $('#premiumWorkspace')?.scrollIntoView({ behavior:'smooth', block:'start' });",
+    '}));',
+    "window.addEventListener('keydown', event => { if (event.key === 'Escape' && $('#premiumOverlay')?.hidden === false) closePremiumLayer(); });",
+    '',
+    hintAnchor,
+  ].join('\n');
   app = replaceOnce(appPath, app, hintAnchor, premiumLayerCode);
   write(appPath, app);
 }
@@ -48,6 +123,11 @@ if (!css.includes('/* premium-fullscreen-demo */')) {
   write(cssPath, css);
 }
 
+index = read(indexPath);
+app = read(appPath);
+premium = read(premiumPath);
+css = read(cssPath);
+
 const checks = {
   index:['id="premiumEntry"','id="premiumOverlay"','id="premiumOverlayContent"','Premium’u Keşfet','Gelişmiş Grafikler','Yedekleme &amp; Aktarım'],
   app:['function openPremiumLayer(','function closePremiumLayer(','conic-gradient','premiumAllocationSegments'],
@@ -55,8 +135,10 @@ const checks = {
   css:['.premium-fullscreen-overlay{position:fixed;inset:0;z-index:1200','.premium-fullscreen-scroll{height:100%;overflow-y:auto','.premium-allocation-donut'],
 };
 for (const token of checks.index) if (!index.includes(token)) throw new Error(`index missing ${token}`);
-app = read(appPath); premium = read(premiumPath); css = read(cssPath);
 for (const token of checks.app) if (!app.includes(token)) throw new Error(`app missing ${token}`);
 for (const token of checks.premium) if (!premium.includes(token)) throw new Error(`premium missing ${token}`);
 for (const token of checks.css) if (!css.includes(token)) throw new Error(`css missing ${token}`);
+
+execFileSync(process.execPath, ['--check', appPath], { stdio:'inherit' });
+execFileSync(process.execPath, ['--check', premiumPath], { stdio:'inherit' });
 console.log('Premium fullscreen demo transform applied.');
