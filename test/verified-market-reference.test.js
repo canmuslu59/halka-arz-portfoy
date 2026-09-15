@@ -65,6 +65,8 @@ test('Android fallback requires trusted daily reference and allows Foreks/OYAK h
   assert.match(worker, /reference\.previousClose/);
   assert.match(worker, /reference\.floorPrice/);
   assert.match(worker, /reference\.ceilingPrice/);
+  assert.match(worker, /salePrice - reference\.previousClose/);
+  assert.doesNotMatch(worker, /salePrice - quote\.previousClose/);
   assert.match(policy, /webservice\.foreks\.com/);
   assert.match(policy, /oyakyatirim\.com\.tr/);
 });

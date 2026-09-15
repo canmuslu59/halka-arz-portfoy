@@ -187,7 +187,7 @@ public class BackgroundAlertWorker extends Worker {
                     if (sale == null || !day.equals(sale.optString("date", ""))) continue;
                     double saleLots = sale.optDouble("lots", 0.0);
                     double salePrice = sale.optDouble("price", 0.0);
-                    if (saleLots > 0 && salePrice > 0) saleDayGain += saleLots * (salePrice - quote.previousClose);
+                    if (saleLots > 0 && salePrice > 0) saleDayGain += saleLots * (salePrice - reference.previousClose);
                 }
 
                 previousValue += reference.previousClose * dailyBaseLots;
