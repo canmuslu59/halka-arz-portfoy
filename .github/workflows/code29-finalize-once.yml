@@ -1,0 +1,38 @@
+name: Code29 Finalize Once
+
+on:
+  push:
+    branches: [fix/code28-seven-issues-20260914]
+    paths:
+      - .github/workflows/code29-finalize-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: fix/code28-seven-issues-20260914
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+      - name: Apply Code29 finalization
+        run: node scripts/finalize-code29-market-reference.mjs
+      - name: Sync Android web assets
+        run: node scripts/sync-android-assets.mjs
+      - name: Run regressions
+        run: npm test
+      - name: Commit finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "canmuslu59"
+          git config user.email "301077922+canmuslu59@users.noreply.github.com"
+          git add android/app/build.gradle android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java android/app/src/main/assets/www public/index.html test
+          git diff --cached --quiet && { echo 'No finalization changes'; exit 1; }
+          git commit -m "fix: finalize verified Code29 alert release"
+          git push origin HEAD:fix/code28-seven-issues-20260914
