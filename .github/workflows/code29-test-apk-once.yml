@@ -110,7 +110,17 @@ jobs:
           /usr/local/lib/android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK" | tee apk-signature.txt
           /usr/local/lib/android/sdk/build-tools/36.0.0/aapt dump badging "$APK" | tee apk-badging.txt
           grep -F "package: name='com.innative.halkaarz' versionCode='29' versionName='2.4.6'" apk-badging.txt
-          unzip -p "$APK" classes.dex | strings | grep -F "$PUSH_BACKEND_URL"
+          rm -rf /tmp/apk-dex
+          mkdir -p /tmp/apk-dex
+          unzip -q "$APK" 'classes*.dex' -d /tmp/apk-dex
+          FOUND_BACKEND=0
+          for dex in /tmp/apk-dex/classes*.dex; do
+            if strings "$dex" | grep -Fq "$PUSH_BACKEND_URL"; then
+              FOUND_BACKEND=1
+              break
+            fi
+          done
+          test "$FOUND_BACKEND" -eq 1
           mkdir -p dist
           cp "$APK" dist/halka-arz-portfoyum-v2.4.6-code29-test.apk
           sha256sum dist/halka-arz-portfoyum-v2.4.6-code29-test.apk > dist/SHA256SUMS.txt
