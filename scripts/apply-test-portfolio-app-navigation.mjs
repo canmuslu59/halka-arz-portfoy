@@ -8,7 +8,7 @@ function replaceOnce(text, needle, replacement, label) {
   const first = text.indexOf(needle);
   if (first < 0) throw new Error(`${label}: expected source block not found`);
   if (text.indexOf(needle, first + needle.length) >= 0) throw new Error(`${label}: source block is not unique`);
-  return text.replace(needle, replacement);
+  return text.replace(needle, () => replacement);
 }
 
 function requireMarker(text, marker, label) {
