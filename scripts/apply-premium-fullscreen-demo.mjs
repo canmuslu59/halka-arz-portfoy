@@ -8,6 +8,11 @@ function replaceOnce(path, source, needle, replacement) {
   return source.replace(needle, replacement);
 }
 
+function ensureReplacement(path, source, needle, replacement) {
+  if (source.includes(replacement)) return source;
+  return replaceOnce(path, source, needle, replacement);
+}
+
 for (const required of [
   'public/premium-app/index.js',
   'public/premium-app/router.js',
@@ -18,17 +23,17 @@ for (const required of [
 }
 
 // Premium Test still supports older Android System WebView versions used by the
-// production shell. Normalize the two modern Array.at() conveniences before the
-// assets are synced so the shipped APK never depends on that API.
+// production shell. The transforms are deliberately idempotent because this
+// integration step can be invoked more than once by local/CI validation flows.
 const premiumAppPath = 'public/premium-app/index.js';
 let premiumApp = read(premiumAppPath);
-premiumApp = replaceOnce(
+premiumApp = ensureReplacement(
   premiumAppPath,
   premiumApp,
   'displayDate(rows.at(-1).date)',
   'displayDate(rows[rows.length - 1].date)',
 );
-premiumApp = replaceOnce(
+premiumApp = ensureReplacement(
   premiumAppPath,
   premiumApp,
   "const worst = analytics.holdingContributions?.at(-1) || null;",
@@ -37,8 +42,9 @@ premiumApp = replaceOnce(
 
 // The normal calendar can open a specific IPO directly in Premium. Keep that
 // deep-link bridge explicit in the isolated mini-app public API.
-premiumApp = replaceOnce(
+premiumApp = ensureReplacement(
   premiumAppPath,
+  premiumApp,
   'const api = { mount, update, close, destroy, navigate, getState:',
   'const api = { mount, update, close, destroy, navigate, openIpo, getState:',
 );
@@ -62,4 +68,4 @@ if (!app.includes("$('#premiumEntry')?.addEventListener('click'")) {
   write(appPath, app);
 }
 
-console.log('Premium mini app entry integration, deep-link bridge and WebView compatibility normalization applied.');
+console.log('Premium mini app integration is ready and idempotent.');
