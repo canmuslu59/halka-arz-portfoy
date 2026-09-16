@@ -22,27 +22,33 @@ index = replaceOnce(index, 'src="./icon.svg"', 'src="./launcher-icon.webp"', 'la
 index = replaceOnce(
   index,
   '<section class="hero-card" aria-labelledby="portfolioValueLabel">',
-  '<section id="portfolioHeroCard" class="hero-card hero-home-card" aria-label="Portföy özeti">',
-  'hero card identity'
+  '<section id="portfolioHeroCard" class="hero-card wallet-home-card" aria-label="Cüzdan">',
+  'wallet card identity'
 );
 index = replaceOnce(
   index,
   `      <div class="hero-topline">\n        <span id="portfolioValueLabel" class="muted">Toplam portföy büyüklüğü</span>\n        <span id="lastUpdated" class="status-dot">—</span>\n      </div>`,
-  `      <div class="hero-topline hero-topline-actions">\n        <button id="sharePortfolioBtn" class="icon-btn share-btn" type="button" aria-label="Portföy kartını görsel olarak paylaş" title="Paylaş">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/><path d="M5 13v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>\n        </button>\n      </div>`,
-  'hero share action'
+  `      <div class="hero-topline hero-topline-actions">\n        <span class="wallet-title">Cüzdan</span>\n        <button id="sharePortfolioBtn" class="icon-btn share-btn" type="button" aria-label="Portföy kartını görsel olarak paylaş" title="Paylaş">\n          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/><path d="M5 13v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>\n        </button>\n      </div>`,
+  'wallet share action'
+);
+index = replaceOnce(
+  index,
+  `    </section>\n\n    <section class="chart-card">`,
+  `    </section>\n\n    <section id="comparisonCard" class="comparison-card" aria-label="Günlük karşılaştırma">\n      <div class="comparison-head">\n        <div><span class="eyebrow">KARŞILAŞTIRMA</span><strong>Günlük karşılaştırma</strong></div>\n        <small id="comparisonStatus" class="muted">Referanslar yükleniyor…</small>\n      </div>\n      <div class="comparison-grid">\n        <div class="comparison-item portfolio"><span>Portföy</span><strong id="comparisonPortfolio">—</strong></div>\n        <div class="comparison-item"><span>Altın (TL)</span><strong id="comparisonGold">—</strong></div>\n        <div class="comparison-item"><span>BIST 100</span><strong id="comparisonBist">—</strong></div>\n        <div class="comparison-item"><span>Dolar</span><strong id="comparisonUsd">—</strong></div>\n      </div>\n      <div id="comparisonSummary" class="comparison-summary">Günlük referanslar hazırlanıyor.</div>\n    </section>\n\n    <section class="chart-card">`,
+  'comparison card insertion'
 );
 writeFileSync(indexPath, index);
 
 let styles = readFileSync(stylesPath, 'utf8');
-styles += `\n\n/* Isolated test-only hero home card + image share UI. */\n.topbar-logo{display:block;width:44px;height:44px;border-radius:12px;object-fit:cover}\n.hero-topline-actions{justify-content:flex-end;margin-bottom:6px}\n.share-btn{position:relative;z-index:3;flex:0 0 auto}\n.hero-card.share-capture .share-btn{visibility:hidden!important}\nbody.share-capture-active .bottom-nav,body.share-capture-active .fab{visibility:hidden!important}\n@media(max-width:720px){\n  .hero-card.hero-home-card{\n    min-height:calc(100dvh - var(--android-safe-top,0px) - 78px);\n    display:flex;\n    flex-direction:column;\n    box-sizing:border-box;\n    padding-bottom:max(112px,calc(var(--android-safe-bottom,0px) + 100px));\n  }\n  .hero-home-card .hero-topline-actions{position:absolute;top:18px;right:18px;margin:0}\n  .hero-home-card .hero-value{margin-top:auto}\n  .hero-home-card .hero-grid{margin-bottom:auto}\n}\n`;
+styles += `\n\n/* Isolated test-only compact wallet + comparison + image share UI. */\n.topbar-logo{display:block;width:44px;height:44px;border-radius:12px;object-fit:cover}\n.wallet-home-card{padding:18px 20px 16px}\n.hero-topline-actions{justify-content:space-between;gap:12px;margin-bottom:2px}\n.wallet-title{font-size:12px;line-height:1.2;letter-spacing:.15em;font-weight:850;color:#91a0b6;text-transform:uppercase}\n.share-btn{position:relative;z-index:3;flex:0 0 auto}\n.wallet-home-card .hero-value{margin:6px 0 8px}\n.wallet-home-card .hero-grid{margin-top:15px;padding-top:14px;gap:10px}\n.hero-card.share-capture .share-btn{visibility:hidden!important}\nbody.share-capture-active .bottom-nav,body.share-capture-active .fab{visibility:hidden!important}\n.comparison-card{border:1px solid var(--line);background:linear-gradient(160deg,rgba(20,29,52,.90),rgba(10,16,30,.92));box-shadow:0 16px 44px rgba(0,0,0,.22);border-radius:22px;padding:13px 15px 12px;margin-top:12px}\n.comparison-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}\n.comparison-head>div{display:grid;gap:2px}.comparison-head strong{font-size:15px}.comparison-head small{font-size:10px;white-space:nowrap}\n.comparison-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:10px}\n.comparison-item{min-width:0;border:1px solid rgba(255,255,255,.055);background:rgba(255,255,255,.035);border-radius:12px;padding:8px 7px;display:grid;gap:3px;text-align:center}\n.comparison-item.portfolio{background:rgba(109,141,255,.09);border-color:rgba(109,141,255,.16)}\n.comparison-item span{font-size:10px;color:#7f8ca1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.comparison-item strong{font-size:13px;font-variant-numeric:tabular-nums}\n.comparison-summary{margin-top:8px;font-size:10.5px;color:#8290a5;text-align:center;min-height:13px}\n@media(max-width:720px){\n  .wallet-home-card{min-height:0;padding:15px 16px 13px}\n  .wallet-home-card .hero-value{font-size:34px;margin:4px 0 7px}\n  .wallet-home-card .hero-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:12px;padding-top:11px}\n  .wallet-home-card .hero-grid>div{padding:4px 0}\n  .wallet-home-card .hero-grid strong{font-size:12px}\n  .wallet-home-card .metric-label{font-size:9.5px}\n  .comparison-card{padding:11px 12px 10px;margin-top:9px}\n  .comparison-head strong{font-size:14px}.comparison-head .eyebrow{font-size:9px}.comparison-head small{display:none}\n  .comparison-grid{gap:5px;margin-top:8px}\n  .comparison-item{padding:7px 4px;border-radius:10px}.comparison-item span{font-size:9px}.comparison-item strong{font-size:12px}\n  .comparison-summary{margin-top:6px;font-size:9.5px}\n}\n@media(max-width:365px){\n  .wallet-home-card .hero-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}\n  .comparison-grid{grid-template-columns:repeat(2,minmax(0,1fr))}\n}\n`;
 writeFileSync(stylesPath, styles);
 
 let app = readFileSync(appPath, 'utf8');
 app = replaceOnce(
   app,
   'function toast(message) {',
-  `let portfolioShareResetTimer = null;\n\nfunction finishPortfolioShareCapture() {\n  const card = $('#portfolioHeroCard');\n  const btn = $('#sharePortfolioBtn');\n  if (card) card.classList.remove('share-capture');\n  document.body.classList.remove('share-capture-active');\n  if (btn) btn.disabled = false;\n  if (portfolioShareResetTimer) {\n    clearTimeout(portfolioShareResetTimer);\n    portfolioShareResetTimer = null;\n  }\n}\n\nwindow.__portfolioShareCaptureComplete = finishPortfolioShareCapture;\n\nfunction sharePortfolioCardImage() {\n  const card = $('#portfolioHeroCard');\n  const btn = $('#sharePortfolioBtn');\n  if (!card) {\n    if (btn) btn.disabled = false;\n    toast('Portföy kartı bulunamadı.');\n    return;\n  }\n  if (typeof window.AndroidBridge?.shareCardImage !== 'function') {\n    if (btn) btn.disabled = false;\n    toast('Görsel paylaşımı yalnız Android uygulamasında kullanılabilir.');\n    return;\n  }\n\n  card.classList.add('share-capture');\n  document.body.classList.add('share-capture-active');\n  if (portfolioShareResetTimer) clearTimeout(portfolioShareResetTimer);\n  portfolioShareResetTimer = setTimeout(finishPortfolioShareCapture, 1800);\n\n  requestAnimationFrame(() => {\n    requestAnimationFrame(() => {\n      try {\n        const rect = card.getBoundingClientRect();\n        const scale = Math.max(1, Number(window.devicePixelRatio) || 1);\n        window.AndroidBridge.shareCardImage(\n          rect.left * scale,\n          rect.top * scale,\n          rect.width * scale,\n          rect.height * scale\n        );\n      } catch {\n        finishPortfolioShareCapture();\n        toast('Portföy kartı paylaşımı açılamadı.');\n      }\n    });\n  });\n}\n\nfunction toast(message) {`,
-  'portfolio image share function'
+  `let homeComparisonData = null;\nlet homeComparisonPromise = null;\nlet homeComparisonFetchedAt = 0;\nconst HOME_COMPARISON_TTL_MS = 5 * 60 * 1000;\n\nfunction comparisonMoveFromYahoo(json) {\n  const result = json?.chart?.result?.[0];\n  const closes = Array.isArray(result?.indicators?.quote?.[0]?.close) ? result.indicators.quote[0].close : [];\n  const points = closes.map(Number).filter(Number.isFinite);\n  if (points.length < 2) return null;\n  const previous = points[points.length - 2];\n  const current = points[points.length - 1];\n  if (!(previous > 0) || !(current > 0)) return null;\n  return ((current / previous) - 1) * 100;\n}\n\nasync function fetchComparisonMove(symbol) {\n  const url = \`https://query1.finance.yahoo.com/v8/finance/chart/\${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=false&events=div%2Csplits\`;\n  return comparisonMoveFromYahoo(await httpGetJson(url));\n}\n\nfunction setComparisonMetric(id, value) {\n  const el = $(id);\n  if (!el) return;\n  el.textContent = pct(value);\n  el.classList.remove('positive','negative','neutral');\n  el.classList.add(signClass(value));\n}\n\nfunction renderHomeComparison() {\n  const portfolioPct = Number(state.portfolio?.totals?.dailyPct);\n  const safePortfolioPct = Number.isFinite(portfolioPct) ? portfolioPct : null;\n  setComparisonMetric('#comparisonPortfolio', safePortfolioPct);\n  setComparisonMetric('#comparisonGold', homeComparisonData?.goldTlPct ?? null);\n  setComparisonMetric('#comparisonBist', homeComparisonData?.bistPct ?? null);\n  setComparisonMetric('#comparisonUsd', homeComparisonData?.usdPct ?? null);\n\n  const status = $('#comparisonStatus');\n  if (status) status.textContent = homeComparisonData ? 'Günlük değişim' : 'Referanslar yükleniyor…';\n  const summary = $('#comparisonSummary');\n  if (!summary) return;\n  const goldPct = Number(homeComparisonData?.goldTlPct);\n  if (safePortfolioPct == null || !Number.isFinite(goldPct)) {\n    summary.textContent = homeComparisonData ? 'Karşılaştırılabilir verilerden bazıları henüz alınamadı.' : 'Günlük referanslar hazırlanıyor.';\n    return;\n  }\n  const diff = safePortfolioPct - goldPct;\n  const magnitude = Math.abs(diff);\n  summary.textContent = magnitude < 0.005\n    ? 'Portföy bugün altınla hemen hemen aynı seviyede.'\n    : \`Portföy bugün altından \${fmtNum.format(magnitude)} puan \${diff > 0 ? 'önde' : 'geride'}.\`;\n}\n\nasync function loadHomeComparison({ force = false } = {}) {\n  if (!force && homeComparisonData && Date.now() - homeComparisonFetchedAt < HOME_COMPARISON_TTL_MS) {\n    renderHomeComparison();\n    return homeComparisonData;\n  }\n  if (!force && homeComparisonPromise) return homeComparisonPromise;\n\n  const task = Promise.allSettled([\n    fetchComparisonMove('GC=F'),\n    fetchComparisonMove('XU100.IS'),\n    fetchComparisonMove('TRY=X'),\n  ]).then(([goldResult, bistResult, usdResult]) => {\n    const goldUsdPct = goldResult.status === 'fulfilled' ? goldResult.value : null;\n    const bistPct = bistResult.status === 'fulfilled' ? bistResult.value : null;\n    const usdPct = usdResult.status === 'fulfilled' ? usdResult.value : null;\n    const goldTlPct = Number.isFinite(Number(goldUsdPct)) && Number.isFinite(Number(usdPct))\n      ? (((1 + Number(goldUsdPct) / 100) * (1 + Number(usdPct) / 100)) - 1) * 100\n      : null;\n    homeComparisonData = { goldTlPct, bistPct, usdPct };\n    homeComparisonFetchedAt = Date.now();\n    renderHomeComparison();\n    return homeComparisonData;\n  }).catch(() => {\n    renderHomeComparison();\n    return homeComparisonData;\n  }).finally(() => {\n    if (homeComparisonPromise === task) homeComparisonPromise = null;\n  });\n  homeComparisonPromise = task;\n  return task;\n}\n\nlet portfolioShareResetTimer = null;\n\nfunction finishPortfolioShareCapture() {\n  const card = $('#portfolioHeroCard');\n  const btn = $('#sharePortfolioBtn');\n  if (card) card.classList.remove('share-capture');\n  document.body.classList.remove('share-capture-active');\n  if (btn) btn.disabled = false;\n  if (portfolioShareResetTimer) {\n    clearTimeout(portfolioShareResetTimer);\n    portfolioShareResetTimer = null;\n  }\n}\n\nwindow.__portfolioShareCaptureComplete = finishPortfolioShareCapture;\n\nfunction sharePortfolioCardImage() {\n  const card = $('#portfolioHeroCard');\n  const btn = $('#sharePortfolioBtn');\n  if (!card) {\n    if (btn) btn.disabled = false;\n    toast('Portföy kartı bulunamadı.');\n    return;\n  }\n  if (typeof window.AndroidBridge?.shareCardImage !== 'function') {\n    if (btn) btn.disabled = false;\n    toast('Görsel paylaşımı yalnız Android uygulamasında kullanılabilir.');\n    return;\n  }\n\n  card.classList.add('share-capture');\n  document.body.classList.add('share-capture-active');\n  if (portfolioShareResetTimer) clearTimeout(portfolioShareResetTimer);\n  portfolioShareResetTimer = setTimeout(finishPortfolioShareCapture, 1800);\n\n  requestAnimationFrame(() => {\n    requestAnimationFrame(() => {\n      try {\n        const rect = card.getBoundingClientRect();\n        const scale = Math.max(1, Number(window.devicePixelRatio) || 1);\n        window.AndroidBridge.shareCardImage(\n          rect.left * scale,\n          rect.top * scale,\n          rect.width * scale,\n          rect.height * scale\n        );\n      } catch {\n        finishPortfolioShareCapture();\n        toast('Portföy kartı paylaşımı açılamadı.');\n      }\n    });\n  });\n}\n\nfunction toast(message) {`,
+  'comparison and image share functions'
 );
 app = replaceOnce(
   app,
@@ -52,9 +58,33 @@ app = replaceOnce(
 );
 app = replaceOnce(
   app,
+  `  $('#holdingCount').textContent = \`\${data.holdings.length} hisse\`;`,
+  `  $('#holdingCount').textContent = \`\${data.holdings.length} hisse\`;\n  renderHomeComparison();`,
+  'comparison render hook'
+);
+app = replaceOnce(
+  app,
+  `    await loadPortfolio({ quiet:true, force:true });\n    await refreshBackgroundHistory({ force:true, announce:true });`,
+  `    await loadPortfolio({ quiet:true, force:true });\n    await loadHomeComparison({ force:true });\n    await refreshBackgroundHistory({ force:true, announce:true });`,
+  'manual comparison refresh hook'
+);
+app = replaceOnce(
+  app,
+  `    if (state.view === 'portfolio') loadPortfolio({ quiet:true });`,
+  `    if (state.view === 'portfolio') { loadPortfolio({ quiet:true }); loadHomeComparison(); }`,
+  'resume comparison refresh hook'
+);
+app = replaceOnce(
+  app,
   `$('#chartRange').addEventListener('change', () => { state.chartSelectedIndex = null; renderDailyHistory(); drawChart(); });`,
   `$('#sharePortfolioBtn')?.addEventListener('click', () => {\n  const btn = $('#sharePortfolioBtn');\n  if (btn?.disabled) return;\n  if (btn) btn.disabled = true;\n  sharePortfolioCardImage();\n});\n$('#chartRange').addEventListener('change', () => { state.chartSelectedIndex = null; renderDailyHistory(); drawChart(); });`,
   'portfolio image share listener'
+);
+app = replaceOnce(
+  app,
+  `loadPortfolio();\nsetTimeout(() => refreshBackgroundHistory(), 900);`,
+  `loadPortfolio();\nloadHomeComparison();\nsetTimeout(() => refreshBackgroundHistory(), 900);`,
+  'initial comparison load'
 );
 writeFileSync(appPath, app);
 
@@ -92,4 +122,4 @@ writeFileSync(
 );
 
 copyFileSync(launcherSource, launcherTarget);
-console.log('Applied isolated test hero/image-share overlay.');
+console.log('Applied isolated test wallet/comparison/image-share overlay.');
