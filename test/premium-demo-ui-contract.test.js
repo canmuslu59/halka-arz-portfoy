@@ -36,10 +36,13 @@ test('premium home model derives value/insights from real portfolio data', () =>
   assert.ok(model.insights.length >= 3);
 });
 
-test('membership model clearly marks prices and entitlement as demo-only', () => {
+test('membership model clearly marks the requested Premium Test example offer as demo-only', () => {
   const model = premiumMembershipModel();
   assert.equal(model.demo, true);
+  assert.equal(model.monthly.price, '₺49,99');
   assert.match(model.monthly.label, /örnek/i);
+  assert.equal(model.yearly.price, '₺299,99');
   assert.match(model.yearly.label, /örnek/i);
-  assert.match(model.cta, /test sürümünde premium açık/i);
+  assert.match(model.yearly.badge, /%40 avantaj/i);
+  assert.match(model.cta, /Premium Test Aktif/i);
 });
