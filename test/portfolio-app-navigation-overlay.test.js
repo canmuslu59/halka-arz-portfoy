@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 
 const read = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), 'utf8');
-const navigationOverlayUrl = new URL('../scripts/apply-test-portfolio-app-navigation.mjs', import.meta.url);
+const navigationOverlayUrl = new URL('../scripts/apply-test-portfolio-app-navigation-base.mjs', import.meta.url);
 const navigationOverlay = existsSync(navigationOverlayUrl) ? readFileSync(navigationOverlayUrl, 'utf8') : '';
 const walletOverlay = read('../scripts/apply-test-wallet-metrics-nav.mjs');
 const combinedOverlay = [
