@@ -9,6 +9,7 @@ on:
       - test/premium-*.test.js
       - public/premium-*.js
       - public/premium-*.css
+      - public/premium-app/**
       - public/core/premium-*.js
   workflow_dispatch:
 
@@ -137,7 +138,7 @@ jobs:
             echo "coexistsWith=com.innative.halkaarz,com.innative.halkaarz.test"
             echo "firebase=not configured for separate premium test package"
             echo "premium=demo entitlement forced open"
-            echo "premiumFullscreenTransform=scripts/apply-premium-fullscreen-demo.mjs"
+            echo "premiumMiniApp=public/premium-app"
           } > dist/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
