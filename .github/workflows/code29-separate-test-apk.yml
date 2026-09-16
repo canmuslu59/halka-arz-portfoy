@@ -50,12 +50,19 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/apply-test-share-ui.mjs
+          node scripts/apply-test-wallet-metrics-nav.mjs
           node --check android/app/src/main/assets/www/app.js
           test -s android/app/src/main/assets/www/launcher-icon.webp
           cmp android/app/src/main/res/drawable-nodpi/ic_launcher.webp android/app/src/main/assets/www/launcher-icon.webp
           grep -F 'src="./launcher-icon.webp"' android/app/src/main/assets/www/index.html
           grep -F 'id="portfolioHeroCard"' android/app/src/main/assets/www/index.html
           grep -F '>Cüzdan</span>' android/app/src/main/assets/www/index.html
+          grep -F 'wallet-metric-today' android/app/src/main/assets/www/index.html
+          grep -F 'Günlük Değişim' android/app/src/main/assets/www/index.html
+          grep -F 'wallet-metric-invested' android/app/src/main/assets/www/index.html
+          grep -F 'wallet-metric-hidden' android/app/src/main/assets/www/index.html
+          grep -F 'id="walletHomeTab"' android/app/src/main/assets/www/index.html
+          grep -F 'wallet-center-icon' android/app/src/main/assets/www/index.html
           grep -F 'id="comparisonCard"' android/app/src/main/assets/www/index.html
           grep -F 'Altın (TL)' android/app/src/main/assets/www/index.html
           grep -F 'BIST 100' android/app/src/main/assets/www/index.html
@@ -64,6 +71,8 @@ jobs:
           ! grep -F 'Toplam portföy büyüklüğü' android/app/src/main/assets/www/index.html
           ! grep -F 'id="lastUpdated"' android/app/src/main/assets/www/index.html
           grep -F 'wallet-home-card' android/app/src/main/assets/www/styles.css
+          grep -F 'wallet-metrics-grid' android/app/src/main/assets/www/styles.css
+          grep -F 'wallet-center-tab' android/app/src/main/assets/www/styles.css
           grep -F 'comparison-card' android/app/src/main/assets/www/styles.css
           ! grep -F '100dvh' android/app/src/main/assets/www/styles.css
           grep -F "fetchComparisonMove('GC=F')" android/app/src/main/assets/www/app.js
@@ -175,12 +184,18 @@ jobs:
           test "$found_backend" -eq 1
           unzip -p "$APK" assets/www/index.html | grep -F 'id="portfolioHeroCard"'
           unzip -p "$APK" assets/www/index.html | grep -F '>Cüzdan</span>'
+          unzip -p "$APK" assets/www/index.html | grep -F 'wallet-metric-today'
+          unzip -p "$APK" assets/www/index.html | grep -F 'Günlük Değişim'
+          unzip -p "$APK" assets/www/index.html | grep -F 'wallet-metric-invested'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="walletHomeTab"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonCard"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="sharePortfolioBtn"'
           unzip -p "$APK" assets/www/index.html | grep -F 'src="./launcher-icon.webp"'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'Toplam portföy büyüklüğü'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'id="lastUpdated"'
           unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-home-card'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-metrics-grid'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-center-tab'
           unzip -p "$APK" assets/www/styles.css | grep -F 'comparison-card'
           ! unzip -p "$APK" assets/www/styles.css | grep -F '100dvh'
           unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('GC=F')"
