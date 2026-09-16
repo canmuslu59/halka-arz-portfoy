@@ -35,6 +35,8 @@ jobs:
       - run: npm ci
       - name: Apply isolated Premium fullscreen transform
         run: node scripts/apply-premium-fullscreen-demo.mjs
+      - name: Sync transformed Premium assets to Android WebView
+        run: npm run android:sync
       - name: Verify Premium and critical regressions
         shell: bash
         run: |
@@ -46,7 +48,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run android:sync
           diff -qr public android/app/src/main/assets/www
           git diff --check
       - name: Configure isolated Premium demo identity
