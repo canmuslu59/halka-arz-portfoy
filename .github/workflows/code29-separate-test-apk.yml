@@ -45,12 +45,13 @@ jobs:
           git diff --exit-code -- android/app/src/main/assets/www
           git diff --check
 
-      - name: Apply isolated portfolio share UI overlay
+      - name: Apply isolated portfolio app overlays
         shell: bash
         run: |
           set -euo pipefail
           node scripts/apply-test-share-ui.mjs
           node scripts/apply-test-wallet-metrics-nav.mjs
+          node scripts/apply-test-portfolio-app-navigation.mjs
           node --check android/app/src/main/assets/www/app.js
           test -s android/app/src/main/assets/www/launcher-icon.webp
           cmp android/app/src/main/res/drawable-nodpi/ic_launcher.webp android/app/src/main/assets/www/launcher-icon.webp
@@ -63,21 +64,45 @@ jobs:
           grep -F 'wallet-metric-hidden' android/app/src/main/assets/www/index.html
           grep -F 'id="walletHomeTab"' android/app/src/main/assets/www/index.html
           grep -F 'wallet-center-icon' android/app/src/main/assets/www/index.html
+          grep -F 'id="performanceView"' android/app/src/main/assets/www/index.html
+          grep -F 'data-view="performance"' android/app/src/main/assets/www/index.html
+          grep -F '>Performans</b>' android/app/src/main/assets/www/index.html
+          grep -F 'id="marketsView"' android/app/src/main/assets/www/index.html
+          grep -F 'data-view="markets"' android/app/src/main/assets/www/index.html
+          grep -F '>Piyasalar</b>' android/app/src/main/assets/www/index.html
+          ! grep -F 'id="calendarView"' android/app/src/main/assets/www/index.html
+          grep -F 'id="calendarRefreshBtn"' android/app/src/main/assets/www/index.html
+          grep -F 'id="calendarStatus"' android/app/src/main/assets/www/index.html
+          grep -F 'id="calendarFilter"' android/app/src/main/assets/www/index.html
+          grep -F 'id="calendarList"' android/app/src/main/assets/www/index.html
+          grep -F 'id="marketSummary"' android/app/src/main/assets/www/index.html
+          grep -F 'id="marketSummaryBist"' android/app/src/main/assets/www/index.html
+          grep -F 'id="marketSummaryGold"' android/app/src/main/assets/www/index.html
+          grep -F 'id="marketSummaryUsd"' android/app/src/main/assets/www/index.html
           grep -F 'id="comparisonCard"' android/app/src/main/assets/www/index.html
+          grep -F 'id="comparisonRangeDaily"' android/app/src/main/assets/www/index.html
+          grep -F 'id="comparisonRangeWeekly"' android/app/src/main/assets/www/index.html
+          grep -F 'id="comparisonRangeMonthly"' android/app/src/main/assets/www/index.html
           grep -F 'Altın (TL)' android/app/src/main/assets/www/index.html
           grep -F 'BIST 100' android/app/src/main/assets/www/index.html
           grep -F '>Dolar</span>' android/app/src/main/assets/www/index.html
+          ! grep -F 'id="comparisonSummary"' android/app/src/main/assets/www/index.html
+          ! grep -F 'id="comparisonStatus"' android/app/src/main/assets/www/index.html
           grep -F 'id="sharePortfolioBtn"' android/app/src/main/assets/www/index.html
           ! grep -F 'Toplam portföy büyüklüğü' android/app/src/main/assets/www/index.html
           ! grep -F 'id="lastUpdated"' android/app/src/main/assets/www/index.html
           grep -F 'wallet-home-card' android/app/src/main/assets/www/styles.css
           grep -F 'wallet-metrics-grid' android/app/src/main/assets/www/styles.css
           grep -F 'wallet-center-tab' android/app/src/main/assets/www/styles.css
-          grep -F 'comparison-card' android/app/src/main/assets/www/styles.css
+          grep -F 'portfolio-comparison-card' android/app/src/main/assets/www/styles.css
+          grep -F 'market-summary' android/app/src/main/assets/www/styles.css
           ! grep -F '100dvh' android/app/src/main/assets/www/styles.css
-          grep -F "fetchComparisonMove('GC=F')" android/app/src/main/assets/www/app.js
-          grep -F "fetchComparisonMove('XU100.IS')" android/app/src/main/assets/www/app.js
-          grep -F "fetchComparisonMove('TRY=X')" android/app/src/main/assets/www/app.js
+          grep -F 'const comparisonRangeSessions = { daily: 1, weekly: 5, monthly: 22 };' android/app/src/main/assets/www/app.js
+          grep -F "fetchComparisonSeries('GC=F')" android/app/src/main/assets/www/app.js
+          grep -F "fetchComparisonSeries('XU100.IS')" android/app/src/main/assets/www/app.js
+          grep -F "fetchComparisonSeries('TRY=X')" android/app/src/main/assets/www/app.js
+          grep -F "if (next === 'performance') requestAnimationFrame(drawChart);" android/app/src/main/assets/www/app.js
+          grep -F "if (next === 'markets') { loadIpoCalendar(); loadHomeComparison(); }" android/app/src/main/assets/www/app.js
           grep -F 'window.AndroidBridge.shareCardImage' android/app/src/main/assets/www/app.js
           ! grep -F 'shareText(' android/app/src/main/assets/www/app.js
           grep -F 'Bitmap.createBitmap' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
@@ -188,7 +213,16 @@ jobs:
           unzip -p "$APK" assets/www/index.html | grep -F 'Günlük Değişim'
           unzip -p "$APK" assets/www/index.html | grep -F 'wallet-metric-invested'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="walletHomeTab"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="performanceView"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="marketsView"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="marketSummary"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="calendarList"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonCard"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonRangeDaily"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonRangeWeekly"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonRangeMonthly"'
+          ! unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonSummary"'
+          ! unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonStatus"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="sharePortfolioBtn"'
           unzip -p "$APK" assets/www/index.html | grep -F 'src="./launcher-icon.webp"'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'Toplam portföy büyüklüğü'
@@ -196,11 +230,13 @@ jobs:
           unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-home-card'
           unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-metrics-grid'
           unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-center-tab'
-          unzip -p "$APK" assets/www/styles.css | grep -F 'comparison-card'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'portfolio-comparison-card'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'market-summary'
           ! unzip -p "$APK" assets/www/styles.css | grep -F '100dvh'
-          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('GC=F')"
-          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('XU100.IS')"
-          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('TRY=X')"
+          unzip -p "$APK" assets/www/app.js | grep -F 'const comparisonRangeSessions = { daily: 1, weekly: 5, monthly: 22 };'
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonSeries('GC=F')"
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonSeries('XU100.IS')"
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonSeries('TRY=X')"
           unzip -p "$APK" assets/www/app.js | grep -F 'window.AndroidBridge.shareCardImage'
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
           {
@@ -211,6 +247,7 @@ jobs:
             echo "backend=${PUSH_BACKEND_URL}"
             echo "signing=AOSP public testkey pinned at ${AOSP_BUILD_COMMIT}"
             echo "firebase=not configured for separate test package"
+            echo "portfolioNavigationOverlay=enabled"
           } > dist/BUILD-INFO.txt
 
       - uses: actions/upload-artifact@v4
