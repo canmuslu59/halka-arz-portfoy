@@ -9,7 +9,23 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  premium-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - premium-alerts.test.js
+          - premium-analytics.test.js
+          - premium-asset-parity.test.js
+          - premium-backup.test.js
+          - premium-charts.test.js
+          - premium-demo-ui-contract.test.js
+          - premium-entitlement.test.js
+          - premium-fullscreen-shell.test.js
+          - premium-logo-resolver.test.js
+          - premium-overlay-ui.test.js
+          - premium-watchlist.test.js
+    name: ${{ matrix.file }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -21,16 +37,5 @@ jobs:
         run: node scripts/apply-premium-fullscreen-demo.mjs
       - name: Sync transformed Premium assets to Android WebView
         run: npm run android:sync
-      - name: Premium focused tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          tests=(test/premium-*.test.js)
-          if [ ${#tests[@]} -eq 0 ]; then
-            echo 'No premium tests yet.'
-          else
-            node --test "${tests[@]}"
-          fi
-      - name: Existing regression suite
-        run: npm test
+      - name: Run isolated Premium test
+        run: node --test "test/${{ matrix.file }}"
