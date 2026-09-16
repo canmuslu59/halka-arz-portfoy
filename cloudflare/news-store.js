@@ -172,7 +172,8 @@ export class NewsStateDurableObject {
         return json(200, { comments:model.listComments(url.searchParams.get('newsId') || '') });
       }
       if (method === 'POST' && url.pathname === '/comments') {
-        const comment = await this.mutate(model => model.addComment(await readJson(request)));
+        const body = await readJson(request);
+        const comment = await this.mutate(model => model.addComment(body));
         return json(201, { comment });
       }
       if (method === 'POST' && url.pathname === '/comment-counts') {
@@ -181,7 +182,8 @@ export class NewsStateDurableObject {
         return json(200, { counts:model.commentCounts(Array.isArray(body.ids) ? body.ids : []) });
       }
       if (method === 'POST' && url.pathname === '/installations') {
-        const result = await this.mutate(model => model.registerInstallation(await readJson(request)));
+        const body = await readJson(request);
+        const result = await this.mutate(model => model.registerInstallation(body));
         return json(200, result);
       }
       if (method === 'POST' && url.pathname === '/breaking/claim') {
