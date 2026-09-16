@@ -35,7 +35,10 @@ test('new Premium shell uses real core modules and does not create fake purchase
   assert.match(source, /₺49,99/);
   assert.match(source, /₺299,99/);
   assert.match(source, /%40/);
-  assert.doesNotMatch(source, /Satın al|satın al|purchase\s*\(/i);
+  assert.match(source, /gerçek satın alma veya Play Billing işlemi yapılmaz/i);
+  assert.doesNotMatch(source, /data-action=["']purchase["']/i);
+  assert.doesNotMatch(source, />\s*Satın Al\s*</i);
+  assert.doesNotMatch(source, /(?:function\s+purchase|\.purchase\s*\(|purchase\s*\()/i);
 });
 
 test('Premium visual shell is full-screen and isolated from the normal app chrome', () => {
