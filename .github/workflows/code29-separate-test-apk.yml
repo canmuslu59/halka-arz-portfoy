@@ -55,11 +55,20 @@ jobs:
           cmp android/app/src/main/res/drawable-nodpi/ic_launcher.webp android/app/src/main/assets/www/launcher-icon.webp
           grep -F 'src="./launcher-icon.webp"' android/app/src/main/assets/www/index.html
           grep -F 'id="portfolioHeroCard"' android/app/src/main/assets/www/index.html
+          grep -F '>Cüzdan</span>' android/app/src/main/assets/www/index.html
+          grep -F 'id="comparisonCard"' android/app/src/main/assets/www/index.html
+          grep -F 'Altın (TL)' android/app/src/main/assets/www/index.html
+          grep -F 'BIST 100' android/app/src/main/assets/www/index.html
+          grep -F '>Dolar</span>' android/app/src/main/assets/www/index.html
           grep -F 'id="sharePortfolioBtn"' android/app/src/main/assets/www/index.html
           ! grep -F 'Toplam portföy büyüklüğü' android/app/src/main/assets/www/index.html
           ! grep -F 'id="lastUpdated"' android/app/src/main/assets/www/index.html
-          grep -F 'hero-home-card' android/app/src/main/assets/www/styles.css
-          grep -F '100dvh' android/app/src/main/assets/www/styles.css
+          grep -F 'wallet-home-card' android/app/src/main/assets/www/styles.css
+          grep -F 'comparison-card' android/app/src/main/assets/www/styles.css
+          ! grep -F '100dvh' android/app/src/main/assets/www/styles.css
+          grep -F "fetchComparisonMove('GC=F')" android/app/src/main/assets/www/app.js
+          grep -F "fetchComparisonMove('XU100.IS')" android/app/src/main/assets/www/app.js
+          grep -F "fetchComparisonMove('TRY=X')" android/app/src/main/assets/www/app.js
           grep -F 'window.AndroidBridge.shareCardImage' android/app/src/main/assets/www/app.js
           ! grep -F 'shareText(' android/app/src/main/assets/www/app.js
           grep -F 'Bitmap.createBitmap' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
@@ -165,11 +174,18 @@ jobs:
           done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
           test "$found_backend" -eq 1
           unzip -p "$APK" assets/www/index.html | grep -F 'id="portfolioHeroCard"'
+          unzip -p "$APK" assets/www/index.html | grep -F '>Cüzdan</span>'
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="comparisonCard"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="sharePortfolioBtn"'
           unzip -p "$APK" assets/www/index.html | grep -F 'src="./launcher-icon.webp"'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'Toplam portföy büyüklüğü'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'id="lastUpdated"'
-          unzip -p "$APK" assets/www/styles.css | grep -F '100dvh'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'wallet-home-card'
+          unzip -p "$APK" assets/www/styles.css | grep -F 'comparison-card'
+          ! unzip -p "$APK" assets/www/styles.css | grep -F '100dvh'
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('GC=F')"
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('XU100.IS')"
+          unzip -p "$APK" assets/www/app.js | grep -F "fetchComparisonMove('TRY=X')"
           unzip -p "$APK" assets/www/app.js | grep -F 'window.AndroidBridge.shareCardImage'
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
           {
