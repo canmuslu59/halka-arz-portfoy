@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-generalization.mjs', import.meta.url), 'utf8');
 const navigationOverlay = readFileSync(new URL('../scripts/apply-test-portfolio-app-navigation-base.mjs', import.meta.url), 'utf8');
+const appSource = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 
 test('stock add form is purchase-first with optional IPO assistance', () => {
   assert.match(overlay, /Hisse ekle/);
@@ -49,4 +50,11 @@ test('IPO checkbox only triggers automatic IPO fill when explicitly selected', (
   assert.match(overlay, /if \(!ipoPurchase\?\.checked\)/);
   assert.match(overlay, /result\.ipo\?\.ipoPrice/);
   assert.match(overlay, /result\.ipo\?\.firstTradeDate/);
+});
+
+test('stock-entry overlay anchors the ticker listener independently of callback parameter shape', () => {
+  assert.match(appSource, /\$\('#tickerInput'\)\.addEventListener\('input', event => \{/);
+  assert.match(overlay, /const tickerListenerStart = "\$\('#tickerInput'\)\.addEventListener\('input', ";/);
+  assert.match(overlay, /app\.indexOf\(tickerListenerStart\)/);
+  assert.doesNotMatch(overlay, /app\.indexOf\("\$\('#tickerInput'\)\.addEventListener\('input', \(\) => \{"\)/);
 });
