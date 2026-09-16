@@ -43,14 +43,24 @@ index = index.slice(0, comparisonStart) + focusedComparison + index.slice(perfor
 
 const analyticsStart = index.indexOf('    <section class="chart-card">', comparisonStart + focusedComparison.length);
 const holdingsStart = index.indexOf('    <section class="section holdings-section">', analyticsStart);
-if (analyticsStart < 0 || holdingsStart < 0) throw new Error('performance analytics / holdings boundary not found');
+const calendarOpen = '    <section id="calendarView" class="app-view" hidden>';
+const portfolioCloseMarker = `    </section>\n\n${calendarOpen}`;
+const portfolioCloseStart = index.indexOf(portfolioCloseMarker, holdingsStart);
+const holdingsEnd = portfolioCloseStart;
+if (analyticsStart < 0 || holdingsStart < 0 || holdingsEnd < 0) throw new Error('performance / holdings / wallet view boundaries not found');
 const performanceContent = index.slice(analyticsStart, holdingsStart);
+const holdingsContent = index.slice(holdingsStart, holdingsEnd);
 requireMarker(performanceContent, 'id="dailyHistory"', 'performance analytics');
 requireMarker(performanceContent, 'id="sectorAllocation"', 'performance analytics');
-index = index.slice(0, analyticsStart) + index.slice(holdingsStart);
+requireMarker(holdingsContent, 'id="holdings"', 'holdings content');
+requireMarker(holdingsContent, 'id="holdingSort"', 'holdings content');
 
-const calendarOpen = '    <section id="calendarView" class="app-view" hidden>';
-const performanceAndMarkets = `    <section id="performanceView" class="app-view" hidden>
+// Wallet home only two cards: wallet summary + comparison. Analytics and holdings move to dedicated views.
+index = index.slice(0, analyticsStart) + index.slice(portfolioCloseStart);
+const holdingsPerformanceMarkets = `    <section id="holdingsView" class="app-view" hidden>
+${holdingsContent}    </section>
+
+    <section id="performanceView" class="app-view" hidden>
 ${performanceContent}    </section>
 
     <section id="marketsView" class="app-view" hidden>
@@ -62,15 +72,45 @@ ${performanceContent}    </section>
         <div class="market-summary-item"><span>Altın (TL)</span><strong id="marketSummaryGold">—</strong></div>
         <div class="market-summary-item"><span>Dolar</span><strong id="marketSummaryUsd">—</strong></div>
       </section>`;
-index = replaceOnce(index, calendarOpen, performanceAndMarkets, 'performance and markets views');
+index = replaceOnce(index, calendarOpen, holdingsPerformanceMarkets, 'holdings performance and markets views');
 
 index = replaceOnce(
   index,
   `    <button id="portfolioTab" class="nav-tab active" data-view="portfolio" type="button"><span>▦</span><b>Portföy</b></button>
     <button id="calendarTab" class="nav-tab" data-view="calendar" type="button"><span>◫</span><b>Takvim</b></button>`,
-  `    <button id="performanceTab" class="nav-tab" data-view="performance" type="button"><span>↗</span><b>Performans</b></button>
-    <button id="marketsTab" class="nav-tab" data-view="markets" type="button"><span>⌁</span><b>Piyasalar</b></button>`,
-  'bottom navigation first two tabs'
+  `    <button id="holdingsTab" class="nav-tab" data-view="holdings" type="button"><span>▦</span><b>Hisselerim</b></button>
+    <button id="performanceTab" class="nav-tab" data-view="performance" type="button"><span>↗</span><b>Performans</b></button>`,
+  'bottom navigation holdings and performance tabs'
+);
+// Remove advanced navigation from the five-item dock; keep proView available for contextual market detail links.
+index = replaceOnce(
+  index,
+  `    <button id="proTab" class="nav-tab" data-view="pro" type="button"><span>✦</span><b>Gelişmiş</b></button>`,
+  `    <button id="marketsTab" class="nav-tab" data-view="markets" type="button"><span>⌁</span><b>Piyasalar</b></button>`,
+  'replace advanced navigation with markets'
+);
+
+index = replaceOnce(
+  index,
+  `        <div class="holding-title-row">
+          <div>
+            <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
+            <div class="company muted"></div><div class="sector-tag"></div>
+          </div>
+          <div class="price-stack">`,
+  `        <div class="holding-title-row">
+          <div class="holding-identity">
+            <span class="holding-logo-avatar" aria-hidden="true">
+              <img class="holding-logo" alt="" hidden />
+              <span class="holding-logo-fallback">?</span>
+            </span>
+            <div class="holding-copy">
+              <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
+              <div class="company muted"></div><div class="sector-tag"></div>
+            </div>
+          </div>
+          <div class="price-stack">`,
+  'holding logo avatar template'
 );
 writeFileSync(indexPath, index);
 
@@ -78,31 +118,50 @@ let styles = readFileSync(stylesPath, 'utf8');
 styles += `
 
 /* Test-only portfolio-app navigation. Keep isolated from live/public sources. */
-.portfolio-comparison-card{padding:16px 16px 15px;min-height:150px;display:grid;align-content:start;gap:12px}
+#portfolioView{display:grid;gap:14px;align-content:start}
+#portfolioView[hidden]{display:none}
+#holdingsView>.holdings-section{margin-top:0}
+.portfolio-comparison-card{padding:18px 17px 16px;min-height:184px;display:grid;align-content:start;gap:14px}
 .portfolio-comparison-card .comparison-head{align-items:center;min-height:18px}
 .comparison-range{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;border-radius:13px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.055)}
-.comparison-range-btn{min-height:34px;border:0;border-radius:10px;background:transparent;color:#8190a6;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.comparison-range-btn{min-height:36px;border:0;border-radius:10px;background:transparent;color:#8190a6;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
 .comparison-range-btn.active{background:rgba(109,141,255,.17);color:#e8edff;box-shadow:inset 0 0 0 1px rgba(109,141,255,.18)}
 .comparison-grid-expanded{margin-top:0;gap:8px}
-.comparison-grid-expanded .comparison-item{padding:12px 7px;gap:5px}
+.comparison-grid-expanded .comparison-item{padding:13px 7px;gap:5px}
 .comparison-grid-expanded .comparison-item span{font-size:10px}.comparison-grid-expanded .comparison-item strong{font-size:14px}
 .market-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 16px}
 .market-summary-item{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:14px 12px;display:grid;gap:6px;min-width:0}
 .market-summary-item span{font-size:10px;color:var(--muted);font-weight:750}.market-summary-item strong{font-size:15px;font-variant-numeric:tabular-nums}
 #performanceView>.chart-card:first-child{margin-top:0}
+.holding-identity{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.holding-copy{min-width:0}
+.holding-logo-avatar{width:42px;height:42px;flex:0 0 42px;border-radius:13px;display:grid;place-items:center;overflow:hidden;background:rgba(109,141,255,.12);border:1px solid rgba(109,141,255,.18);color:#aab8ff;font-size:17px;font-weight:900;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
+.holding-logo{width:100%;height:100%;object-fit:contain;background:#fff}
+.holding-logo-fallback{line-height:1}
+.holding-logo-avatar .holding-logo[hidden],.holding-logo-avatar .holding-logo-fallback[hidden]{display:none!important}
 @media(max-width:720px){
-  .portfolio-comparison-card{min-height:142px;padding:13px 13px 12px;gap:10px}
-  .comparison-range-btn{min-height:32px;font-size:10px}
+  #portfolioView{gap:10px}
+  .portfolio-comparison-card{min-height:182px;padding:15px 14px 13px;gap:12px}
+  .comparison-range-btn{min-height:34px;font-size:10px}
   .comparison-grid-expanded{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
-  .comparison-grid-expanded .comparison-item{padding:10px 4px}.comparison-grid-expanded .comparison-item strong{font-size:12px}
+  .comparison-grid-expanded .comparison-item{padding:11px 4px}.comparison-grid-expanded .comparison-item strong{font-size:12px}
   .market-summary{gap:7px}.market-summary-item{padding:12px 8px;border-radius:14px}.market-summary-item strong{font-size:13px}
+  .holding-logo-avatar{width:38px;height:38px;flex-basis:38px;border-radius:12px;font-size:15px}
 }
 @media(max-width:365px){
   .comparison-grid-expanded{grid-template-columns:repeat(2,minmax(0,1fr))}
   .market-summary{grid-template-columns:1fr}
 }
-html[data-theme="light"] .comparison-range{background:rgba(54,75,112,.04);border-color:rgba(54,75,112,.08)}
-html[data-theme="light"] .comparison-range-btn.active{background:rgba(74,100,213,.12);color:#314ca6}
+html[data-theme="light"] .portfolio-comparison-card{background:linear-gradient(160deg,#fff,#f7f9ff);border-color:#dfe5f0;box-shadow:0 12px 34px rgba(52,67,103,.09)}
+html[data-theme="light"] .comparison-range{background:#f3f5f9;border-color:#e1e6ee}
+html[data-theme="light"] .comparison-range-btn{color:#65738a}
+html[data-theme="light"] .comparison-range-btn.active{background:#e8edff;color:#314ca6;box-shadow:inset 0 0 0 1px #d3dcff}
+html[data-theme="light"] .comparison-item{background:#f7f9fc;border-color:#e5e9f0}
+html[data-theme="light"] .comparison-item.portfolio{background:#eef2ff;border-color:#dbe3ff}
+html[data-theme="light"] .market-summary-item{background:#fff;border-color:#dfe5ee;box-shadow:0 8px 24px rgba(48,62,93,.06)}
+html[data-theme="light"] .holding-logo-avatar{background:#eef2ff;border-color:#dbe3ff;color:#4058ba;box-shadow:none}
+html[data-theme="light"] .icon-btn{background:#fff;border-color:#dfe5ee;color:#44516a;box-shadow:0 5px 16px rgba(48,62,93,.07)}
+html[data-theme="light"] .close-btn{background:#f3f5f9;border-color:#dfe5ee;color:#36445d}
 `;
 writeFileSync(stylesPath, styles);
 
@@ -117,6 +176,7 @@ app = replaceOnce(
 };`,
   `const VIEW_META = {
   portfolio: { title:'Cüzdan' },
+  holdings: { title:'Hisselerim' },
   performance: { title:'Performans' },
   markets: { title:'Piyasalar' },
   pro: { title:'Gelişmiş' },
@@ -260,8 +320,8 @@ const newSwitchView = `function switchView(view, { push = true, selectedTicker =
     tab.setAttribute('aria-current', active ? 'page' : 'false');
   });
   if ($('#screenTitle')) $('#screenTitle').textContent = VIEW_META[next].title;
-  if ($('#addFab')) $('#addFab').hidden = next !== 'portfolio';
-  if ($('#refreshBtn')) $('#refreshBtn').hidden = next !== 'portfolio';
+  if ($('#addFab')) $('#addFab').hidden = next !== 'holdings';
+  if ($('#refreshBtn')) $('#refreshBtn').hidden = !['portfolio','holdings'].includes(next);
   if (next === 'markets') { loadIpoCalendar(); loadHomeComparison(); }
   if (next === 'portfolio') renderHomeComparison();
   if (next === 'performance') requestAnimationFrame(drawChart);
@@ -295,7 +355,58 @@ $$('[data-comparison-range]').forEach(button => button.addEventListener('click',
 }));`,
   'comparison range listeners'
 );
+
+const holdingLogoHelpers = `const holdingLogoCache = new Map();
+
+async function fetchHoldingLogoUrl(ticker) {
+  const symbol = String(ticker || '').trim().toLocaleUpperCase('tr-TR');
+  if (!symbol) return null;
+  if (holdingLogoCache.has(symbol)) return holdingLogoCache.get(symbol);
+  const pending = httpGetText(\`https://fintables.com/sirketler/\${encodeURIComponent(symbol)}\`)
+    .then(html => {
+      const urls = String(html || '').match(/https:\/\/storage\.fintables\.com\/[^"'<>\\s]+/gi) || [];
+      const logoUrl = urls.find(url => /company-logos/i.test(url)) || null;
+      return logoUrl ? logoUrl.replaceAll('&amp;', '&') : null;
+    })
+    .catch(() => null);
+  holdingLogoCache.set(symbol, pending);
+  return pending;
+}
+
+async function hydrateHoldingLogo(node, holding) {
+  const avatar = $('.holding-logo-avatar', node);
+  const logo = $('.holding-logo', node);
+  const fallback = $('.holding-logo-fallback', node);
+  if (!avatar || !logo || !fallback) return;
+  fallback.textContent = String(holding?.ticker || '?').charAt(0).toLocaleUpperCase('tr-TR') || '?';
+  fallback.hidden = false;
+  logo.hidden = true;
+  const logoUrl = await fetchHoldingLogoUrl(holding?.ticker);
+  if (!logoUrl) return;
+  const showFallback = () => { logo.hidden = true; fallback.hidden = false; };
+  logo.addEventListener('error', showFallback, { once:true });
+  logo.addEventListener('load', () => { logo.hidden = false; fallback.hidden = true; }, { once:true });
+  logo.src = logoUrl;
+}
+
+`;
+app = replaceOnce(app, 'function renderHolding(h) {', `${holdingLogoHelpers}function renderHolding(h) {`, 'holding logo helpers');
+app = replaceOnce(
+  app,
+  `  $('.holding-main',node).addEventListener('click', () => openDetail(h.id));
+  return node;`,
+  `  $('.holding-main',node).addEventListener('click', () => openDetail(h.id));
+  hydrateHoldingLogo(node, h);
+  return node;`,
+  'holding logo hydration hook'
+);
+
 app = app.replaceAll("state.view === 'calendar'", "state.view === 'markets'");
+app = app.replace("if (state.view !== 'portfolio') return;", "if (state.view !== 'portfolio' && state.view !== 'holdings') return;");
+app = app.replace(
+  "if (state.view === 'portfolio') { loadPortfolio({ quiet:true }); loadHomeComparison(); }",
+  "if (state.view === 'portfolio' || state.view === 'holdings') { loadPortfolio({ quiet:true }); if (state.view === 'portfolio') loadHomeComparison(); }"
+);
 writeFileSync(appPath, app);
 
-console.log('Applied isolated test portfolio navigation + performance/markets + ranged comparison overlay.');
+console.log('Applied isolated test wallet/holdings/performance/markets navigation + ranged comparison + resilient stock logos overlay.');
