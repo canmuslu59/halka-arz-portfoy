@@ -26,12 +26,16 @@ test('premium rule validation accepts supported stock and portfolio rules', () =
   assert.equal(portfolio.value, 2.5);
   assert.equal(portfolio.ticker, null);
   assert.equal(portfolio.enabled, true);
+
+  assert.equal(validatePremiumRule({ type:'stock_daily_rise', ticker:'BIMAS', value:2 }).type, 'stock_daily_rise');
+  assert.equal(validatePremiumRule({ type:'stock_daily_fall', ticker:'TUPRS', value:2 }).type, 'stock_daily_fall');
 });
 
 test('premium rule validation rejects invalid ticker, price and percentages', () => {
   assert.throws(() => validatePremiumRule({ type:'price_above', ticker:'', value:100 }), /hisse kodu/i);
   assert.throws(() => validatePremiumRule({ type:'price_below', ticker:'ASELS', value:0 }), /fiyat/i);
   assert.throws(() => validatePremiumRule({ type:'stock_daily_pct', ticker:'THYAO', value:-2 }), /yüzde/i);
+  assert.throws(() => validatePremiumRule({ type:'stock_daily_rise', ticker:'THYAO', value:0 }), /yüzde/i);
   assert.throws(() => validatePremiumRule({ type:'unknown', value:2 }), /alarm türü/i);
 });
 
@@ -52,11 +56,15 @@ test('premium rule store persists, updates, toggles and removes rules without pr
   assert.equal(storage.getItem('alertEnabled'), null);
 });
 
-test('premium rule evaluator handles target prices, stock moves, portfolio moves and verified limits locally', () => {
+test('premium rule evaluator handles target prices, directional stock moves, portfolio moves and verified limits locally', () => {
   const rules = [
     { id:'a', type:'price_above', ticker:'ASELS', value:120, enabled:true },
     { id:'b', type:'price_below', ticker:'THYAO', value:280, enabled:true },
     { id:'c', type:'stock_daily_pct', ticker:'ASELS', value:3, enabled:true },
+    { id:'r', type:'stock_daily_rise', ticker:'ASELS', value:3, enabled:true },
+    { id:'rf', type:'stock_daily_rise', ticker:'THYAO', value:1, enabled:true },
+    { id:'f1', type:'stock_daily_fall', ticker:'THYAO', value:1, enabled:true },
+    { id:'ff', type:'stock_daily_fall', ticker:'ASELS', value:3, enabled:true },
     { id:'d', type:'portfolio_positive', value:2, enabled:true },
     { id:'e', type:'portfolio_negative', value:2, enabled:true },
     { id:'f', type:'ceiling', ticker:'ASELS', value:null, enabled:true },
@@ -71,7 +79,9 @@ test('premium rule evaluator handles target prices, stock moves, portfolio moves
     ],
   }, rules);
 
-  assert.deepEqual(events.map(event => event.ruleId).sort(), ['a','b','c','d','f']);
+  assert.deepEqual(events.map(event => event.ruleId).sort(), ['a','b','c','d','f','f1','r']);
+  assert.equal(events.some(event => event.ruleId === 'rf'), false, 'a falling stock must not fire a rise rule');
+  assert.equal(events.some(event => event.ruleId === 'ff'), false, 'a rising stock must not fire a fall rule');
   assert.equal(events.some(event => event.ruleId === 'g'), false, 'unverified floor must not fire');
   assert.equal(events.some(event => event.ruleId === 'e'), false, 'positive portfolio move must not fire negative rule');
 });
