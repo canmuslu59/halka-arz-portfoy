@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test test/premium-*.test.js test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js test/navigation.test.js
+          node --test test/premium-*.test.js test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js test/navigation-contract.test.js
       - name: Run complete regression suite
         run: npm test
       - name: Verify transformed Android asset parity
