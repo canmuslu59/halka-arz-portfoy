@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const overlay = readFileSync(new URL('../scripts/apply-test-share-ui.mjs', import.meta.url), 'utf8');
+const overlay = [
+  readFileSync(new URL('../scripts/apply-test-share-ui.mjs', import.meta.url), 'utf8'),
+  readFileSync(new URL('../scripts/apply-test-wallet-metrics-nav.mjs', import.meta.url), 'utf8'),
+].join('\n');
 
 test('test home restores a compact wallet card instead of full-viewport hero', () => {
   assert.match(overlay, />Cüzdan</);
