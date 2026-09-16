@@ -14,7 +14,7 @@ function topbarMarkup(html) {
 test('topbar uses the app logo instead of the BIST / portfolio title block', () => {
   for (const html of [publicIndex, androidIndex]) {
     const topbar = topbarMarkup(html);
-    assert.match(topbar, /<div class="topbar-brand">/);
+    assert.match(topbar, /<div\b[^>]*class="topbar-brand"[^>]*>/);
     const logo = topbar.match(/<img\b[^>]*class="topbar-logo"[^>]*>/)?.[0] || '';
     assert.match(logo, /src="\.\/icon\.svg"/);
     assert.match(logo, /width="44"/);
