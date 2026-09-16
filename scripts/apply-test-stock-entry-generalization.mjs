@@ -133,7 +133,8 @@ const newReset = `function resetAddEntryForm() {
 }`;
 app = app.slice(0, resetStartIndex) + newReset + app.slice(resetEndIndex + 2);
 
-const tickerStart = app.indexOf("$('#tickerInput').addEventListener('input', () => {");
+const tickerListenerStart = "$('#tickerInput').addEventListener('input', ";
+const tickerStart = app.indexOf(tickerListenerStart);
 const submitStart = app.indexOf("\n\n$('#addForm').addEventListener('submit', async event => {", tickerStart);
 if (tickerStart < 0 || submitStart < 0) throw new Error('ticker lookup boundary not found');
 const newTickerLookup = `$('#tickerInput').addEventListener('input', () => {
