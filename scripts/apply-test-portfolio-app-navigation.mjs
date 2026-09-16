@@ -364,7 +364,7 @@ async function fetchHoldingLogoUrl(ticker) {
   if (holdingLogoCache.has(symbol)) return holdingLogoCache.get(symbol);
   const pending = httpGetText(\`https://fintables.com/sirketler/\${encodeURIComponent(symbol)}\`)
     .then(html => {
-      const urls = String(html || '').match(/https:\/\/storage\.fintables\.com\/[^"'<>\\s]+/gi) || [];
+      const urls = String(html || '').split(/[\\s"'<>]+/).filter(part => part.startsWith('https://storage.fintables.com/'));
       const logoUrl = urls.find(url => /company-logos/i.test(url)) || null;
       return logoUrl ? logoUrl.replaceAll('&amp;', '&') : null;
     })
