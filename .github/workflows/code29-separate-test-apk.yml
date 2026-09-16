@@ -2,7 +2,7 @@ name: Code29 Separate Test APK
 
 on:
   push:
-    branches: [test/code29-separate-apk-20260915, feature/test-hero-card-image-share-20260916, feature/test-wallet-comparison-home-20260916, feature/test-wallet-metrics-center-nav-20260916]
+    branches: [test/code29-separate-apk-20260915, feature/test-hero-card-image-share-20260916, feature/test-wallet-comparison-home-20260916, feature/test-wallet-metrics-center-nav-20260916, feature/test-portfolio-app-navigation-20260916]
   workflow_dispatch:
 
 permissions:
@@ -31,7 +31,7 @@ jobs:
       - run: npm ci
 
       - name: Verify focused regressions
-        run: node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js
+        run: node --test test/stock-add-flow-regression.test.js test/background-closed-alert-regression.test.js test/verified-market-reference.test.js test/portfolio-app-navigation-overlay.test.js
 
       - name: Run complete regression suite
         run: npm test
