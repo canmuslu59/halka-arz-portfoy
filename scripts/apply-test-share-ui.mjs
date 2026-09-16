@@ -8,6 +8,7 @@ const manifestPath = 'android/app/src/main/AndroidManifest.xml';
 const sharePathsPath = 'android/app/src/main/res/xml/share_file_paths.xml';
 const launcherSource = 'android/app/src/main/res/drawable-nodpi/ic_launcher.webp';
 const launcherTarget = 'android/app/src/main/assets/www/launcher-icon.webp';
+const providerAuthority = '${applicationId}.fileprovider';
 
 function replaceOnce(text, needle, replacement, label) {
   const first = text.indexOf(needle);
@@ -80,7 +81,7 @@ let manifest = readFileSync(manifestPath, 'utf8');
 manifest = replaceOnce(
   manifest,
   `        <activity\n            android:name="com.innative.halkaarz.MainActivity"\n            android:exported="true"\n            android:windowSoftInputMode="adjustResize">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.LAUNCHER" />\n            </intent-filter>\n        </activity>`,
-  `        <activity\n            android:name="com.innative.halkaarz.MainActivity"\n            android:exported="true"\n            android:windowSoftInputMode="adjustResize">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.LAUNCHER" />\n            </intent-filter>\n        </activity>\n        <provider\n            android:name="androidx.core.content.FileProvider"\n            android:authorities="\\${applicationId}.fileprovider"\n            android:exported="false"\n            android:grantUriPermissions="true">\n            <meta-data\n                android:name="android.support.FILE_PROVIDER_PATHS"\n                android:resource="@xml/share_file_paths" />\n        </provider>`,
+  `        <activity\n            android:name="com.innative.halkaarz.MainActivity"\n            android:exported="true"\n            android:windowSoftInputMode="adjustResize">\n            <intent-filter>\n                <action android:name="android.intent.action.MAIN" />\n                <category android:name="android.intent.category.LAUNCHER" />\n            </intent-filter>\n        </activity>\n        <provider\n            android:name="androidx.core.content.FileProvider"\n            android:authorities="${providerAuthority}"\n            android:exported="false"\n            android:grantUriPermissions="true">\n            <meta-data\n                android:name="android.support.FILE_PROVIDER_PATHS"\n                android:resource="@xml/share_file_paths" />\n        </provider>`,
   'share file provider manifest entry'
 );
 writeFileSync(manifestPath, manifest);
