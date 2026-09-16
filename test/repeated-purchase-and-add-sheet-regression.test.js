@@ -1,8 +1,26 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { createRepository } from '../public/core/repository.js';
-import { createPortfolioService } from '../public/core/portfolio-service.js';
+import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const tempRoot = mkdtempSync(join(tmpdir(), 'halkaarz-repeat-buy-'));
+cpSync(fileURLToPath(new URL('../public/core/', import.meta.url)), join(tempRoot, 'core'), { recursive:true });
+const coreOverlay = fileURLToPath(new URL('../scripts/apply-test-repeated-purchase-core.mjs', import.meta.url));
+const transformed = spawnSync(process.execPath, [coreOverlay], {
+  cwd:fileURLToPath(new URL('..', import.meta.url)),
+  env:{ ...process.env, TEST_ASSET_ROOT:tempRoot },
+  encoding:'utf8',
+});
+if (transformed.status !== 0) {
+  throw new Error(`Repeated-purchase test overlay failed: ${transformed.stderr || transformed.stdout}`);
+}
+
+const { createRepository } = await import(pathToFileURL(join(tempRoot, 'core/repository.js')).href);
+const { createPortfolioService } = await import(pathToFileURL(join(tempRoot, 'core/portfolio-service.js')).href);
+after(() => rmSync(tempRoot, { recursive:true, force:true }));
 
 function memoryRepository() {
   let raw = null;
@@ -73,7 +91,7 @@ test('a later buy does not reprice profit from an earlier sale', async () => {
 });
 
 test('add sheet hides the floating add button and keeps the real submit action keyboard-accessible', () => {
-  const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-generalization.mjs', import.meta.url), 'utf8');
+  const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-fixes.mjs', import.meta.url), 'utf8');
   assert.match(overlay, /body\.sheet-open #addFab/);
   assert.match(overlay, /classList\.add\('sheet-open'\)/);
   assert.match(overlay, /classList\.remove\('sheet-open'\)/);
@@ -82,7 +100,7 @@ test('add sheet hides the floating add button and keeps the real submit action k
 });
 
 test('stock detail exposes average purchase price, current cost and purchase history', () => {
-  const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-generalization.mjs', import.meta.url), 'utf8');
+  const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-fixes.mjs', import.meta.url), 'utf8');
   assert.match(overlay, /Ortalama alış/);
   assert.match(overlay, /Mevcut maliyet/);
   assert.match(overlay, /Alış geçmişi/);
