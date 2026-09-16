@@ -6,7 +6,10 @@ on:
     paths:
       - .github/workflows/premium-demo-test-apk.yml
       - scripts/apply-premium-fullscreen-demo.mjs
-      - test/premium-fullscreen-shell.test.js
+      - test/premium-*.test.js
+      - public/premium-*.js
+      - public/premium-*.css
+      - public/core/premium-*.js
   workflow_dispatch:
 
 permissions:
