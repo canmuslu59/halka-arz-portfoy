@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Apply isolated Premium fullscreen transform
+        run: node scripts/apply-premium-fullscreen-demo.mjs
       - name: Premium focused tests
         shell: bash
         run: |
