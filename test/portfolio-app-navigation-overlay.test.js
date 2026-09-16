@@ -12,6 +12,20 @@ const combinedOverlay = [
   navigationOverlay,
 ].join('\n');
 
+function extractedReplaceOnce() {
+  const match = navigationOverlay.match(/function replaceOnce\(text, needle, replacement, label\) \{[\s\S]*?\n\}/);
+  assert.ok(match, 'replaceOnce helper must exist');
+  return Function(`${match[0]}; return replaceOnce;`)();
+}
+
+test('overlay replacement preserves literal double-dollar selectors used by querySelectorAll helper', () => {
+  const replaceOnce = extractedReplaceOnce();
+  assert.equal(
+    replaceOnce('NAV_BIND', 'NAV_BIND', "$$('.nav-tab').forEach(() => {});", 'navigation listeners'),
+    "$$('.nav-tab').forEach(() => {});",
+  );
+});
+
 test('test-only navigation exposes Performance, Markets, centered Wallet, Advanced and Settings', () => {
   assert.match(navigationOverlay, /performanceView/);
   assert.match(navigationOverlay, /marketsView/);
