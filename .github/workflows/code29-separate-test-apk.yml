@@ -2,7 +2,7 @@ name: Code29 Separate Test APK
 
 on:
   push:
-    branches: [test/code29-separate-apk-20260915]
+    branches: [test/code29-separate-apk-20260915, feature/test-hero-card-image-share-20260916]
   workflow_dispatch:
 
 permissions:
