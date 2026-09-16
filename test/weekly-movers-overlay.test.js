@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const overlay = readFileSync(new URL('../scripts/apply-test-portfolio-app-navigation.mjs', import.meta.url), 'utf8');
+const walletOverlay = readFileSync(new URL('../scripts/apply-test-wallet-metrics-nav.mjs', import.meta.url), 'utf8');
+const navigationOverlay = readFileSync(new URL('../scripts/apply-test-portfolio-app-navigation.mjs', import.meta.url), 'utf8');
+const overlay = `${walletOverlay}\n${navigationOverlay}`;
 
 test('wallet home adds a compact weekly top movers card below comparison', () => {
   assert.match(overlay, /id="weeklyMoversCard"/);
@@ -10,6 +12,8 @@ test('wallet home adds a compact weekly top movers card below comparison', () =>
   assert.match(overlay, /Haftanın En Hareketlileri/);
   assert.match(overlay, /5 işlem günü/);
   assert.match(overlay, /weekly-movers-card/);
+  assert.match(overlay, /#comparisonCard\{order:2\}/);
+  assert.match(overlay, /\.weekly-movers-card\{order:3/);
 });
 
 test('weekly movers rank active holdings by absolute five-session percentage move', () => {
