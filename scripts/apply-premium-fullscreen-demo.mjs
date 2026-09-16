@@ -17,6 +17,25 @@ for (const required of [
   if (!fs.existsSync(required)) throw new Error(`Premium mini app asset missing: ${required}`);
 }
 
+// Premium Test still supports older Android System WebView versions used by the
+// production shell. Normalize the two modern Array.at() conveniences before the
+// assets are synced so the shipped APK never depends on that API.
+const premiumAppPath = 'public/premium-app/index.js';
+let premiumApp = read(premiumAppPath);
+premiumApp = replaceOnce(
+  premiumAppPath,
+  premiumApp,
+  'displayDate(rows.at(-1).date)',
+  'displayDate(rows[rows.length - 1].date)',
+);
+premiumApp = replaceOnce(
+  premiumAppPath,
+  premiumApp,
+  "const worst = analytics.holdingContributions?.at(-1) || null;",
+  "const worstRows = analytics.holdingContributions || [];\n  const worst = worstRows.length ? worstRows[worstRows.length - 1] : null;",
+);
+write(premiumAppPath, premiumApp);
+
 const indexPath = 'public/index.html';
 let index = read(indexPath);
 if (!index.includes('id="premiumEntry"')) {
@@ -35,4 +54,4 @@ if (!app.includes("$('#premiumEntry')?.addEventListener('click'")) {
   write(appPath, app);
 }
 
-console.log('Premium mini app entry integration applied.');
+console.log('Premium mini app entry integration and WebView compatibility normalization applied.');
