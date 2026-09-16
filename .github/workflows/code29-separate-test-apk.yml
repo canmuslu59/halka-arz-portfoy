@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-test-apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
@@ -44,6 +44,21 @@ jobs:
           diff -qr public android/app/src/main/assets/www
           git diff --exit-code -- android/app/src/main/assets/www
           git diff --check
+
+      - name: Apply isolated portfolio share UI overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/apply-test-share-ui.mjs
+          node --check android/app/src/main/assets/www/app.js
+          test -s android/app/src/main/assets/www/launcher-icon.webp
+          cmp android/app/src/main/res/drawable-nodpi/ic_launcher.webp android/app/src/main/assets/www/launcher-icon.webp
+          grep -F 'src="./launcher-icon.webp"' android/app/src/main/assets/www/index.html
+          grep -F 'id="sharePortfolioBtn"' android/app/src/main/assets/www/index.html
+          ! grep -F 'Toplam portföy büyüklüğü' android/app/src/main/assets/www/index.html
+          ! grep -F 'id="lastUpdated"' android/app/src/main/assets/www/index.html
+          grep -F 'window.AndroidBridge.shareText' android/app/src/main/assets/www/app.js
+          grep -F 'Intent.ACTION_SEND' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
 
       - name: Configure isolated test release identity
         shell: bash
@@ -131,6 +146,7 @@ jobs:
           "$BUILD_TOOLS/aapt" dump badging "$APK" | tee dist/apk-badging.txt
           grep -F "package: name='com.innative.halkaarz.test' versionCode='${TEST_VERSION_CODE}' versionName='2.4.6-test'" dist/apk-badging.txt
           grep -F "application-label:'Halka Arz Portföyüm Test'" dist/apk-badging.txt
+          grep -F 'Signer #1 certificate SHA-256 digest: a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc' dist/apk-signature.txt
           found_backend=0
           while IFS= read -r dex; do
             if unzip -p "$APK" "$dex" | strings | grep -Fq "$PUSH_BACKEND_URL"; then
@@ -139,6 +155,10 @@ jobs:
             fi
           done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
           test "$found_backend" -eq 1
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="sharePortfolioBtn"'
+          unzip -p "$APK" assets/www/index.html | grep -F 'src="./launcher-icon.webp"'
+          ! unzip -p "$APK" assets/www/index.html | grep -F 'Toplam portföy büyüklüğü'
+          ! unzip -p "$APK" assets/www/index.html | grep -F 'id="lastUpdated"'
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
           {
             echo "package=com.innative.halkaarz.test"
