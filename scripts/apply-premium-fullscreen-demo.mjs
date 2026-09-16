@@ -34,6 +34,14 @@ premiumApp = replaceOnce(
   "const worst = analytics.holdingContributions?.at(-1) || null;",
   "const worstRows = analytics.holdingContributions || [];\n  const worst = worstRows.length ? worstRows[worstRows.length - 1] : null;",
 );
+
+// The normal calendar can open a specific IPO directly in Premium. Keep that
+// deep-link bridge explicit in the isolated mini-app public API.
+premiumApp = replaceOnce(
+  premiumAppPath,
+  'const api = { mount, update, close, destroy, navigate, getState:',
+  'const api = { mount, update, close, destroy, navigate, openIpo, getState:',
+);
 write(premiumAppPath, premiumApp);
 
 const indexPath = 'public/index.html';
@@ -54,4 +62,4 @@ if (!app.includes("$('#premiumEntry')?.addEventListener('click'")) {
   write(appPath, app);
 }
 
-console.log('Premium mini app entry integration and WebView compatibility normalization applied.');
+console.log('Premium mini app entry integration, deep-link bridge and WebView compatibility normalization applied.');
