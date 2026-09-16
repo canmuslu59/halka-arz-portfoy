@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { PREMIUM_SECTIONS, buildPremiumHomeModel, premiumMembershipModel } from '../public/premium-demo.js';
+import { BOTTOM_NAV, ROUTES } from '../public/premium-app/router.js';
+import { buildPremiumAnalytics } from '../public/core/premium-analytics.js';
 
 const portfolio = {
   totals:{ totalWealth:128532, invested:98215, activeValue:120000, salesProceeds:8532, realizedProfit:7200, unrealizedProfit:23117, totalProfit:30317, dailyProfit:4328, dailyPct:3.48, totalProfitPct:30.86 },
@@ -18,31 +19,35 @@ const history = [
   { date:'2026-09-15', value:128532, profit:30317, profitPct:30.86, dailyProfit:4328, dailyPct:3.48, complete:true },
 ];
 
-test('premium demo exposes the full paid experience as internal sections, not a second bottom navigation', () => {
-  assert.deepEqual(PREMIUM_SECTIONS.map(item => item.id), [
-    'home','analytics','charts','alerts','ipo','watchlist','backup','membership',
-  ]);
-  const source = fs.readFileSync(new URL('../public/premium-demo.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /class=["']bottom-nav/);
+test('Premium owns an independent five-destination navigation tree', () => {
+  assert.deepEqual(BOTTOM_NAV.map(item => item.id), ['home','analytics','alerts','ipo','menu']);
+  for (const route of ['watchlist','calendar','backup','membership','alert-editor','ipo-detail']) assert.ok(ROUTES[route]);
+  const source = fs.readFileSync(new URL('../public/premium-app/index.js', import.meta.url), 'utf8');
+  assert.match(source, /premium-bottom-nav/);
+  assert.match(source, /premium-mini-shell/);
 });
 
-test('premium home model derives value/insights from real portfolio data', () => {
-  const model = buildPremiumHomeModel({ portfolio, history });
-  assert.equal(model.totalWealth, 128532);
+test('Premium analytics derives values and contribution order from real portfolio data', () => {
+  const model = buildPremiumAnalytics({ portfolio, history });
   assert.equal(model.dailyProfit, 4328);
   assert.equal(model.totalProfit, 30317);
-  assert.equal(model.strongest.ticker, 'ASELS');
-  assert.equal(model.weakest.ticker, 'THYAO');
-  assert.ok(model.insights.length >= 3);
+  assert.equal(model.holdingContributions[0].ticker, 'ASELS');
+  assert.equal(model.holdingContributions.at(-1).ticker, 'THYAO');
+  assert.equal(model.allocationByHolding[0].ticker, 'ASELS');
 });
 
-test('membership model clearly marks the requested Premium Test example offer as demo-only', () => {
-  const model = premiumMembershipModel();
-  assert.equal(model.demo, true);
-  assert.equal(model.monthly.price, '₺49,99');
-  assert.match(model.monthly.label, /örnek/i);
-  assert.equal(model.yearly.price, '₺299,99');
-  assert.match(model.yearly.label, /örnek/i);
-  assert.match(model.yearly.badge, /%40 avantaj/i);
-  assert.match(model.cta, /Premium Test Aktif/i);
+test('legacy controller is a thin adapter and no longer renders old Premium sections', () => {
+  const adapter = fs.readFileSync(new URL('../public/premium-demo.js', import.meta.url), 'utf8');
+  assert.match(adapter, /createPremiumApp/);
+  assert.doesNotMatch(adapter, /PREMIUM_SECTIONS|renderChartsSection|premium-tab-list/);
+});
+
+test('membership remains explicitly test-only with the requested example offer', () => {
+  const source = fs.readFileSync(new URL('../public/premium-app/index.js', import.meta.url), 'utf8');
+  assert.match(source, /Premium Test Aktif/);
+  assert.match(source, /₺49,99/);
+  assert.match(source, /₺299,99/);
+  assert.match(source, /%40 avantaj/i);
+  assert.match(source, /gerçek satın alma veya Play Billing işlemi yapılmaz/i);
+  assert.doesNotMatch(source, /Satın al|purchase\s*\(/i);
 });
