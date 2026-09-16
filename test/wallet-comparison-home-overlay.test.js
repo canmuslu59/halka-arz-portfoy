@@ -32,3 +32,19 @@ test('existing image share bridge remains preserved', () => {
   assert.match(overlay, /portfolio-card\.png/);
   assert.match(overlay, /FileProvider/);
 });
+
+test('wallet metrics are simplified to Today, Daily Change and Invested without truncating today amount', () => {
+  assert.match(overlay, /wallet-metric-today/);
+  assert.match(overlay, /Günlük Değişim/);
+  assert.match(overlay, /wallet-metric-invested/);
+  assert.match(overlay, /white-space:nowrap/);
+  assert.match(overlay, /overflow:visible/);
+});
+
+test('bottom navigation adds an emphasized circular wallet home control in the center', () => {
+  assert.match(overlay, /walletHomeTab/);
+  assert.match(overlay, /wallet-center-tab/);
+  assert.match(overlay, /data-view="portfolio"/);
+  assert.match(overlay, /wallet-center-icon/);
+  assert.match(overlay, /border-radius:50%/);
+});
