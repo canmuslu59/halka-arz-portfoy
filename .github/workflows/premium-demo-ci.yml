@@ -19,6 +19,8 @@ jobs:
           node-version: '22'
       - name: Apply isolated Premium fullscreen transform
         run: node scripts/apply-premium-fullscreen-demo.mjs
+      - name: Sync transformed Premium assets to Android WebView
+        run: npm run android:sync
       - name: Premium focused tests
         shell: bash
         run: |
