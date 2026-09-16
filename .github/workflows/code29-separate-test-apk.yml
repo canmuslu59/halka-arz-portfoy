@@ -54,11 +54,20 @@ jobs:
           test -s android/app/src/main/assets/www/launcher-icon.webp
           cmp android/app/src/main/res/drawable-nodpi/ic_launcher.webp android/app/src/main/assets/www/launcher-icon.webp
           grep -F 'src="./launcher-icon.webp"' android/app/src/main/assets/www/index.html
+          grep -F 'id="portfolioHeroCard"' android/app/src/main/assets/www/index.html
           grep -F 'id="sharePortfolioBtn"' android/app/src/main/assets/www/index.html
           ! grep -F 'Toplam portföy büyüklüğü' android/app/src/main/assets/www/index.html
           ! grep -F 'id="lastUpdated"' android/app/src/main/assets/www/index.html
-          grep -F 'window.AndroidBridge.shareText' android/app/src/main/assets/www/app.js
+          grep -F 'hero-home-card' android/app/src/main/assets/www/styles.css
+          grep -F '100dvh' android/app/src/main/assets/www/styles.css
+          grep -F 'window.AndroidBridge.shareCardImage' android/app/src/main/assets/www/app.js
+          ! grep -F 'shareText(' android/app/src/main/assets/www/app.js
+          grep -F 'Bitmap.createBitmap' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -F 'FileProvider' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -F 'portfolio-card.png' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
           grep -F 'Intent.ACTION_SEND' android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          grep -F 'androidx.core.content.FileProvider' android/app/src/main/AndroidManifest.xml
+          grep -F '<cache-path' android/app/src/main/res/xml/share_file_paths.xml
 
       - name: Configure isolated test release identity
         shell: bash
@@ -155,10 +164,13 @@ jobs:
             fi
           done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
           test "$found_backend" -eq 1
+          unzip -p "$APK" assets/www/index.html | grep -F 'id="portfolioHeroCard"'
           unzip -p "$APK" assets/www/index.html | grep -F 'id="sharePortfolioBtn"'
           unzip -p "$APK" assets/www/index.html | grep -F 'src="./launcher-icon.webp"'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'Toplam portföy büyüklüğü'
           ! unzip -p "$APK" assets/www/index.html | grep -F 'id="lastUpdated"'
+          unzip -p "$APK" assets/www/styles.css | grep -F '100dvh'
+          unzip -p "$APK" assets/www/app.js | grep -F 'window.AndroidBridge.shareCardImage'
           sha256sum "$APK" | tee dist/SHA256SUMS.txt
           {
             echo "package=com.innative.halkaarz.test"
