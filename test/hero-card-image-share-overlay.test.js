@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const overlay = readFileSync(new URL('../scripts/apply-test-share-ui.mjs', import.meta.url), 'utf8');
 
-test('test overlay shares the hero card as an image instead of portfolio text', () => {
+test('test overlay shares the wallet card as an image instead of portfolio text', () => {
   assert.match(overlay, /portfolioHeroCard/);
   assert.match(overlay, /getBoundingClientRect\(\)/);
   assert.match(overlay, /shareCardImage/);
@@ -14,14 +14,13 @@ test('test overlay shares the hero card as an image instead of portfolio text', 
   assert.doesNotMatch(overlay, /shareText\(/);
 });
 
-test('test overlay makes the hero card fill the opening viewport without exposing performance card', () => {
-  assert.match(overlay, /hero-home-card/);
-  assert.match(overlay, /100dvh/);
-  assert.match(overlay, /android-safe-top/);
+test('wallet card remains compact so the comparison card can fit on the opening screen', () => {
+  assert.match(overlay, /wallet-home-card/);
+  assert.doesNotMatch(overlay, /100dvh/);
   assert.match(overlay, /share-capture/);
 });
 
-test('image capture hides floating navigation controls so only the hero card is shared', () => {
+test('image capture hides floating navigation controls so only the wallet card is shared', () => {
   assert.match(overlay, /share-capture-active/);
   assert.match(overlay, /\.bottom-nav/);
   assert.match(overlay, /\.fab/);
