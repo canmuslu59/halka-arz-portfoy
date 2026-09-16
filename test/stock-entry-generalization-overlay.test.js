@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const overlay = readFileSync(new URL('../scripts/apply-test-portfolio-app-navigation.mjs', import.meta.url), 'utf8');
+const overlay = readFileSync(new URL('../scripts/apply-test-stock-entry-generalization.mjs', import.meta.url), 'utf8');
+const navigationOverlay = readFileSync(new URL('../scripts/apply-test-portfolio-app-navigation-base.mjs', import.meta.url), 'utf8');
 
 test('stock add form is purchase-first with optional IPO assistance', () => {
   assert.match(overlay, /Hisse ekle/);
@@ -32,8 +33,8 @@ test('stock-facing labels use purchase language while IPO market calendar stays 
   assert.match(overlay, /Alış tarihi:/);
   assert.match(overlay, /<span>Alış fiyatı<\/span>/);
   assert.match(overlay, /placeholder="Alış fiyatı"/);
-  assert.match(overlay, /calendarRefreshBtn/);
-  assert.match(overlay, /calendarList/);
+  assert.match(navigationOverlay, /calendarRefreshBtn/);
+  assert.match(navigationOverlay, /calendarList/);
 });
 
 test('add stock FAB is visible on Wallet and Holdings and remains above the floating dock', () => {
