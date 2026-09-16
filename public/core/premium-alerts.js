@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'premium_rules_v1';
-const STOCK_TYPES = new Set(['price_above','price_below','stock_daily_pct','ceiling','floor']);
-const VALUE_TYPES = new Set(['price_above','price_below','stock_daily_pct','portfolio_positive','portfolio_negative']);
+const STOCK_TYPES = new Set(['price_above','price_below','stock_daily_pct','stock_daily_rise','stock_daily_fall','ceiling','floor']);
+const VALUE_TYPES = new Set(['price_above','price_below','stock_daily_pct','stock_daily_rise','stock_daily_fall','portfolio_positive','portfolio_negative']);
 const ALL_TYPES = new Set([...STOCK_TYPES, 'portfolio_positive', 'portfolio_negative']);
 
 function cleanTicker(value) {
@@ -128,6 +128,12 @@ export function evaluatePremiumRules(context = {}, rules = []) {
     } else if (rule.type === 'stock_daily_pct') {
       actual = Number(holding.dailyPct);
       matched = Number.isFinite(actual) && Math.abs(actual) >= rule.value;
+    } else if (rule.type === 'stock_daily_rise') {
+      actual = Number(holding.dailyPct);
+      matched = Number.isFinite(actual) && actual >= rule.value;
+    } else if (rule.type === 'stock_daily_fall') {
+      actual = Number(holding.dailyPct);
+      matched = Number.isFinite(actual) && actual <= -rule.value;
     } else if (rule.type === 'ceiling') {
       const price = Number(holding.currentPrice);
       const ceiling = Number(holding.ceiling);
