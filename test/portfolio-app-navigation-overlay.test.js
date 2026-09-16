@@ -21,7 +21,7 @@ test('test-only navigation exposes Performance, Markets, centered Wallet, Advanc
   assert.match(combinedOverlay, /data-view="portfolio"/);
   assert.match(navigationOverlay, />Performans</);
   assert.match(navigationOverlay, />Piyasalar</);
-  assert.doesNotMatch(navigationOverlay, /data-view="calendar"[^>]*>[\s\S]*?<b>Takvim<\/b>/);
+  assert.match(navigationOverlay, /normalizedView = view === 'calendar' \? 'markets' : view/);
 });
 
 test('wallet comparison becomes a focused daily weekly monthly card with four references', () => {
