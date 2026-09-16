@@ -49,5 +49,7 @@ test('membership remains explicitly test-only with the requested example offer',
   assert.match(source, /₺299,99/);
   assert.match(source, /%40 avantaj/i);
   assert.match(source, /gerçek satın alma veya Play Billing işlemi yapılmaz/i);
-  assert.doesNotMatch(source, /Satın al|purchase\s*\(/i);
+  assert.doesNotMatch(source, /data-action=["']purchase["']/i);
+  assert.doesNotMatch(source, />\s*Satın Al\s*</i);
+  assert.doesNotMatch(source, /(?:function\s+purchase|\.purchase\s*\(|purchase\s*\()/i);
 });
