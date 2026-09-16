@@ -9,6 +9,7 @@ function text(path) {
 const index = text('public/index.html');
 const app = text('public/app.js');
 const premium = text('public/premium-app/index.js');
+const adapter = text('public/premium-demo.js');
 const css = text('public/premium-app/premium.css');
 const workflow = text('.github/workflows/premium-demo-test-apk.yml');
 const transform = text('scripts/apply-premium-fullscreen-demo.mjs');
@@ -39,6 +40,11 @@ test('Premium analysis uses real-data allocation and chart contracts', () => {
   assert.match(premium, /activeValue/);
   assert.match(premium, /conic-gradient/);
   assert.match(css, /\.premium-donut/);
+});
+
+test('normal calendar can deep-link into the requested Premium IPO detail', () => {
+  assert.match(adapter, /instance\.openIpo\?\.\(context\.selectedTicker\)/);
+  assert.match(premium, /const api = \{ mount, update, close, destroy, navigate, openIpo, getState:/);
 });
 
 test('Premium membership stays explicitly test-only with requested example pricing', () => {
