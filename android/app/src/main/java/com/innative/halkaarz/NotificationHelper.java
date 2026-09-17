@@ -159,7 +159,9 @@ final class NotificationHelper {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 .putExtra("push_kind", kind)
                 .putExtra("push_ticker", ticker);
-        int requestCode = eventKey.hashCode();
+        int requestCode = ("news_breaking".equals(kind) || "news_digest".equals(kind))
+                ? eventKey.hashCode()
+                : (kind + ":" + ticker + ":" + body).hashCode();
         PendingIntent pending = PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         int priority = "news_digest".equals(kind) ? NotificationCompat.PRIORITY_DEFAULT : NotificationCompat.PRIORITY_HIGH;
