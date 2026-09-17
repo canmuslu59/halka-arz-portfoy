@@ -8,3 +8,4 @@ await import('./apply-test-news-layout-polish-v2.mjs');
 await import('./apply-test-news-article-images.mjs');
 await import('./apply-test-stock-logo-assets.mjs');
 await import('./apply-test-news-notification-route.mjs');
+await import('./apply-test-stock-detail-polish.mjs');
