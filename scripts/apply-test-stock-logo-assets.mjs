@@ -69,7 +69,7 @@ async function fetchHoldingLogoUrl(ticker) {
   const symbol = String(ticker || '').trim().toLocaleUpperCase('tr-TR');
   if (!symbol) return null;
   if (holdingLogoCache.has(symbol)) return holdingLogoCache.get(symbol);
-  const pageUrl = \\`https://fintables.com/sirketler/\\${encodeURIComponent(symbol)}\\`;
+  const pageUrl = 'https://fintables.com/sirketler/' + encodeURIComponent(symbol);
   const pending = httpGetText(pageUrl)
     .then(html => extractFintablesCompanyLogoUrl(html, pageUrl))
     .catch(() => null);
