@@ -44,3 +44,10 @@ test('news screen consumes the isolated finance feed and opens original sources'
   assert.match(overlay, /news-source-link/);
   assert.match(overlay, /item\.url/);
 });
+
+test('news feed falls back to CORS fetch when the native Android request path fails', () => {
+  assert.match(overlay, /async function fetchPopularFinanceNewsPayload/);
+  assert.match(overlay, /await httpGetJson\(NEWS_FEED_URL\)/);
+  assert.match(overlay, /fetch\(NEWS_FEED_URL/);
+  assert.match(overlay, /response\.ok/);
+});
