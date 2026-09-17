@@ -6,9 +6,12 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const wrapper = read('../scripts/apply-test-portfolio-app-navigation.mjs');
 const overlayUrl = new URL('../scripts/apply-test-popular-finance-news.mjs', import.meta.url);
 const overlay = existsSync(overlayUrl) ? readFileSync(overlayUrl, 'utf8') : '';
+const fallbackUrl = new URL('../scripts/apply-test-popular-finance-news-fallback.mjs', import.meta.url);
+const fallback = existsSync(fallbackUrl) ? readFileSync(fallbackUrl, 'utf8') : '';
 
 test('popular finance news overlay is applied after existing portfolio overlays', () => {
   assert.match(wrapper, /apply-test-popular-finance-news\.mjs/);
+  assert.match(wrapper, /apply-test-popular-finance-news-fallback\.mjs/);
 });
 
 test('visible Piyasalar navigation is explicitly transformed to Haberler while keeping markets route', () => {
@@ -46,8 +49,9 @@ test('news screen consumes the isolated finance feed and opens original sources'
 });
 
 test('news feed falls back to CORS fetch when the native Android request path fails', () => {
-  assert.match(overlay, /async function fetchPopularFinanceNewsPayload/);
-  assert.match(overlay, /await httpGetJson\(NEWS_FEED_URL\)/);
-  assert.match(overlay, /fetch\(NEWS_FEED_URL/);
-  assert.match(overlay, /response\.ok/);
+  assert.match(fallback, /async function fetchPopularFinanceNewsPayload/);
+  assert.match(fallback, /await httpGetJson\(NEWS_FEED_URL\)/);
+  assert.match(fallback, /fetch\(NEWS_FEED_URL/);
+  assert.match(fallback, /response\.ok/);
+  assert.match(fallback, /Haberler alınamadı:/);
 });
