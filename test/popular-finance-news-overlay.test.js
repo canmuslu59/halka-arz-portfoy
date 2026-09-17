@@ -89,6 +89,11 @@ test('news feed has three-stage fallback including direct AA economy source', ()
   assert.match(fallback, /www\.aa\.com\.tr/);
 });
 
+test('AA fallback never fabricates a publication time when the source list has no reliable timestamp', () => {
+  assert.match(fallback, /publishedAt:\s*null/);
+  assert.doesNotMatch(fallback, /publishedAt:\s*new Date\(\)\.toISOString\(\)/);
+});
+
 test('empty news state preserves the actual runtime failure reason for device diagnostics', () => {
   assert.match(fallback, /financeNewsLastError/);
   assert.match(fallback, /Haberler alınamadı/);
