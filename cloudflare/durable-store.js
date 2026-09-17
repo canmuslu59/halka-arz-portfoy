@@ -3,6 +3,7 @@ import { getBistMarketStatus } from '../public/core/market-calendar.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchVerifiedMarketQuote } from './market-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
+import { createNewsNotificationEngine } from './news-notifications.js';
 
 const STATE_KEY = 'push-state-v1';
 const REVISION_KEY = 'push-state-revision-v1';
@@ -36,8 +37,42 @@ function finiteRevision(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-function nextAlarmAt(nowMs, status) {
-  if (status?.isOpen) return nowMs + ALARM_INTERVAL_MS;
+export function newsNotificationsEnabled(env = {}) {
+  return String(env.NEWS_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true'
+    && /^https:\/\//i.test(String(env.NEWS_FEED_URL || ''));
+}
+
+async function fetchNewsFeed(env = {}) {
+  const url = String(env.NEWS_FEED_URL || '');
+  if (!/^https:\/\//i.test(url)) throw new Error('NEWS_FEED_URL is required for news notifications.');
+  const response = await fetch(url, {
+    headers:{
+      accept:'application/json',
+      'user-agent':'HalkaArzPortfoyum-NewsPush/1.0',
+    },
+  });
+  if (!response.ok) throw new Error(`News feed failed (${response.status}).`);
+  const body = await response.json();
+  return Array.isArray(body) ? body : Array.isArray(body?.items) ? body.items : [];
+}
+
+async function runNewsNotifications({ env, store, sender, now }) {
+  if (!newsNotificationsEnabled(env)) return { status:'disabled' };
+  try {
+    const engine = createNewsNotificationEngine({
+      store,
+      sender,
+      fetchNews:() => fetchNewsFeed(env),
+      now,
+    });
+    return { status:'checked', ...(await engine.check()) };
+  } catch (error) {
+    return { status:'error', error:String(error?.message || error) };
+  }
+}
+
+function nextAlarmAt(nowMs, status, newsEnabled = false) {
+  if (newsEnabled || status?.isOpen) return nowMs + ALARM_INTERVAL_MS;
   const nextOpen = Date.parse(String(status?.nextOpenAt || ''));
   if (Number.isFinite(nextOpen) && nextOpen > nowMs) return nextOpen;
   return nowMs + ALARM_INTERVAL_MS;
@@ -94,6 +129,7 @@ export class PushStateDurableObject {
     const startedMs = started.getTime();
     const status = getBistMarketStatus(started);
     const store = this.localStore();
+    const newsEnabled = newsNotificationsEnabled(this.env);
 
     try {
       const sender = createCloudflareFcmSender({
@@ -108,13 +144,14 @@ export class PushStateDurableObject {
         },
         now:()=>started,
       });
+      const news = await runNewsNotifications({ env:this.env, store, sender, now:()=>started });
       const ipo = await service.ipoCheck();
       if (!status.isOpen) {
         await store.runtimeWrite({
           status:'market_closed',
           startedAt:started.toISOString(),
           finishedAt:new Date().toISOString(),
-          result:{ ipo },
+          result:{ ipo, news },
         });
         return;
       }
@@ -127,7 +164,7 @@ export class PushStateDurableObject {
         status:result.partial ? 'partial' : 'checked',
         startedAt:started.toISOString(),
         finishedAt:new Date().toISOString(),
-        result:{ ...result, ipo },
+        result:{ ...result, ipo, news },
       });
     } catch (error) {
       await store.runtimeWrite({
@@ -137,7 +174,7 @@ export class PushStateDurableObject {
         result:{ error:String(error?.message || error) },
       });
     } finally {
-      await this.storage.setAlarm(nextAlarmAt(startedMs, status));
+      await this.storage.setAlarm(nextAlarmAt(startedMs, status, newsEnabled));
     }
   }
 
