@@ -4,3 +4,4 @@ await import('./apply-test-repeated-purchase-core.mjs');
 await import('./apply-test-stock-entry-fixes.mjs');
 await import('./apply-test-popular-finance-news.mjs');
 await import('./apply-test-popular-finance-news-fallback.mjs');
+await import('./apply-test-news-layout-polish-v2.mjs');
