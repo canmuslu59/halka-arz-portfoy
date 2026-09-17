@@ -55,7 +55,7 @@ function parseAaFinanceFallback(html) {
       title,
       url,
       category: inferAaFinanceCategory(title),
-      publishedAt: new Date().toISOString(),
+      publishedAt: null,
     });
     if (items.length >= 30) break;
   }
@@ -157,4 +157,4 @@ if (!policy.includes('"www.aa.com.tr"')) {
 }
 writeFileSync(policyPath, policy);
 
-console.log('Applied three-stage finance-news fallback with direct AA Economy source and visible diagnostics.');
+console.log('Applied three-stage finance-news fallback with direct AA Economy source and visible diagnostics without fabricated timestamps.');
