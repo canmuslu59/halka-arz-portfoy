@@ -1,0 +1,45 @@
+name: News Android UA Probe
+on:
+  push:
+    branches: [feature/test-liked-rollback-20260917]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Probe native Android request headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+          curl --fail-with-body --silent --show-error --dump-header /tmp/native-headers.txt \
+            -A 'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36' \
+            -H 'Accept: application/json,text/plain,text/html,*/*' \
+            -H 'Accept-Language: tr-TR,tr;q=0.9,en;q=0.8' \
+            "$URL" -o /tmp/native-body.json
+          cat /tmp/native-headers.txt
+          node - <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/native-body.json','utf8'));
+          console.log('native-items=' + (Array.isArray(body.items) ? body.items.length : 'not-array'));
+          if (!Array.isArray(body.items) || body.items.length < 1) process.exit(2);
+          NODE
+      - name: Probe WebView style CORS request
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+          curl --fail-with-body --silent --show-error --dump-header /tmp/web-headers.txt \
+            -H 'Origin: https://app.local' \
+            -H 'Accept: application/json' \
+            "$URL" -o /tmp/web-body.json
+          cat /tmp/web-headers.txt
+          grep -i '^access-control-allow-origin: \*' /tmp/web-headers.txt
+          node - <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync('/tmp/web-body.json','utf8'));
+          console.log('web-items=' + (Array.isArray(body.items) ? body.items.length : 'not-array'));
+          if (!Array.isArray(body.items) || body.items.length < 1) process.exit(2);
+          NODE
