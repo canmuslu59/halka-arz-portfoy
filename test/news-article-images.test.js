@@ -16,7 +16,7 @@ test('original article metadata extracts a secure image with ordered fallbacks',
   assert.match(overlay, /twitter:image/);
   assert.match(overlay, /application\/ld\+json/);
   assert.match(overlay, /imageUrl/);
-  assert.match(overlay, /https:\/\//);
+  assert.match(overlay, /parsed\.protocol\s*===\s*['"]https:['"]/);
 });
 
 test('popular and latest news render real article images with category fallback', () => {
