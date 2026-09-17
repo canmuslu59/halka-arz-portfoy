@@ -9,15 +9,270 @@ permissions:
   contents: read
 
 jobs:
-  verify-news-contract:
+  build-popular-finance-news-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+      NEWS_FEED_URL: https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=5
+      NEWS_HOST: halka-arz-portfoy-news-test.grass-airboat.workers.dev
+      AOSP_BUILD_COMMIT: 897e2ff8232b9f7a96493855e57f7a01f999109e
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - run: npm ci
-      - name: Verify popular finance news contract
-        run: node --test test/popular-finance-news-overlay.test.js
+
+      - name: Verify focused regressions
+        run: |
+          node --test \
+            test/popular-finance-news-overlay.test.js \
+            test/repeated-purchase-and-add-sheet-regression.test.js \
+            test/stock-entry-generalization-overlay.test.js \
+            test/stock-add-flow-regression.test.js \
+            test/portfolio-app-navigation-overlay.test.js \
+            test/weekly-movers-overlay.test.js \
+            test/topbar-logo-branding.test.js
+
+      - name: Run complete regression suite
+        run: npm test
+
+      - name: Verify live finance-only feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$NEWS_FEED_URL" -o /tmp/finance-news.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/finance-news.json', 'utf8'));
+          const allowed = new Set(['borsa','sirketler','doviz','altin','ekonomi','halka-arz']);
+          if (!Array.isArray(body.items) || body.items.length < 1) throw new Error('Finance news feed returned no items');
+          for (const item of body.items) {
+            if (!item || !item.title || !item.url || !item.source || !allowed.has(item.category)) {
+              throw new Error(`Invalid/non-finance news item: ${JSON.stringify(item)}`);
+            }
+          }
+          console.log(`Finance feed OK: ${body.items.length} items`);
+          NODE
+
+      - name: Sync Android assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --exit-code -- android/app/src/main/assets/www
+          git diff --check
+
+      - name: Apply approved test overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/apply-test-share-ui.mjs
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          node --check android/app/src/main/assets/www/app.js
+
+          INDEX=android/app/src/main/assets/www/index.html
+          APP=android/app/src/main/assets/www/app.js
+          CSS=android/app/src/main/assets/www/styles.css
+          POLICY=android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java
+
+          grep -F '>Haberler</b>' "$INDEX"
+          ! grep -F '>Piyasalar</b>' "$INDEX"
+          grep -F '<h2>Popüler Haberler</h2>' "$INDEX"
+          grep -F 'Sadece finans gündemi' "$INDEX"
+          grep -F 'id="popularNewsRail"' "$INDEX"
+          grep -F 'id="popularNewsDots"' "$INDEX"
+          grep -F '<h3>Son Haberler</h3>' "$INDEX"
+          grep -F 'id="latestNewsList"' "$INDEX"
+          ! grep -F 'id="marketSummary"' "$INDEX"
+          ! grep -F 'id="calendarList"' "$INDEX"
+          grep -F 'news-feature-card' "$CSS"
+          grep -F 'news-latest-item' "$CSS"
+          grep -F "const NEWS_FEED_URL = 'https://${NEWS_HOST}/v1/news?limit=60';" "$APP"
+          grep -F "if (next === 'markets') loadPopularFinanceNews();" "$APP"
+          ! grep -F "if (next === 'markets') { loadIpoCalendar(); loadHomeComparison(); }" "$APP"
+          grep -F "$NEWS_HOST" "$POLICY"
+
+          # The liked rollback behavior must remain intact.
+          grep -F 'id="portfolioHeroCard"' "$INDEX"
+          grep -F '>Cüzdan</span>' "$INDEX"
+          grep -F 'id="holdingsView"' "$INDEX"
+          grep -F 'id="performanceView"' "$INDEX"
+          grep -F 'id="comparisonCard"' "$INDEX"
+          grep -F 'id="weeklyMoversCard"' "$INDEX"
+          grep -F 'id="sharePortfolioBtn"' "$INDEX"
+          grep -F 'purchasePrice' "$APP"
+          grep -F 'purchaseDate' "$APP"
+          grep -F 'loadPopularFinanceNews' "$APP"
+          ! grep -F 'financial_breaking' "$APP"
+          ! grep -F 'Kullanıcı adı' "$INDEX"
+          ! grep -F 'Yorum yaz' "$INDEX"
+
+      - name: Configure isolated test release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_VERSION_CODE=$((32000 + GITHUB_RUN_NUMBER))
+          echo "TEST_VERSION_CODE=$TEST_VERSION_CODE" >> "$GITHUB_ENV"
+          python3 - "$TEST_VERSION_CODE" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          version_code = sys.argv[1]
+          path = Path('android/app/build.gradle')
+          text = path.read_text()
+          text, n = re.subn(r'versionCode\s+\d+', f'versionCode {version_code}', text, count=1)
+          if n != 1:
+              raise SystemExit('versionCode replacement failed')
+          needle = """        release {\n            minifyEnabled false\n"""
+          replacement = """        release {\n            applicationIdSuffix '.test'\n            versionNameSuffix '-test'\n            resValue 'string', 'app_name', 'Halka Arz Portföyüm Test'\n            minifyEnabled false\n"""
+          if needle not in text:
+              raise SystemExit('release block shape changed')
+          text = text.replace(needle, replacement, 1)
+          path.write_text(text)
+          PY
+          grep -F "applicationIdSuffix '.test'" android/app/build.gradle
+          grep -F "versionNameSuffix '-test'" android/app/build.gradle
+          grep -F "versionCode $TEST_VERSION_CODE" android/app/build.gradle
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile and build isolated release APK
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          gradle -p android --no-daemon assembleRelease
+
+      - name: Sign with pinned AOSP public test key
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://raw.githubusercontent.com/aosp-mirror/platform_build/${AOSP_BUILD_COMMIT}/target/product/security"
+          curl -fsSL "$BASE/testkey.pk8" -o /tmp/aosp-testkey.pk8
+          curl -fsSL "$BASE/testkey.x509.pem" -o /tmp/aosp-testkey.x509.pem
+          test -s /tmp/aosp-testkey.pk8
+          test -s /tmp/aosp-testkey.x509.pem
+
+          BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
+          UNSIGNED=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          ALIGNED=/tmp/popular-finance-news-test-aligned.apk
+          SIGNED=/tmp/popular-finance-news-test-signed.apk
+          test -s "$UNSIGNED"
+          "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign \
+            --key /tmp/aosp-testkey.pk8 \
+            --cert /tmp/aosp-testkey.x509.pem \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "$SIGNED" \
+            "$ALIGNED"
+
+          mkdir -p dist
+          cp "$SIGNED" dist/halka-arz-portfoyum-test-popular-finance-news.apk
+
+      - name: Verify APK identity, signature, news screen and liked regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=dist/halka-arz-portfoyum-test-popular-finance-news.apk
+          BUILD_TOOLS=/usr/local/lib/android/sdk/build-tools/36.0.0
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/apk-signature.txt
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | tee dist/apk-badging.txt
+          grep -F "package: name='com.innative.halkaarz.test' versionCode='${TEST_VERSION_CODE}' versionName='2.4.6-test'" dist/apk-badging.txt
+          grep -F "application-label:'Halka Arz Portföyüm Test'" dist/apk-badging.txt
+          grep -F 'Signer #1 certificate SHA-256 digest: a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc' dist/apk-signature.txt
+
+          found_backend=0
+          while IFS= read -r dex; do
+            if unzip -p "$APK" "$dex" | strings | grep -Fq "$PUSH_BACKEND_URL"; then
+              found_backend=1
+              break
+            fi
+          done < <(unzip -Z1 "$APK" | grep -E '^classes([0-9]+)?\.dex$')
+          test "$found_backend" -eq 1
+
+          unzip -p "$APK" assets/www/index.html > /tmp/apk-index.html
+          unzip -p "$APK" assets/www/app.js > /tmp/apk-app.js
+          unzip -p "$APK" assets/www/styles.css > /tmp/apk-styles.css
+
+          grep -F '>Haberler</b>' /tmp/apk-index.html
+          ! grep -F '>Piyasalar</b>' /tmp/apk-index.html
+          grep -F '<h2>Popüler Haberler</h2>' /tmp/apk-index.html
+          grep -F 'Sadece finans gündemi' /tmp/apk-index.html
+          grep -F 'id="popularNewsRail"' /tmp/apk-index.html
+          grep -F 'id="popularNewsDots"' /tmp/apk-index.html
+          grep -F '<h3>Son Haberler</h3>' /tmp/apk-index.html
+          grep -F 'id="latestNewsList"' /tmp/apk-index.html
+          ! grep -F 'id="marketSummary"' /tmp/apk-index.html
+          ! grep -F 'id="calendarList"' /tmp/apk-index.html
+          grep -F "https://${NEWS_HOST}/v1/news?limit=60" /tmp/apk-app.js
+          grep -F 'loadPopularFinanceNews' /tmp/apk-app.js
+          grep -F 'news-feature-card' /tmp/apk-styles.css
+          grep -F 'news-latest-item' /tmp/apk-styles.css
+          ! grep -F 'financial_breaking' /tmp/apk-app.js
+          ! grep -F 'Kullanıcı adı' /tmp/apk-index.html
+          ! grep -F 'Yorum yaz' /tmp/apk-index.html
+
+          grep -F 'id="portfolioHeroCard"' /tmp/apk-index.html
+          grep -F '>Cüzdan</span>' /tmp/apk-index.html
+          grep -F 'id="holdingsView"' /tmp/apk-index.html
+          grep -F 'id="performanceView"' /tmp/apk-index.html
+          grep -F 'id="comparisonCard"' /tmp/apk-index.html
+          grep -F 'id="weeklyMoversCard"' /tmp/apk-index.html
+          grep -F 'id="sharePortfolioBtn"' /tmp/apk-index.html
+          grep -F 'purchasePrice' /tmp/apk-app.js
+          grep -F 'purchaseDate' /tmp/apk-app.js
+          grep -F 'window.AndroidBridge.shareCardImage' /tmp/apk-app.js
+
+          sha256sum "$APK" | tee dist/SHA256SUMS.txt
+          {
+            echo "package=com.innative.halkaarz.test"
+            echo "versionName=2.4.6-test"
+            echo "versionCode=${TEST_VERSION_CODE}"
+            echo "sourceCommit=${GITHUB_SHA}"
+            echo "pushBackend=${PUSH_BACKEND_URL}"
+            echo "financeFeed=https://${NEWS_HOST}/v1/news?limit=60"
+            echo "signing=AOSP public testkey pinned at ${AOSP_BUILD_COMMIT}"
+            echo "comments=disabled"
+            echo "breakingNewsNotifications=disabled"
+            echo "popularFinanceNews=enabled"
+            echo "likedRepeatedPurchaseBehavior=preserved"
+          } > dist/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: popular-finance-news-test-apk
+          path: |
+            dist/halka-arz-portfoyum-test-popular-finance-news.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/apk-signature.txt
+            dist/apk-badging.txt
+          if-no-files-found: error
+          retention-days: 14
