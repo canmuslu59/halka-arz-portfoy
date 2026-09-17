@@ -28,7 +28,13 @@ jobs:
           const text = fs.readFileSync('/tmp/body.json', 'utf8');
           console.log(`bytes=${Buffer.byteLength(text)}`);
           const body = JSON.parse(text);
-          console.log(`items=${Array.isArray(body.items) ? body.items.length : 'not-array'}`);
+          const items = Array.isArray(body.items) ? body.items : [];
+          console.log(`items=${items.length}`);
           console.log(`keys=${Object.keys(body).join(',')}`);
-          if (!Array.isArray(body.items) || body.items.length < 1) process.exit(2);
+          const categories = [...new Set(items.map(item => String(item?.category ?? '<missing>')))].sort();
+          console.log(`categories=${categories.join('|')}`);
+          for (const item of items.slice(0, 8)) {
+            console.log(JSON.stringify({category:item?.category, source:item?.source, title:item?.title, url:item?.url, publishedAt:item?.publishedAt}));
+          }
+          if (items.length < 1) process.exit(2);
           NODE
