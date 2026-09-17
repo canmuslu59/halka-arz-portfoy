@@ -1,0 +1,60 @@
+name: Stock Logo Source Probe
+
+on:
+  push:
+    branches:
+      - feature/test-liked-rollback-20260917
+  workflow_dispatch:
+
+jobs:
+  verify-stock-logos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Fintables company logo assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const symbols = ['GARAN', 'THYAO', 'ASELS', 'BIMAS'];
+          const headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+          };
+
+          function decodeHtml(value) {
+            return String(value || '')
+              .replace(/\\u002F/gi, '/')
+              .replace(/\\u0026/gi, '&')
+              .replaceAll('&amp;', '&');
+          }
+
+          function logoUrlFromHtml(html) {
+            const source = decodeHtml(html);
+            const direct = source.match(/https:\/\/storage\.fintables\.com\/[^\s"'<>\\)]+/gi) || [];
+            const logo = direct.find(url => /\/company-logos\//i.test(url));
+            if (logo) return logo;
+            const encoded = source.match(/https?%3A%2F%2Fstorage\.fintables\.com%2F[^\s"'<>]+/gi) || [];
+            for (const value of encoded) {
+              try {
+                const decoded = decodeURIComponent(value);
+                if (/\/company-logos\//i.test(decoded)) return decoded;
+              } catch {}
+            }
+            return null;
+          }
+
+          for (const symbol of symbols) {
+            const page = `https://fintables.com/sirketler/${symbol}`;
+            const pageResponse = await fetch(page, { headers, redirect: 'follow' });
+            if (!pageResponse.ok) throw new Error(`${symbol}: company page HTTP ${pageResponse.status}`);
+            const html = await pageResponse.text();
+            const logo = logoUrlFromHtml(html);
+            if (!logo) throw new Error(`${symbol}: company logo URL not found`);
+            const imageResponse = await fetch(logo, { headers: { ...headers, Referer: 'https://fintables.com/' }, redirect: 'follow' });
+            const contentType = imageResponse.headers.get('content-type') || '';
+            if (!imageResponse.ok) throw new Error(`${symbol}: logo HTTP ${imageResponse.status}`);
+            if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`${symbol}: unexpected logo content-type ${contentType}`);
+            console.log(`${symbol}: ${imageResponse.status} ${contentType} ${logo}`);
+          }
+          NODE
