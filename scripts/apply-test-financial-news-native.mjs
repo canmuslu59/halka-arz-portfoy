@@ -11,8 +11,8 @@ const gradlePath = 'android/app/build.gradle';
 let gradle = readFileSync(gradlePath, 'utf8');
 gradle = replaceOnce(
   gradle,
-  `        buildConfigField 'String', 'PUSH_BACKEND_URL', '"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '"'`,
-  `        buildConfigField 'String', 'PUSH_BACKEND_URL', '"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '"'\n        buildConfigField 'String', 'NEWS_BACKEND_URL', '"' + (System.getenv('NEWS_BACKEND_URL') ?: '') + '"'`,
+  `        buildConfigField 'String', 'PUSH_BACKEND_URL', '\"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '\"'`,
+  `        buildConfigField 'String', 'PUSH_BACKEND_URL', '\"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '\"'\n        buildConfigField 'String', 'NEWS_BACKEND_URL', '\"' + (System.getenv('NEWS_BACKEND_URL') ?: '') + '\"'`,
   'news BuildConfig field'
 );
 writeFileSync(gradlePath, gradle);
@@ -26,6 +26,26 @@ policy = replaceOnce(
   'news backend allowlist'
 );
 writeFileSync(policyPath, policy);
+
+const schedulerPath = 'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java';
+let scheduler = readFileSync(schedulerPath, 'utf8');
+scheduler = replaceOnce(
+  scheduler,
+  `        String raw = prefs.getString(PushConfigSync.CONFIG_KEY, "");\n        if (raw == null || raw.trim().isEmpty()) { sync(app, false); return; }\n        try {\n            JSONObject config = new JSONObject(raw);\n            sync(app, config.optBoolean("enabled", true) || config.optBoolean("ipoEnabled", true));\n        } catch (Exception ignored) { sync(app, false); }`,
+  `        String raw = prefs.getString(PushConfigSync.CONFIG_KEY, "");\n        boolean newsEnabled = BuildConfig.NEWS_BACKEND_URL != null && !BuildConfig.NEWS_BACKEND_URL.trim().isEmpty();\n        if (raw == null || raw.trim().isEmpty()) { sync(app, newsEnabled); return; }\n        try {\n            JSONObject config = new JSONObject(raw);\n            sync(app, newsEnabled || config.optBoolean("enabled", true) || config.optBoolean("ipoEnabled", true));\n        } catch (Exception ignored) { sync(app, newsEnabled); }`,
+  'news-aware background scheduler'
+);
+writeFileSync(schedulerPath, scheduler);
+
+const pushConfigPath = 'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java';
+let pushConfig = readFileSync(pushConfigPath, 'utf8');
+pushConfig = replaceOnce(
+  pushConfig,
+  `            BackgroundAlertScheduler.sync(context, safe.optBoolean("enabled", true) || safe.optBoolean("ipoEnabled", true));`,
+  `            boolean newsEnabled = BuildConfig.NEWS_BACKEND_URL != null && !BuildConfig.NEWS_BACKEND_URL.trim().isEmpty();\n            BackgroundAlertScheduler.sync(context, newsEnabled || safe.optBoolean("enabled", true) || safe.optBoolean("ipoEnabled", true));`,
+  'news-aware push config scheduler'
+);
+writeFileSync(pushConfigPath, pushConfig);
 
 const helperPath = 'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java';
 let helper = readFileSync(helperPath, 'utf8');
