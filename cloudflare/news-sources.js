@@ -26,21 +26,21 @@ function decodeEntities(value = '') {
 }
 
 function cleanText(value = '') {
-  return decodeEntities(String(value)
+  return decodeEntities(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' '))
+    .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function textLines(value = '') {
-  return decodeEntities(String(value)
+  return decodeEntities(value)
     .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
     .replace(/<\/(?:div|p|li|h1|h2|h3|h4|article|section|time|a)>/gi, '\n')
     .replace(/<br\s*\/?\s*>/gi, '\n')
-    .replace(/<[^>]+>/g, ' '))
+    .replace(/<[^>]+>/g, ' ')
     .split(/\r?\n/)
     .map(line => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
