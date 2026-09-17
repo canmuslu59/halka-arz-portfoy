@@ -43,3 +43,25 @@ jobs:
           console.log('web-items=' + (Array.isArray(body.items) ? body.items.length : 'not-array'));
           if (!Array.isArray(body.items) || body.items.length < 1) process.exit(2);
           NODE
+      - name: Probe AA economy fallback with Android headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://www.aa.com.tr/tr/ekonomi'
+          curl --fail-with-body --silent --show-error --location --max-redirs 5 --dump-header /tmp/aa-headers.txt \
+            -A 'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/151 Mobile Safari/537.36' \
+            -H 'Accept: text/html,*/*' \
+            -H 'Accept-Language: tr-TR,tr;q=0.9,en;q=0.8' \
+            "$URL" -o /tmp/aa.html
+          cat /tmp/aa-headers.txt
+          node - <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('/tmp/aa.html','utf8');
+          const matches=[...html.matchAll(/href=["']([^"']*\/tr\/ekonomi\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
+            .map(m=>({href:m[1],text:m[2].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}))
+            .filter(x=>x.text.length>=20);
+          console.log('aa-bytes=' + Buffer.byteLength(html));
+          console.log('aa-links=' + matches.length);
+          console.log(matches.slice(0,3));
+          if (matches.length < 3) process.exit(2);
+          NODE
