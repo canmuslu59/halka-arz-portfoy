@@ -96,6 +96,7 @@ Kurallar:
 - Orijinal sayfadan gerçek başlık bulunursa worker başlığı yerine o kullanılır.
 - `Hisse Senetleri`, `Borsa Kapanış`, `Cumhuriyet Altını`, `Ziynet Altını` gibi kategori/navigasyon başlıkları gerçek haber başlığı olarak gösterilmez.
 - Orijinal makale doğrulanamıyor ve feed başlığı jenerik ise öğe görünür listeden çıkarılır; kullanıcıya sahte bir haber başlığı üretilmez.
+- Metadata doğrulama penceresinin dışında kalan Bloomberg HT öğelerinde de worker'ın `publishedAt` değeri **açıkça `null` yapılır**. Böylece doğrulanmamış worker saati daha alt sıralardan görünür listeye taşınsa bile kullanıcıya gerçek yayın zamanı gibi gösterilemez; bu öğeler `Güncel` görünür.
 
 Canlı CI probe'u (`.github/workflows/news-source-metadata-probe.yml`) orijinal Bloomberg HT sayfalarında gerçek başlık + parse edilebilir yayın zamanı bulunduğunu ayrıca doğrular. 2026-09-17 doğrulamasında orijinal sayfalardan örneğin `2026-09-17T18:55:25+03:00` biçiminde kaynak yayın zamanı başarıyla alınmıştır.
 
@@ -155,6 +156,8 @@ Build / probe:
 - `3c2a7187ab16451dea931b97d59a80762e62a0e6` — izole v2 post-overlay: layout/nav + orijinal Bloomberg HT metadata doğrulaması
 - `8a41bd2c76caf7372182bfa735945f2c0a8278b5` — v2 overlay'i fallback'lerden sonra çalıştıran wrapper sırası
 - `72cd37321145ecd47326adc327adf69fc36273f9` — canlı orijinal haber metadata probe workflow'u
+- `5e2a437417f6008f7780ccdb490ae281bbf5ac6c` — metadata penceresi dışındaki Bloomberg öğelerinin worker saatini korumamasını zorunlu kılan RED regresyon testi
+- `b4b3a7bed4e692c71330b238ba7d87848cd2a841` — doğrulanmamış Bloomberg worker saatini pencereden sonraki öğelerde de `null` yapan düzeltme
 
 Önceki haber/fallback geliştirme commitleri branch geçmişinde korunmaktadır; production'a geçişte branch'in tamamı değil bu dosyada tarif edilen davranışlar esas alınmalıdır.
 
@@ -171,6 +174,7 @@ Build / probe:
    - `formatFinanceNewsTime()` ve tarih parse mantığı
    - jenerik haber başlığı filtresi
    - Bloomberg HT orijinal makale metadata doğrulaması
+   - doğrulanmamış Bloomberg worker saatlerini tüm sıralarda `null` yapma kuralı
    - finans feed istemcisi
    - native/WebView/AA fallback zinciri
    - gerekli native host allow-list kayıtları
@@ -200,6 +204,7 @@ Production port tamamlandı sayılmadan önce:
 - 6 finans kategorisi renkli chip olarak görünür.
 - Jenerik/kategori başlıkları gerçek haber gibi gösterilmez.
 - Bloomberg HT görünür haberlerinde başlık ve zaman orijinal makale metadata'sından doğrulanır.
+- Doğrulanmamış Bloomberg worker zamanı hiçbir sıralamada gerçek yayın zamanı gibi gösterilmez.
 - Haber zamanı İstanbul saatine göre doğru ve tutarlıdır.
 - Zamanı bilinmeyen haber `Güncel` görünür; sahte yayın zamanı üretilmez.
 - Finans worker ve AA fallback cihazda çalışır.
