@@ -86,6 +86,7 @@ function jsonLdTime(html) {
 }
 
 function normalizePublicationTime(value, now = new Date()) {
+  if (value == null || cleanText(value) === '') return null;
   const date = new Date(value);
   const nowDate = now instanceof Date ? now : new Date(now);
   if (!Number.isFinite(date.getTime()) || !Number.isFinite(nowDate.getTime())) return null;
@@ -166,7 +167,8 @@ export async function verifyNewsNotificationMetadata(items, {
   if (!store?.read || !store?.mutate) throw new Error('news metadata store is required');
   if (typeof fetchImpl !== 'function') throw new Error('news metadata fetch is required');
 
-  const checkedAt = now() instanceof Date ? now() : new Date(now());
+  const rawNow = now();
+  const checkedAt = rawNow instanceof Date ? new Date(rawNow.getTime()) : new Date(rawNow);
   const nowMs = checkedAt.getTime();
   const state = await store.read();
   const cache = state?.newsMetadataCache && typeof state.newsMetadataCache === 'object'
