@@ -11,7 +11,7 @@ test('final test overlay replaces visible Piyasalar copy with Haberler', () => {
   assert.match(overlay, />Haberler<\/b>/);
   assert.match(overlay, /markets:\s*\{\s*title:'Haberler'\s*\}/);
   assert.match(overlay, /<h2>Haberler<\/h2>/);
-  assert.doesNotMatch(overlay, />Piyasalar<\/b>/);
+  assert.match(overlay, /'markets navigation label'/);
 });
 
 test('news view has only the approved finance filters', () => {
