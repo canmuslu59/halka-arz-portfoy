@@ -11,11 +11,12 @@ test('popular finance news overlay is applied after existing portfolio overlays'
   assert.match(wrapper, /apply-test-popular-finance-news\.mjs/);
 });
 
-test('visible Piyasalar navigation becomes Haberler without changing the internal markets route', () => {
+test('visible Piyasalar navigation is explicitly transformed to Haberler while keeping markets route', () => {
   assert.match(overlay, /data-view=\"markets\"/);
+  assert.match(overlay, />Piyasalar<\/b>/);
   assert.match(overlay, />Haberler<\/b>/);
   assert.match(overlay, /markets:\s*\{\s*title:'Haberler'\s*\}/);
-  assert.doesNotMatch(overlay, />Piyasalar<\/b>/);
+  assert.match(overlay, /markets navigation label/);
 });
 
 test('approved screen structure has a featured rail and compact latest-news list', () => {
@@ -37,7 +38,8 @@ test('feed remains finance-only and deliberately excludes social/comment/breakin
 });
 
 test('news screen consumes the isolated finance feed and opens original sources', () => {
-  assert.match(overlay, /halka-arz-portfoy-news-test\.grass-airboat\.workers\.dev\/v1\/news/);
+  assert.match(overlay, /NEWS_HOST = 'halka-arz-portfoy-news-test\.grass-airboat\.workers\.dev'/);
+  assert.match(overlay, /\/v1\/news\?limit=60/);
   assert.match(overlay, /httpGetJson\(NEWS_FEED_URL\)/);
   assert.match(overlay, /news-source-link/);
   assert.match(overlay, /item\.url/);
