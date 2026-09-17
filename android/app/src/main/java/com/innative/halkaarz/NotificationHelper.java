@@ -26,6 +26,8 @@ final class NotificationHelper {
     private static final String CHANNEL_CEILING = "market_ceiling_coin_v1";
     private static final String CHANNEL_FLOOR = "market_floor_v1";
     private static final String CHANNEL_IPO = "new_ipos";
+    private static final String CHANNEL_NEWS_BREAKING = "news_breaking_v1";
+    private static final String CHANNEL_NEWS_DIGEST = "news_digest_v1";
 
     private NotificationHelper() {}
 
@@ -42,12 +44,18 @@ final class NotificationHelper {
         NotificationChannel floor = customSoundChannel(context, CHANNEL_FLOOR, "Taban bildirimleri", "Taban fiyatına ulaşan hisseler", com.innative.halkaarz.R.raw.notification_floor);
         NotificationChannel ipo = new NotificationChannel(CHANNEL_IPO, "Yeni halka arzlar", NotificationManager.IMPORTANCE_DEFAULT);
         ipo.setDescription("Yeni açıklanan halka arz bildirimleri");
+        NotificationChannel newsBreaking = new NotificationChannel(CHANNEL_NEWS_BREAKING, "Son dakika haberleri", NotificationManager.IMPORTANCE_HIGH);
+        newsBreaking.setDescription("Yalnız 5/5 önem derecesindeki kritik finans haberleri");
+        NotificationChannel newsDigest = new NotificationChannel(CHANNEL_NEWS_DIGEST, "Haber özetleri", NotificationManager.IMPORTANCE_DEFAULT);
+        newsDigest.setDescription("10:00 ve 19:00 önemli finans haberleri özeti");
         manager.createNotificationChannel(market);
         manager.createNotificationChannel(rise);
         manager.createNotificationChannel(fall);
         manager.createNotificationChannel(ceiling);
         manager.createNotificationChannel(floor);
         manager.createNotificationChannel(ipo);
+        manager.createNotificationChannel(newsBreaking);
+        manager.createNotificationChannel(newsDigest);
     }
 
     private static NotificationChannel customSoundChannel(Context context, String id, String name, String description, int soundRes) {
@@ -83,6 +91,8 @@ final class NotificationHelper {
                 putChannelState(channels, manager, "ceiling", CHANNEL_CEILING);
                 putChannelState(channels, manager, "floor", CHANNEL_FLOOR);
                 putChannelState(channels, manager, "ipo", CHANNEL_IPO);
+                putChannelState(channels, manager, "newsBreaking", CHANNEL_NEWS_BREAKING);
+                putChannelState(channels, manager, "newsDigest", CHANNEL_NEWS_DIGEST);
                 status.put("channels", channels);
             }
             status.put("background", AlertDiagnostics.read(context));
@@ -112,16 +122,24 @@ final class NotificationHelper {
         ensureChannels(context);
         String kind = value(data, "kind", "portfolio");
         String ticker = value(data, "ticker", "");
+        String newsId = value(data, "news_id", "");
+        String digestSlot = value(data, "digest_slot", "");
+        String digestDay = value(data, "digest_day", "");
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
         android.content.SharedPreferences delivered = context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE);
         String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();
-        String eventKey = "ipo".equals(kind)
-                ? kind + ":" + ticker
-                : kind + ":" + ticker + ":" + body.replace(',', '.');
+        String eventKey;
+        if ("ipo".equals(kind)) eventKey = kind + ":" + ticker;
+        else if ("news_breaking".equals(kind)) eventKey = kind + ":" + newsId;
+        else if ("news_digest".equals(kind)) eventKey = kind + ":" + digestSlot + ":" + digestDay;
+        else eventKey = kind + ":" + ticker + ":" + body.replace(',', '.');
         if (day.equals(delivered.getString("day", "")) && delivered.getBoolean(eventKey, false)) return true;
+
         String channel;
         if ("ipo".equals(kind)) channel = CHANNEL_IPO;
+        else if ("news_breaking".equals(kind)) channel = CHANNEL_NEWS_BREAKING;
+        else if ("news_digest".equals(kind)) channel = CHANNEL_NEWS_DIGEST;
         else if ("ceiling".equals(kind)) channel = CHANNEL_CEILING;
         else if ("floor".equals(kind)) channel = CHANNEL_FLOOR;
         else if ("portfolio_fall".equals(kind)) channel = CHANNEL_FALL;
@@ -141,9 +159,10 @@ final class NotificationHelper {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 .putExtra("push_kind", kind)
                 .putExtra("push_ticker", ticker);
-        int requestCode = (kind + ":" + ticker + ":" + body).hashCode();
+        int requestCode = eventKey.hashCode();
         PendingIntent pending = PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        int priority = "news_digest".equals(kind) ? NotificationCompat.PRIORITY_DEFAULT : NotificationCompat.PRIORITY_HIGH;
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channel)
                 .setSmallIcon(com.innative.halkaarz.R.drawable.ic_launcher)
                 .setContentTitle(title)
@@ -151,7 +170,7 @@ final class NotificationHelper {
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
                 .setAutoCancel(true)
                 .setContentIntent(pending)
-                .setPriority(NotificationCompat.PRIORITY_HIGH);
+                .setPriority(priority);
         try {
             manager.notify(requestCode, builder.build());
             android.content.SharedPreferences.Editor delivery = delivered.edit();
@@ -168,4 +187,3 @@ final class NotificationHelper {
         return value == null || value.trim().isEmpty() ? fallback : value;
     }
 }
-
