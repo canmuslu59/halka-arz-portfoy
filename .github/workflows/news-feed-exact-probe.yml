@@ -1,0 +1,34 @@
+name: Exact News Feed Probe
+
+on:
+  push:
+    branches: [feature/test-liked-rollback-20260917]
+    paths:
+      - '.github/workflows/news-feed-exact-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe exact APK news URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+          echo "GET $URL"
+          curl --fail-with-body --silent --show-error --dump-header /tmp/headers.txt "$URL" -o /tmp/body.json
+          cat /tmp/headers.txt
+          node - <<'NODE'
+          const fs = require('fs');
+          const text = fs.readFileSync('/tmp/body.json', 'utf8');
+          console.log(`bytes=${Buffer.byteLength(text)}`);
+          const body = JSON.parse(text);
+          console.log(`items=${Array.isArray(body.items) ? body.items.length : 'not-array'}`);
+          console.log(`keys=${Object.keys(body).join(',')}`);
+          if (!Array.isArray(body.items) || body.items.length < 1) process.exit(2);
+          NODE
