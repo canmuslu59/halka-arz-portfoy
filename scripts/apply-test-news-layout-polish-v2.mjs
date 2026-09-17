@@ -194,7 +194,15 @@ async function enrichFinanceNewsItems(items) {
   const verified = await Promise.all(visibleCandidates.map(enrichFinanceNewsItem));
   const remainder = sourceItems
     .slice(FINANCE_NEWS_METADATA_LIMIT)
-    .filter(item => !isGenericFinanceNewsTitle(item?.title));
+    .filter(item => !isGenericFinanceNewsTitle(item?.title))
+    .map(item => isBloombergHtFinanceItem(item)
+      ? {
+          ...item,
+          title: normalizeFinanceNewsTitle(item.title),
+          publishedAt:null,
+          publicationTimeVerified:false,
+        }
+      : item);
   return verified.filter(Boolean).concat(remainder);
 }
 
