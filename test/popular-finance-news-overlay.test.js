@@ -63,5 +63,6 @@ test('news feed has three-stage fallback including direct AA economy source', ()
 test('empty news state preserves the actual runtime failure reason for device diagnostics', () => {
   assert.match(fallback, /financeNewsLastError/);
   assert.match(fallback, /Haberler alınamadı/);
-  assert.match(fallback, /newsStatus/);
+  assert.match(fallback, /status\.textContent = financeNewsLastError/);
+  assert.match(fallback, /esc\(financeNewsLastError/);
 });
