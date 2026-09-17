@@ -11,12 +11,12 @@ test('stock-logo overlay is isolated and applied after news imagery', () => {
   assert.match(wrapper, /apply-test-news-article-images\.mjs[\s\S]*apply-test-stock-logo-assets\.mjs/);
 });
 
-test('stock logos are resolved from Fintables company-logo assets robustly', () => {
-  assert.match(overlay, /DOMParser/);
-  assert.match(overlay, /company-logos/i);
-  assert.match(overlay, /storage\.fintables\.com/);
-  assert.match(overlay, /decodeURIComponent/);
-  assert.match(overlay, /srcset/);
+test('BIST logos use the direct ticker-addressable jsDelivr asset set', () => {
+  assert.match(overlay, /cdn\.jsdelivr\.net\/gh\/ahmeterenodaci\/Istanbul-Stock-Exchange--BIST--including-symbols-and-logos\/logos\//);
+  assert.match(overlay, /encodeURIComponent\(symbol\)/);
+  assert.match(overlay, /\.png/);
+  assert.doesNotMatch(overlay, /fintables\.com\/sirketler/);
+  assert.doesNotMatch(overlay, /httpGetText\(/);
 });
 
 test('logo rendering preserves letter fallback and avoids referrer hotlink issues', () => {
@@ -27,8 +27,7 @@ test('logo rendering preserves letter fallback and avoids referrer hotlink issue
   assert.match(overlay, /addEventListener\(['"]error['"]/);
 });
 
-test('logo resolver keeps a cache and validates secure storage URLs', () => {
-  assert.match(overlay, /holdingLogoCache/);
-  assert.match(overlay, /https:/);
-  assert.match(overlay, /hostname/);
+test('ticker normalization prevents malformed logo paths', () => {
+  assert.match(overlay, /toLocaleUpperCase\(['"]tr-TR['"]\)/);
+  assert.match(overlay, /\^\[A-Z0-9\]\+\$/);
 });
