@@ -4,6 +4,7 @@ import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchVerifiedMarketQuote } from './market-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
 import { createNewsNotificationEngine } from './news-notifications.js';
+import { verifyNewsNotificationMetadata } from './news-source-metadata.js';
 
 const STATE_KEY = 'push-state-v1';
 const REVISION_KEY = 'push-state-revision-v1';
@@ -62,7 +63,11 @@ async function runNewsNotifications({ env, store, sender, now }) {
     const engine = createNewsNotificationEngine({
       store,
       sender,
-      fetchNews:() => fetchNewsFeed(env),
+      fetchNews:async () => verifyNewsNotificationMetadata(await fetchNewsFeed(env), {
+        store,
+        fetchImpl:globalThis.fetch,
+        now,
+      }),
       now,
     });
     return { status:'checked', ...(await engine.check()) };
