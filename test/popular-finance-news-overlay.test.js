@@ -48,10 +48,20 @@ test('news screen consumes the isolated finance feed and opens original sources'
   assert.match(overlay, /item\.url/);
 });
 
-test('news feed falls back to CORS fetch when the native Android request path fails', () => {
+test('news feed has three-stage fallback including direct AA economy source', () => {
   assert.match(fallback, /async function fetchPopularFinanceNewsPayload/);
   assert.match(fallback, /await httpGetJson\(NEWS_FEED_URL\)/);
   assert.match(fallback, /fetch\(NEWS_FEED_URL/);
-  assert.match(fallback, /response\.ok/);
-  assert.match(fallback, /Haberler alınamadı:/);
+  assert.match(fallback, /AA_FINANCE_URL/);
+  assert.match(fallback, /https:\/\/www\.aa\.com\.tr\/tr\/ekonomi/);
+  assert.match(fallback, /await httpGetText\(AA_FINANCE_URL\)/);
+  assert.match(fallback, /parseAaFinanceFallback/);
+  assert.match(fallback, /Anadolu Ajansı/);
+  assert.match(fallback, /www\.aa\.com\.tr/);
+});
+
+test('empty news state preserves the actual runtime failure reason for device diagnostics', () => {
+  assert.match(fallback, /financeNewsLastError/);
+  assert.match(fallback, /Haberler alınamadı/);
+  assert.match(fallback, /newsStatus/);
 });
