@@ -4,6 +4,7 @@ import { PushStateDurableObject, createDurableStore } from './durable-store.js';
 import { createCloudflareFcmSender } from './fcm-sender.js';
 import { fetchVerifiedMarketQuote } from './market-quote.js';
 import { fetchCloudflareIpoCalendar } from './ipo-calendar.js';
+import { createNewsNotificationEngine } from './news-notifications.js';
 
 export { PushStateDurableObject };
 
@@ -43,6 +44,35 @@ async function readJson(request) {
 function asDate(value) {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isFinite(date.getTime()) ? date : new Date();
+}
+
+function newsNotificationsEnabled(env = {}) {
+  return String(env.NEWS_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true'
+    && /^https:\/\//i.test(String(env.NEWS_FEED_URL || ''));
+}
+
+async function fetchNewsFeed(env = {}) {
+  const response = await fetch(String(env.NEWS_FEED_URL || ''), {
+    headers:{ accept:'application/json', 'user-agent':'HalkaArzPortfoyum-NewsPush/1.0' },
+  });
+  if (!response.ok) throw new Error(`News feed failed (${response.status}).`);
+  const body = await response.json();
+  return Array.isArray(body) ? body : Array.isArray(body?.items) ? body.items : [];
+}
+
+async function runNewsNotifications({ env, store, sender, date }) {
+  if (!newsNotificationsEnabled(env)) return { status:'disabled' };
+  try {
+    const engine = createNewsNotificationEngine({
+      store,
+      sender,
+      fetchNews:() => fetchNewsFeed(env),
+      now:() => date,
+    });
+    return { status:'checked', ...(await engine.check()) };
+  } catch (error) {
+    return { status:'error', error:String(error?.message || error) };
+  }
 }
 
 export function createWorkerApp({
@@ -85,6 +115,7 @@ export function createWorkerApp({
             androidFallbackMinutes:ANDROID_FALLBACK_MINUTES,
             fcmConfigured:Boolean(sender.configured),
             installationCount:Object.keys(snapshot?.installations || {}).length,
+            newsNotificationsEnabled:newsNotificationsEnabled(env),
             runtime:runtime || { status:'not_run' },
           },
         });
@@ -117,17 +148,18 @@ export function createWorkerApp({
       ? Number(controller.scheduledTime)
       : Number(now());
     const date = asDate(timestamp);
-    const { store, service } = serviceFor(env, date);
+    const { store, sender, service } = serviceFor(env, date);
     const startedAt = date.toISOString();
 
     try {
+      const news = await runNewsNotifications({ env, store, sender, date });
       const ipo = await service.ipoCheck();
       if (!marketStatus(date).isOpen) {
         await store.runtimeWrite({
           status:'market_closed',
           startedAt,
           finishedAt:asDate(now()).toISOString(),
-          result:{ ipo },
+          result:{ ipo, news },
         });
         return;
       }
@@ -140,7 +172,7 @@ export function createWorkerApp({
         status:result.partial ? 'partial' : 'checked',
         startedAt,
         finishedAt:asDate(now()).toISOString(),
-        result:{ ...result, ipo },
+        result:{ ...result, ipo, news },
       });
     } catch (error) {
       await store.runtimeWrite({
