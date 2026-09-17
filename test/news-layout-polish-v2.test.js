@@ -62,6 +62,10 @@ test('source metadata fallback never fabricates publication time from fetch time
   assert.match(polish, /publishedAt:\s*null/);
 });
 
+test('Bloomberg items outside the source-metadata verification window cannot retain worker timestamps', () => {
+  assert.match(polish, /const remainder = sourceItems[\s\S]*\.map\(item => isBloombergHtFinanceItem\(item\)[\s\S]*publishedAt:null[\s\S]*publicationTimeVerified:false/s);
+});
+
 test('article metadata hosts needed by visible finance sources are allowlisted by the polish overlay', () => {
   assert.match(polish, /bloomberght\.com/);
   assert.match(polish, /www\.bloomberght\.com/);
