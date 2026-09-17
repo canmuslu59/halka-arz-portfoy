@@ -1,0 +1,86 @@
+name: News Source Metadata Probe
+
+on:
+  push:
+    branches: [feature/test-liked-rollback-20260917]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-article-metadata:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      NEWS_FEED_URL: https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=30
+    steps:
+      - name: Verify original Bloomberg HT article metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const GENERIC = new Set([
+            'hisse senetleri','borsa kapanış','cumhuriyet altını','ziynet altını',
+            'borsa','altın','döviz','piyasalar','ekonomi'
+          ]);
+          const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+          const decode = value => clean(String(value || '')
+            .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
+          const metaContent = (html, key) => {
+            const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const patterns = [
+              new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["']`, 'i'),
+              new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["']`, 'i'),
+            ];
+            for (const pattern of patterns) {
+              const match = html.match(pattern);
+              if (match) return decode(match[1]);
+            }
+            return '';
+          };
+          const publicationTime = html => {
+            const candidates = [
+              metaContent(html, 'article:published_time'),
+              (html.match(/<time[^>]+datetime=["']([^"']+)["']/i) || [])[1],
+              (html.match(/["']datePublished["']\s*:\s*["']([^"']+)["']/i) || [])[1],
+            ];
+            for (const candidate of candidates) {
+              const value = clean(candidate);
+              if (value && Number.isFinite(Date.parse(value))) return value;
+            }
+            return '';
+          };
+          const feedResponse = await fetch(process.env.NEWS_FEED_URL, { headers: { accept:'application/json' } });
+          if (!feedResponse.ok) throw new Error(`feed HTTP ${feedResponse.status}`);
+          const feed = await feedResponse.json();
+          const candidates = (Array.isArray(feed.items) ? feed.items : []).filter(item => {
+            if (!item?.url || String(item.source || '').trim() !== 'Bloomberg HT') return false;
+            let host = '';
+            try { host = new URL(item.url).hostname.toLowerCase(); } catch { return false; }
+            if (host !== 'bloomberght.com' && host !== 'www.bloomberght.com') return false;
+            return !GENERIC.has(clean(item.title).toLocaleLowerCase('tr-TR'));
+          }).slice(0, 12);
+          if (!candidates.length) throw new Error('No Bloomberg HT article candidate found in finance feed');
+
+          let verified = 0;
+          for (const item of candidates) {
+            try {
+              const response = await fetch(item.url, {
+                redirect:'follow',
+                headers:{ 'user-agent':'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/154 Mobile Safari/537.36' },
+              });
+              if (!response.ok) continue;
+              const html = await response.text();
+              const title = metaContent(html, 'og:title');
+              const publishedAt = publicationTime(html);
+              if (!title || GENERIC.has(title.toLocaleLowerCase('tr-TR')) || !publishedAt) continue;
+              console.log(JSON.stringify({ url:item.url, title, publishedAt }));
+              verified += 1;
+              if (verified >= 2) break;
+            } catch {}
+          }
+          if (verified < 1) throw new Error('Original Bloomberg HT pages exposed no verifiable title + publication timestamp');
+          console.log(`Verified original-source metadata on ${verified} Bloomberg HT article(s).`);
+          NODE
