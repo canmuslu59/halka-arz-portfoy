@@ -1,0 +1,23 @@
+name: Popular Finance News Test APK
+
+on:
+  push:
+    branches: [feature/test-liked-rollback-20260917]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-news-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify popular finance news contract
+        run: node --test test/popular-finance-news-overlay.test.js
