@@ -5,3 +5,4 @@ await import('./apply-test-stock-entry-fixes.mjs');
 await import('./apply-test-popular-finance-news.mjs');
 await import('./apply-test-popular-finance-news-fallback.mjs');
 await import('./apply-test-news-layout-polish-v2.mjs');
+await import('./apply-test-news-article-images.mjs');
