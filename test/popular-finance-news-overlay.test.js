@@ -48,6 +48,35 @@ test('news screen consumes the isolated finance feed and opens original sources'
   assert.match(overlay, /item\.url/);
 });
 
+test('finance news uses an Istanbul-aware dedicated time formatter instead of generic app timeAgo', () => {
+  assert.match(overlay, /function formatFinanceNewsTime\(/);
+  assert.match(overlay, /timeZone:'Europe\/Istanbul'/);
+  assert.match(overlay, /dk önce/);
+  assert.match(overlay, /saat önce/);
+  assert.match(overlay, /Dün/);
+  assert.match(overlay, /Güncel/);
+  assert.match(overlay, /formatFinanceNewsTime\(item\.publishedAt\)/);
+  assert.doesNotMatch(overlay, /timeAgo\(item\.publishedAt\)/);
+});
+
+test('finance categories render as distinct colored chips in featured and latest cards', () => {
+  assert.match(overlay, /function financeNewsCategoryClass\(/);
+  for (const category of ['borsa','sirketler','doviz','altin','ekonomi','halka-arz']) {
+    assert.match(overlay, new RegExp(`news-cat-${category.replace('-', '\\-')}`));
+  }
+  assert.match(overlay, /news-category-chip ' \+ financeNewsCategoryClass\(item\.category\)/);
+  assert.match(overlay, /news-latest-category ' \+ financeNewsCategoryClass\(item\.category\)/);
+});
+
+test('popular and latest news layout is responsive to phone width with a 16 by 9 media surface', () => {
+  assert.match(overlay, /\.news-feature-card\{[^}]*clamp\(/s);
+  assert.match(overlay, /\.news-feature-art\{[^}]*aspect-ratio:16\/9/s);
+  assert.match(overlay, /\.news-feature-title\{[^}]*-webkit-line-clamp:3/s);
+  assert.match(overlay, /\.news-latest-item\{[^}]*grid-template-columns:clamp\(/s);
+  assert.match(overlay, /@media\(max-width:390px\)/);
+  assert.match(overlay, /@media\(min-width:600px\)/);
+});
+
 test('news feed has three-stage fallback including direct AA economy source', () => {
   assert.match(fallback, /async function fetchPopularFinanceNewsPayload/);
   assert.match(fallback, /await httpGetJson\(NEWS_FEED_URL\)/);
