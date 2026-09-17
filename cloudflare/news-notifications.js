@@ -80,9 +80,9 @@ export function scoreNewsImportance(item) {
   const decisionVerb = /(artırdı|artirdi|indirdi|sabit tuttu|kararını açıkladı|kararini acikladi|değiştirdi|degistirdi|olağanüstü|olaganustu)/.test(title);
   if (centralBank && rateOrSystemPolicy && decisionVerb) return 5;
 
-  const exchange = /(borsa istanbul|\bbist\b)/.test(title) || category === 'borsa';
+  const marketWideExchange = /(borsa istanbul|\bbist\b|piyasa genelinde|piyasa geneli|pay piyasasında|pay piyasasinda|tüm piyasada|tum piyasada)/.test(title);
   const marketHalt = /(işlemler(?:i)?(?: geçici olarak)? durdur|işlemlere ara ver|işlem durdur|piyasa genelinde.*devre kesici|devre kesici.*piyasa geneli)/.test(title);
-  if (exchange && marketHalt) return 5;
+  if (marketWideExchange && marketHalt) return 5;
 
   const regulator = /(spk|sermaye piyasası kurulu|hazine ve maliye|resm[iî] gazete)/.test(title);
   const systemicRestriction = /(açığa satış yasa|işlem yasa|olağanüstü tedbir|sermaye kontrol|vergi oran.*değiş|stopaj.*değiş)/.test(title);
