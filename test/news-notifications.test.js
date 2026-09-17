@@ -22,6 +22,7 @@ test('news notification module exists as an isolated cloud layer', () => {
 test('only genuinely critical finance events reach importance 5 of 5', () => {
   assert.equal(news?.scoreNewsImportance?.(item('TCMB politika faizini 500 baz puan artırdı', '2026-09-17T11:00:00+03:00')), 5);
   assert.equal(news?.scoreNewsImportance?.(item('Borsa İstanbul işlemleri geçici olarak durdurdu', '2026-09-17T11:00:00+03:00', { category:'borsa' })), 5);
+  assert.ok((news?.scoreNewsImportance?.(item('XYZ hissesinde işlemler geçici olarak durduruldu', '2026-09-17T11:00:00+03:00', { category:'borsa' })) ?? 99) < 5);
   assert.ok((news?.scoreNewsImportance?.(item('Dolar güne yatay başladı', '2026-09-17T11:00:00+03:00', { category:'doviz' })) ?? 99) < 5);
   assert.ok((news?.scoreNewsImportance?.(item('Şirket temettü tarihini açıkladı', '2026-09-17T11:00:00+03:00', { category:'sirketler' })) ?? 99) < 5);
 });
