@@ -87,12 +87,17 @@ jobs:
           (Join-Path $sdkRoot 'cmdline-tools\latest\bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           (Join-Path $sdkRoot 'platform-tools') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
-          $licenseInput = ((1..100 | ForEach-Object { 'y' }) -join [Environment]::NewLine) + [Environment]::NewLine
-          $licenseInput | & $sdkmanager --sdk_root=$sdkRoot --licenses
-          if ($LASTEXITCODE -ne 0) { throw 'Android SDK license acceptance failed' }
-
           & $sdkmanager --sdk_root=$sdkRoot 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
-          if ($LASTEXITCODE -ne 0) { throw 'Android SDK package install failed' }
+          $required = @(
+            (Join-Path $sdkRoot 'platform-tools'),
+            (Join-Path $sdkRoot 'platforms\android-36'),
+            (Join-Path $sdkRoot 'build-tools\36.0.0')
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) {
+              throw 'Android SDK 36 packages are not installed. Accept Android SDK licenses once on the runner, then rerun.'
+            }
+          }
 
       - name: Install dependencies
         shell: powershell
@@ -138,16 +143,29 @@ jobs:
           Select-String -Path $path -SimpleMatch "versionCode $versionCode"
 
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      - name: Setup Gradle 8.11.1 on self-hosted Windows
+        shell: powershell
+        run: |
+          $root = 'C:\actions-runner\gradle'
+          $home = Join-Path $root 'gradle-8.11.1'
+          $bin = Join-Path $home 'bin\gradle.bat'
+          if (!(Test-Path $bin)) {
+            New-Item -ItemType Directory -Force -Path $root | Out-Null
+            $zip = Join-Path $env:RUNNER_TEMP 'gradle-8.11.1-bin.zip'
+            Invoke-WebRequest -Uri 'https://services.gradle.org/distributions/gradle-8.11.1-bin.zip' -OutFile $zip
+            Expand-Archive -LiteralPath $zip -DestinationPath $root -Force
+          }
+          if (!(Test-Path $bin)) { throw 'Gradle 8.11.1 bootstrap failed' }
+          "GRADLE_BIN=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & $bin --version
+          if ($LASTEXITCODE -ne 0) { throw 'Gradle version check failed' }
 
       - name: Build Premium Test APK
         shell: powershell
         run: |
-          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          & $env:GRADLE_BIN -p android --no-daemon compileReleaseJavaWithJavac
           if ($LASTEXITCODE -ne 0) { throw 'Java compile failed' }
-          gradle -p android --no-daemon assembleRelease
+          & $env:GRADLE_BIN -p android --no-daemon assembleRelease
           if ($LASTEXITCODE -ne 0) { throw 'APK build failed' }
 
       - name: Sign Premium Test APK
