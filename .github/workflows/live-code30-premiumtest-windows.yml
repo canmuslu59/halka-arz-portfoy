@@ -1,4 +1,4 @@
-name: Live Code30 Premium Test Baseline
+name: Live Code30 Premium Test Wallet Part 1
 
 on:
   push:
@@ -118,6 +118,16 @@ jobs:
           node --check public/app.js
           node --check android/app/src/main/assets/www/app.js
 
+      - name: Apply Premium Test wallet Part 1
+        shell: powershell
+        run: |
+          node scripts/apply-premium-wallet-part1.mjs
+          node --check android/app/src/main/assets/www/app.js
+          node --test test/premium-wallet-part1-overlay.test.js
+          Select-String -Path android/app/src/main/assets/www/index.html -SimpleMatch 'wallet-metrics-grid'
+          Select-String -Path android/app/src/main/assets/www/index.html -SimpleMatch 'weeklyMoversCard'
+          Select-String -Path android/app/src/main/assets/www/app.js -SimpleMatch 'renderPremiumTestWeeklyMovers(data.holdings);'
+
       - name: Configure isolated Halka Arz Premium Test identity
         shell: powershell
         run: |
@@ -191,12 +201,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'APK signing failed' }
 
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item $signed 'dist/halka-arz-premium-test-baseline.apk'
+          Copy-Item $signed 'dist/halka-arz-premium-test-wallet-part1.apk'
 
       - name: Verify Premium Test APK
         shell: powershell
         run: |
-          $apk = 'dist/halka-arz-premium-test-baseline.apk'
+          $apk = 'dist/halka-arz-premium-test-wallet-part1.apk'
           $buildTools = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0'
           & (Join-Path $buildTools 'apksigner.bat') verify --verbose --print-certs $apk | Tee-Object -FilePath 'dist/apk-signature.txt'
           if ($LASTEXITCODE -ne 0) { throw 'Signature verification failed' }
@@ -218,14 +228,18 @@ jobs:
             'liveNotificationCore=protected',
             'livePricingCore=protected',
             'fakeNotifications=premiumtest-only; four randomized notifications per rolling hour',
-            'removeFakeNotificationsBeforeMain=true'
+            'removeFakeNotificationsBeforeMain=true',
+            'feature=wallet-part1',
+            'walletMetrics=Bugun;Gunluk Degisim;Yatirilan',
+            'weeklyMovers=top3;fiveSessions',
+            'navigation=live-code30-unchanged'
           ) | Set-Content 'dist/BUILD-INFO.txt'
 
       - uses: actions/upload-artifact@v4
         with:
-          name: live-code30-premiumtest-baseline
+          name: live-code30-premiumtest-wallet-part1
           path: |
-            dist/halka-arz-premium-test-baseline.apk
+            dist/halka-arz-premium-test-wallet-part1.apk
             dist/SHA256SUMS.txt
             dist/BUILD-INFO.txt
             dist/apk-signature.txt
