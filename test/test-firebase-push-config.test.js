@@ -4,14 +4,15 @@ import fs from 'node:fs/promises';
 
 async function read(path) { return fs.readFile(path, 'utf8'); }
 
-test('separate test APK workflow requires Firebase config for com.innative.halkaarz.test', async () => {
+test('manual test APK build requires Firebase config for com.innative.halkaarz.test', async () => {
   const workflow = await read('.github/workflows/popular-finance-news-test-apk.yml');
   assert.match(workflow, /GOOGLE_SERVICES_TEST_JSON_BASE64/);
   assert.match(workflow, /android\/app\/google-services\.json/);
   assert.match(workflow, /com\.innative\.halkaarz\.test/);
+  assert.match(workflow, /github\.event_name\s*==\s*'workflow_dispatch'/);
   assert.match(workflow, /google_app_id/);
   assert.match(workflow, /gcm_defaultSenderId/);
-  assert.doesNotMatch(workflow, /firebase=not configured/i);
+  assert.match(workflow, /Firebase test config is required/i);
 });
 
 test('test Firebase bootstrap workflow never prints secret values', async () => {
