@@ -13,8 +13,8 @@ test('milestone release is v2.4.8 / code31', async () => {
   assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /versionCode 31/);
-  assert.match(gradle, /versionName ['"]2\.4\.6['"]/);
-  assert.match(index, /id="appVersion"[\s\S]*v2\.4\.6\s*•\s*Build 31/);
+  assert.match(gradle, /versionName ['"]2\.4\.8['"]/);
+  assert.match(index, /id="appVersion"[\s\S]*v2\.4\.8\s*•\s*Build 31/);
 });
 
 test('milestone release source exposes no test notification button', async () => {
