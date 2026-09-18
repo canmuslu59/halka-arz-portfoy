@@ -67,7 +67,34 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v4
+      - name: Setup Android SDK on self-hosted Windows
+        shell: powershell
+        run: |
+          $sdkRoot = 'C:\actions-runner\android-sdk'
+          $sdkmanager = Join-Path $sdkRoot 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (!(Test-Path $sdkmanager)) {
+            New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
+            $zip = Join-Path $env:RUNNER_TEMP 'commandlinetools-win.zip'
+            $extract = Join-Path $env:RUNNER_TEMP 'android-cmdline-extract'
+            Remove-Item -Recurse -Force $extract -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri 'https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip' -OutFile $zip
+            Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+            $latest = Join-Path $sdkRoot 'cmdline-tools\latest'
+            Remove-Item -Recurse -Force $latest -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path $latest | Out-Null
+            Copy-Item -Path (Join-Path $extract 'cmdline-tools\*') -Destination $latest -Recurse -Force
+          }
+          "ANDROID_HOME=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ANDROID_SDK_ROOT=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          (Join-Path $sdkRoot 'cmdline-tools\latest\bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          (Join-Path $sdkRoot 'platform-tools') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+          $licenseInput = ((1..100 | ForEach-Object { 'y' }) -join [Environment]::NewLine) + [Environment]::NewLine
+          $licenseInput | & $sdkmanager --sdk_root=$sdkRoot --licenses
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK license acceptance failed' }
+
+          & $sdkmanager --sdk_root=$sdkRoot 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0'
+          if ($LASTEXITCODE -ne 0) { throw 'Android SDK package install failed' }
 
       - name: Install dependencies
         shell: powershell
@@ -108,13 +135,6 @@ jobs:
           Select-String -Path $path -SimpleMatch "Halka Arz Premium Test"
           Select-String -Path $path -SimpleMatch "versionCode $versionCode"
 
-      - name: Install Android SDK 36
-        shell: powershell
-        run: |
-          $sdkmanager = Join-Path $env:ANDROID_HOME 'cmdline-tools\latest\bin\sdkmanager.bat'
-          if (!(Test-Path $sdkmanager)) { throw "sdkmanager not found: $sdkmanager" }
-          & $sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-          if ($LASTEXITCODE -ne 0) { throw 'sdkmanager failed' }
 
       - uses: gradle/actions/setup-gradle@v4
         with:
