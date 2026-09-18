@@ -88,6 +88,23 @@ export class PushStateDurableObject {
     this.state = state;
     this.storage = state.storage;
     this.env = env;
+
+    // A production feature flag can be enabled while the market is closed,
+    // when the previously scheduled alarm may still be hours/days away.
+    // Wake the existing Durable Object promptly so news polling starts now.
+    if (newsNotificationsEnabled(env) && typeof state?.blockConcurrencyWhile === 'function') {
+      state.blockConcurrencyWhile(async () => {
+        try {
+          const nowMs = Date.now();
+          const current = await this.storage.getAlarm();
+          if (current == null || Number(current) > nowMs + ALARM_INTERVAL_MS) {
+            await this.storage.setAlarm(nowMs + 1_000);
+          }
+        } catch {
+          // Alarm scheduling is best-effort here; the normal alarm loop remains authoritative.
+        }
+      });
+    }
   }
 
   async readStoredState() {
