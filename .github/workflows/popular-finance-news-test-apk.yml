@@ -148,6 +148,33 @@ jobs:
           grep -F "versionNameSuffix '-test'" android/app/build.gradle
           grep -F "versionCode $TEST_VERSION_CODE" android/app/build.gradle
 
+      - name: Inject Firebase config for push-capable manual test build
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GOOGLE_SERVICES_TEST_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_TEST_JSON_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_TEST_JSON_BASE64:-}" ]; then
+            echo "Firebase test config is required: add GOOGLE_SERVICES_TEST_JSON_BASE64 for com.innative.halkaarz.test" >&2
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_TEST_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('android/app/google-services.json','utf8'));
+          if (config?.project_info?.project_id !== 'halka-arz-portfoyum') {
+            throw new Error('Unexpected Firebase project.');
+          }
+          const client = (config.client || []).find(item =>
+            item?.client_info?.android_client_info?.package_name === 'com.innative.halkaarz.test'
+          );
+          if (!client) throw new Error('Firebase config does not contain com.innative.halkaarz.test.');
+          if (!client?.client_info?.mobilesdk_app_id) throw new Error('Firebase test config missing mobilesdk_app_id.');
+          if (!config?.project_info?.project_number) throw new Error('Firebase test config missing project_number.');
+          if (!client?.api_key?.some(item => item?.current_key)) throw new Error('Firebase test config missing API key.');
+          NODE
+
       - name: Install Android SDK 36
         shell: bash
         run: |
@@ -207,6 +234,13 @@ jobs:
           grep -F "package: name='com.innative.halkaarz.test' versionCode='${TEST_VERSION_CODE}' versionName='2.4.6-test'" dist/apk-badging.txt
           grep -F "application-label:'Halka Arz Portföyüm Test'" dist/apk-badging.txt
           grep -F 'Signer #1 certificate SHA-256 digest: a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc' dist/apk-signature.txt
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            "$BUILD_TOOLS/aapt" dump resources "$APK" > /tmp/apk-resources.txt
+            grep -F 'google_app_id' /tmp/apk-resources.txt
+            grep -F 'gcm_defaultSenderId' /tmp/apk-resources.txt
+            grep -F 'project_id' /tmp/apk-resources.txt
+          fi
 
           found_backend=0
           while IFS= read -r dex; do
