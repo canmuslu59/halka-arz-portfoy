@@ -23,7 +23,7 @@ final class PremiumTestNotificationScheduler {
     private static final String SLOT_WORK_PREFIX = "premium_test_fake_notification_slot_v1_";
     private static final String PREFS = "premium_test_fake_notification_v1";
     private static final String LAST_BATCH_MS = "last_batch_ms";
-    private static final long MIN_BATCH_GAP_MS = 50L * 60L * 1000L;
+    private static final long MIN_BATCH_GAP_MS = 59L * 60L * 1000L;
     private static final int NOTIFICATIONS_PER_BATCH = 4;
     private static final int MIN_DELAY_SECONDS = 3 * 60;
     private static final int MAX_DELAY_SECONDS = 57 * 60;

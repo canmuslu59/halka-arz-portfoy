@@ -15,7 +15,7 @@ public final class PremiumTestNotificationBatchWorker extends Worker {
     @Override
     public Result doWork() {
         if (!BuildConfig.APPLICATION_ID.endsWith(".premiumtest")) return Result.success();
-        PremiumTestNotificationScheduler.scheduleBatchIfNeeded(getApplicationContext(), true);
+        PremiumTestNotificationScheduler.scheduleBatchIfNeeded(getApplicationContext(), false);
         return Result.success();
     }
 }
