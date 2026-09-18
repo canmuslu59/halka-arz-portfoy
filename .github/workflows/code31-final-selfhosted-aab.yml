@@ -106,9 +106,8 @@ jobs:
       - name: Configure production Firebase client
         shell: powershell
         run: |
-          @'
-{"project_info":{"project_number":"181104463772","project_id":"halka-arz-portfoyum-d86ff","storage_bucket":"halka-arz-portfoyum-d86ff.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:181104463772:android:0079989b9d3c4ef85fcb9d","android_client_info":{"package_name":"com.innative.halkaarz"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyByYlMz5g9cwzXUjfVFlLIM0A564z-fO88"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}
-'@ | Set-Content -Encoding UTF8 android/app/google-services.json
+          $firebaseJson = '{"project_info":{"project_number":"181104463772","project_id":"halka-arz-portfoyum-d86ff","storage_bucket":"halka-arz-portfoyum-d86ff.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:181104463772:android:0079989b9d3c4ef85fcb9d","android_client_info":{"package_name":"com.innative.halkaarz"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyByYlMz5g9cwzXUjfVFlLIM0A564z-fO88"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}'
+          Set-Content -Path android/app/google-services.json -Value $firebaseJson -Encoding UTF8
 
           $config = Get-Content -Raw android/app/google-services.json
           if (-not $config.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
@@ -167,17 +166,17 @@ jobs:
           Copy-Item $aab dist/halka-arz-portfoyum-v2.4.8-code31-unsigned.aab
           $hash = (Get-FileHash dist/halka-arz-portfoyum-v2.4.8-code31-unsigned.aab -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  halka-arz-portfoyum-v2.4.8-code31-unsigned.aab" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
-          @"
-package=com.innative.halkaarz
-versionName=2.4.8
-versionCode=31
-sourceCommit=$env:GITHUB_SHA
-backend=$env:PUSH_BACKEND_URL
-firebase=production
-testExperiencePromoted=true
-liveMarketCorePreserved=true
-newsChannelsIncluded=true
-"@ | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
+          @(
+            'package=com.innative.halkaarz',
+            'versionName=2.4.8',
+            'versionCode=31',
+            "sourceCommit=$env:GITHUB_SHA",
+            "backend=$env:PUSH_BACKEND_URL",
+            'firebase=production',
+            'testExperiencePromoted=true',
+            'liveMarketCorePreserved=true',
+            'newsChannelsIncluded=true'
+          ) | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
 
       - uses: actions/upload-artifact@v4
         with:
