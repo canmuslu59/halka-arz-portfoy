@@ -13,7 +13,7 @@ test('Android shell and bundled UI follow the Milestone Code26 release identity'
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 29/);
+  assert.match(gradle, /versionCode 31/);
   assert.match(gradle, /versionName '2\.4\.6'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
