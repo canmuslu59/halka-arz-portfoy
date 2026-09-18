@@ -5,7 +5,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const fetchFixture = fileURLToPath(new URL('./fixtures/server-fetch-stub.mjs', import.meta.url));
@@ -53,7 +53,7 @@ async function withServer(mode, fn) {
   const dataFile = path.join(dir, 'portfolio.json');
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, ['--import', fetchFixture, 'server.js'], {
+  const child = spawn(process.execPath, ['--import', pathToFileURL(fetchFixture).href, 'server.js'], {
     cwd: repoRoot,
     env: {
       ...process.env,
