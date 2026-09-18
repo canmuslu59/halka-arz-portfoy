@@ -5,10 +5,10 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const fetchFixture = fileURLToPath(new URL('./fixtures/server-fetch-stub.mjs', import.meta.url));
+const fetchFixture = pathToFileURL(fileURLToPath(new URL('./fixtures/server-fetch-stub.mjs', import.meta.url))).href;
 
 async function getFreePort() {
   return new Promise((resolve, reject) => {
