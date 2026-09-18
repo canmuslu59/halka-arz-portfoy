@@ -1,0 +1,155 @@
+name: Code31 Production News Enable
+
+on:
+  push:
+    branches: [release/v2.4.8-code31-news-live]
+    paths:
+      - '.github/workflows/code31-production-news-enable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code31-production-news-enable
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEWS_FEED_URL: https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60
+      PROD_HEALTH_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo 'CLOUDFLARE_API_TOKEN=missing'; exit 2; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo 'CLOUDFLARE_ACCOUNT_ID=missing'; exit 2; }
+          echo 'Cloudflare production credentials present.'
+
+      - name: Run full regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 test/*.test.js
+
+      - name: Probe production news feed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -A 'HalkaArzPortfoyum-NewsPush/1.0' \
+            -H 'Accept: application/json' \
+            "$NEWS_FEED_URL" -o /tmp/news.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const body = JSON.parse(fs.readFileSync('/tmp/news.json', 'utf8'));
+          const items = Array.isArray(body) ? body : Array.isArray(body?.items) ? body.items : [];
+          if (items.length < 1) throw new Error('News feed returned no items.');
+          const usable = items.filter(x => String(x?.title || '').trim() && /^https:\/\//i.test(String(x?.url || '')));
+          if (usable.length < 1) throw new Error('News feed has no usable title/url item.');
+          console.log('News feed OK: ' + items.length + ' items, ' + usable.length + ' usable.');
+          NODE
+
+      - name: Capture pre-deploy production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$PROD_HEALTH_URL" -o /tmp/pre-health.json
+          node - <<'NODE'
+          const h = require('/tmp/pre-health.json');
+          if (!h?.ok) throw new Error('Pre-deploy production health is not OK.');
+          console.log(JSON.stringify({
+            fcmConfigured:h?.push?.fcmConfigured,
+            installationCount:h?.push?.installationCount,
+            newsNotificationsEnabled:h?.push?.newsNotificationsEnabled,
+            runtimeStatus:h?.push?.runtime?.status || null
+          }));
+          NODE
+
+      - name: Deploy production worker with news enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DEPLOY_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          npx -y wrangler@4.131.1 deploy --config wrangler.jsonc
+
+      - name: Verify production health and feature flag
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error "$PROD_HEALTH_URL" -o /tmp/health.json; then
+              if node - <<'NODE'
+              const h = require('/tmp/health.json');
+              if (!h?.ok) process.exit(2);
+              if (h?.push?.newsNotificationsEnabled !== true) process.exit(3);
+              if (h?.push?.fcmConfigured !== true) process.exit(4);
+              console.log(JSON.stringify({
+                ok:h.ok,
+                newsNotificationsEnabled:h.push.newsNotificationsEnabled,
+                fcmConfigured:h.push.fcmConfigured,
+                installationCount:h.push.installationCount,
+                runtimeStatus:h.push.runtime?.status || null
+              }));
+              NODE
+              then
+                exit 0
+              fi
+            fi
+            sleep 3
+          done
+          echo 'Production health/feature flag verification failed.'
+          exit 1
+
+      - name: Verify live news polling actually ran
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 40); do
+            curl --fail --silent --show-error "$PROD_HEALTH_URL" -o /tmp/runtime-health.json
+            if DEPLOY_EPOCH="$DEPLOY_EPOCH" node - <<'NODE'
+            const h = require('/tmp/runtime-health.json');
+            const runtime = h?.push?.runtime;
+            const news = runtime?.result?.news;
+            const deployEpoch = Number(process.env.DEPLOY_EPOCH || 0) * 1000;
+            const startedMs = Date.parse(String(runtime?.startedAt || ''));
+            const isFresh = Number.isFinite(startedMs) && startedMs >= deployEpoch - 5000;
+            if (news?.status === 'error') {
+              console.error('News runtime error:', news.error);
+              process.exit(2);
+            }
+            if (isFresh && news?.status === 'checked' && Number(news?.feedCount) > 0) {
+              console.log(JSON.stringify({
+                runtimeStatus:runtime.status,
+                startedAt:runtime.startedAt,
+                newsStatus:news.status,
+                feedCount:news.feedCount,
+                breakingSent:news.breakingSent,
+                digestSent:news.digestSent
+              }));
+              process.exit(0);
+            }
+            process.exit(1);
+            NODE
+            then
+              exit 0
+            fi
+            sleep 6
+          done
+          echo 'News polling did not produce a fresh checked runtime within the verification window.'
+          exit 1
