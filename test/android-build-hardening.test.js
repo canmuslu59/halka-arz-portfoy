@@ -19,6 +19,6 @@ test('Milestone release advances the Play identity to Code31', async () => {
   const appGradle = await read('android/app/build.gradle');
 
   assert.match(appGradle, /versionCode 31/);
-  assert.match(appGradle, /versionName ['"]2\.4\.6['"]/);
+  assert.match(appGradle, /versionName ['"]2\.4\.8['"]/);
 });
 
