@@ -41,3 +41,7 @@ test('when news notifications are enabled Durable Object keeps polling outside m
   assert.match(durable, /ALARM_INTERVAL_MS/);
   assert.match(durable, /nextAlarmAt\([^)]*news/s);
 });
+
+test('enabling news wakes a previously distant Durable Object alarm on startup', () => {
+  assert.match(durable, /constructor\(state, env = \{\}\)[\s\S]*newsNotificationsEnabled\(env\)[\s\S]*getAlarm\(\)[\s\S]*setAlarm\(nowMs \+ 1_000\)/);
+});
