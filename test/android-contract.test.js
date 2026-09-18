@@ -36,7 +36,7 @@ test('Android Gradle config uses requested app id and SDK levels', async () => {
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /compileSdk 36/);
   assert.match(gradle, /versionCode 31/);
-  assert.match(gradle, /versionName ['"]2\.4\.6['"]/);
+  assert.match(gradle, /versionName ['"]2\.4\.8['"]/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
@@ -82,7 +82,7 @@ test('README documents direct-source Android verification and the current Code28
   assert.doesNotMatch(readme, /Audit Current Clean Source/);
   assert.doesNotMatch(readme, /Phase1 TDD Contracts/);
   assert.match(readme, /Code28 release/);
-  assert.match(readme, /versionName 2\.4\.6 \/ versionCode 28/);
+  assert.match(readme, /versionName 2\.4\.8 \/ versionCode 28/);
 });
 
 test('native bridge avoids Charset overload unavailable on older Android APIs', async () => {
