@@ -136,7 +136,8 @@ jobs:
           "@
           $updated = [regex]::Replace($text, $pattern, $replacement, 1)
           if ($updated -eq $text) { throw 'release identity replacement failed' }
-          Set-Content -Path $path -Value $updated -Encoding utf8
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllText($path, $updated, $utf8NoBom)
           Select-String -Path $path -SimpleMatch "applicationIdSuffix '.premiumtest'"
           Select-String -Path $path -SimpleMatch "versionNameSuffix '-premium-test'"
           Select-String -Path $path -SimpleMatch "Halka Arz Premium Test"
