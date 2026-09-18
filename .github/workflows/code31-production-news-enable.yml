@@ -33,6 +33,11 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Install dependencies
         shell: powershell
         run: npm ci
