@@ -3,6 +3,10 @@
   "name": "halka-arz-portfoy-push",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-09-14",
+  "vars": {
+    "NEWS_NOTIFICATIONS_ENABLED": "true",
+    "NEWS_FEED_URL": "https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60"
+  },
   "durable_objects": {
     "bindings": [
       {
