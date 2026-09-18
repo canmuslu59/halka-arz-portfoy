@@ -1,0 +1,179 @@
+name: Live Code30 Premium Test Baseline
+
+on:
+  push:
+    branches:
+      - integration/live-code30-premiumtest-20260918
+    paths:
+      - .github/workflows/live-code30-premiumtest-windows.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-premiumtest:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 40
+    env:
+      PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+      AOSP_BUILD_COMMIT: 897e2ff8232b9f7a96493855e57f7a01f999109e
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Protect live notification and pricing core
+        shell: powershell
+        run: |
+          git fetch origin release/v2.4.7-code30:refs/remotes/origin/release/v2.4.7-code30
+          $protected = @(
+            'public/core/market-reference.js',
+            'public/core/parsers.js',
+            'public/core/data-sources.js',
+            'public/core/portfolio-service.js',
+            'public/core/notification-rules.js',
+            'public/notification-recovery.js',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java',
+            'backend/alert-engine.js',
+            'backend/service.js'
+          )
+          git diff --exit-code origin/release/v2.4.7-code30 -- $protected
+          if ($LASTEXITCODE -ne 0) { throw 'Protected live notification/pricing core changed.' }
+          Write-Host 'LIVE_PROTECTED_CORE_OK'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: npm test
+
+      - name: Sync Android assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          git diff --check
+          if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed' }
+
+      - name: Configure isolated Halka Arz Premium Test identity
+        shell: powershell
+        run: |
+          $versionCode = 40000 + $env:GITHUB_RUN_NUMBER
+          "TEST_VERSION_CODE=$versionCode" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $path = 'android/app/build.gradle'
+          $text = Get-Content $path -Raw
+          $text = [regex]::Replace($text, 'versionCode\s+\d+', "versionCode $versionCode", 1)
+          $pattern = "release\s*\{\s*minifyEnabled false"
+          $replacement = @"
+          release {
+              applicationIdSuffix '.premiumtest'
+              versionNameSuffix '-premium-test'
+              resValue 'string', 'app_name', 'Halka Arz Premium Test'
+              minifyEnabled false
+          "@
+          $updated = [regex]::Replace($text, $pattern, $replacement, 1)
+          if ($updated -eq $text) { throw 'release identity replacement failed' }
+          Set-Content -Path $path -Value $updated -Encoding utf8
+          Select-String -Path $path -SimpleMatch "applicationIdSuffix '.premiumtest'"
+          Select-String -Path $path -SimpleMatch "versionNameSuffix '-premium-test'"
+          Select-String -Path $path -SimpleMatch "Halka Arz Premium Test"
+          Select-String -Path $path -SimpleMatch "versionCode $versionCode"
+
+      - name: Install Android SDK 36
+        shell: powershell
+        run: |
+          $sdkmanager = Join-Path $env:ANDROID_HOME 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (!(Test-Path $sdkmanager)) { throw "sdkmanager not found: $sdkmanager" }
+          & $sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+          if ($LASTEXITCODE -ne 0) { throw 'sdkmanager failed' }
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build Premium Test APK
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { throw 'Java compile failed' }
+          gradle -p android --no-daemon assembleRelease
+          if ($LASTEXITCODE -ne 0) { throw 'APK build failed' }
+
+      - name: Sign Premium Test APK
+        shell: powershell
+        run: |
+          $base = "https://raw.githubusercontent.com/aosp-mirror/platform_build/$env:AOSP_BUILD_COMMIT/target/product/security"
+          $key = Join-Path $env:RUNNER_TEMP 'aosp-testkey.pk8'
+          $cert = Join-Path $env:RUNNER_TEMP 'aosp-testkey.x509.pem'
+          Invoke-WebRequest -Uri "$base/testkey.pk8" -OutFile $key
+          Invoke-WebRequest -Uri "$base/testkey.x509.pem" -OutFile $cert
+
+          $buildTools = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0'
+          $unsigned = 'android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          $aligned = Join-Path $env:RUNNER_TEMP 'premiumtest-aligned.apk'
+          $signed = Join-Path $env:RUNNER_TEMP 'premiumtest-signed.apk'
+          if (!(Test-Path $unsigned)) { throw 'Unsigned APK not found' }
+
+          & (Join-Path $buildTools 'zipalign.exe') -p -f 4 $unsigned $aligned
+          if ($LASTEXITCODE -ne 0) { throw 'zipalign failed' }
+
+          & (Join-Path $buildTools 'apksigner.bat') sign --key $key --cert $cert --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out $signed $aligned
+          if ($LASTEXITCODE -ne 0) { throw 'APK signing failed' }
+
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item $signed 'dist/halka-arz-premium-test-baseline.apk'
+
+      - name: Verify Premium Test APK
+        shell: powershell
+        run: |
+          $apk = 'dist/halka-arz-premium-test-baseline.apk'
+          $buildTools = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0'
+          & (Join-Path $buildTools 'apksigner.bat') verify --verbose --print-certs $apk | Tee-Object -FilePath 'dist/apk-signature.txt'
+          if ($LASTEXITCODE -ne 0) { throw 'Signature verification failed' }
+
+          & (Join-Path $buildTools 'aapt.exe') dump badging $apk | Tee-Object -FilePath 'dist/apk-badging.txt'
+          if ($LASTEXITCODE -ne 0) { throw 'aapt verification failed' }
+
+          $badging = Get-Content 'dist/apk-badging.txt' -Raw
+          if ($badging -notmatch "package: name='com\.innative\.halkaarz\.premiumtest'") { throw 'Wrong Premium Test package' }
+          if ($badging -notmatch "application-label:'Halka Arz Premium Test'") { throw 'Wrong Premium Test label' }
+
+          Get-FileHash $apk -Algorithm SHA256 | Format-List | Out-File 'dist/SHA256SUMS.txt'
+          @(
+            'base=release/v2.4.7-code30',
+            'package=com.innative.halkaarz.premiumtest',
+            'appName=Halka Arz Premium Test',
+            "sourceCommit=$env:GITHUB_SHA",
+            "versionCode=$env:TEST_VERSION_CODE",
+            'liveNotificationCore=protected',
+            'livePricingCore=protected'
+          ) | Set-Content 'dist/BUILD-INFO.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-code30-premiumtest-baseline
+          path: |
+            dist/halka-arz-premium-test-baseline.apk
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/apk-signature.txt
+            dist/apk-badging.txt
+          if-no-files-found: error
+          retention-days: 14
