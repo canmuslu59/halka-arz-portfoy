@@ -38,7 +38,7 @@ jobs:
 
       - name: Run complete regression suite
         shell: powershell
-        run: npm test
+        run: node --test --test-concurrency=1 test/*.test.js
 
       - name: Sync Android base assets
         shell: powershell
