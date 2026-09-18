@@ -29,7 +29,7 @@ test('theme toggle is restored to topbar and removed from Settings', async () =>
   assert.match(app, /themeToggle/);
   assert.match(app, /nextTheme/);
   assert.match(html, /Halka Arz Portföyüm/);
-  assert.match(html, /v2\.4\.6\s*•\s*Build 29/);
+  assert.match(html, /v2\.4\.8\s*•\s*Build 31/);
 });
 
 test('app wires Settings, native notification permission and visibility-aware refresh', async () => {
