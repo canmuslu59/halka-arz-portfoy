@@ -97,6 +97,7 @@ public class MainActivity extends ComponentActivity {
         capturePushRoute(getIntent());
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
+        PremiumTestNotificationScheduler.ensure(this);
         PushConfigSync.installId(this);
         PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
@@ -171,6 +172,7 @@ public class MainActivity extends ComponentActivity {
         super.onResume();
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
+        PremiumTestNotificationScheduler.ensure(this);
         if (webView != null) {
             webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
         }
