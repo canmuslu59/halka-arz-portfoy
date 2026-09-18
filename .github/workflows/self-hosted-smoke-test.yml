@@ -1,0 +1,24 @@
+name: Self-hosted Smoke Test
+
+on:
+  push:
+    branches:
+      - feature/test-liked-rollback-20260917
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 5
+
+    steps:
+      - name: Test Windows self-hosted runner
+        shell: powershell
+        run: |
+          Write-Host "SELF_HOSTED_RUNNER_OK"
+          Write-Host "Computer: $env:COMPUTERNAME"
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner Architecture: $env:RUNNER_ARCH"
+          Write-Host "Repository: $env:GITHUB_REPOSITORY"
+          Write-Host "Branch: $env:GITHUB_REF"
+          Get-Date
