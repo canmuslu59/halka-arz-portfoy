@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - integration/live-code30-premiumtest-20260918
-    paths:
-      - .github/workflows/live-code30-premiumtest-windows.yml
   workflow_dispatch:
 
 permissions:
@@ -104,6 +102,10 @@ jobs:
         shell: powershell
         run: npm test
 
+      - name: Verify Premium random fake notification harness
+        shell: powershell
+        run: node --test test/premium-test-random-notifications.test.js
+
       - name: Sync Android assets
         shell: powershell
         run: |
@@ -195,7 +197,9 @@ jobs:
             "sourceCommit=$env:GITHUB_SHA",
             "versionCode=$env:TEST_VERSION_CODE",
             'liveNotificationCore=protected',
-            'livePricingCore=protected'
+            'livePricingCore=protected',
+            'fakeNotifications=premiumtest-only; four randomized notifications per rolling hour',
+            'removeFakeNotificationsBeforeMain=true'
           ) | Set-Content 'dist/BUILD-INFO.txt'
 
       - uses: actions/upload-artifact@v4
