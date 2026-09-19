@@ -42,7 +42,7 @@ test('morning digest covers previous 19:00 through current 10:00 Istanbul', () =
   ]);
 });
 
-test('evening digest covers 10:00 through 19:00 Istanbul and keeps only 2 to 4 important items', () => {
+test('evening digest covers 10:00 through 19:00 Istanbul and prioritizes important items', () => {
   const now = new Date('2026-09-17T19:04:00+03:00');
   const entries = [
     item('Birinci önemli gelişme', '2026-09-17T10:05:00+03:00', { importance:4 }),
@@ -61,6 +61,33 @@ test('evening digest covers 10:00 through 19:00 Istanbul and keeps only 2 to 4 i
     'Birinci önemli gelişme',
     'Dördüncü önemli gelişme',
   ]);
+});
+
+test('digest falls back to routine finance headlines when important items are scarce', () => {
+  const now = new Date('2026-09-17T10:03:00+03:00');
+  const entries = [
+    item('Önemli enflasyon verisi açıklandı', '2026-09-17T08:30:00+03:00', { importance:3 }),
+    item('Altın güne yükselişle başladı', '2026-09-17T08:45:00+03:00', { importance:2 }),
+    item('Dolar sabah saatlerinde yatay seyretti', '2026-09-17T09:00:00+03:00', { importance:2 }),
+  ];
+  const selected = news?.selectDigestItems?.(entries, { slot:'morning', now }) || [];
+  assert.deepEqual(selected.map(x => x.title), [
+    'Önemli enflasyon verisi açıklandı',
+    'Dolar sabah saatlerinde yatay seyretti',
+    'Altın güne yükselişle başladı',
+  ]);
+});
+
+test('digest message still has a useful body when the feed window is empty', () => {
+  const message = news?.digestMessage?.('morning', []);
+  assert.equal(message?.title, '📰 Dünden Kalan Önemliler');
+  assert.match(String(message?.body || ''), /öne çıkan yeni finans haberi bulunamadı/i);
+});
+
+test('digest slot remains due after the old 15 minute window until delivered that day', () => {
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T13:30:00+03:00')), 'morning');
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T23:15:00+03:00')), 'evening');
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T09:59:00+03:00')), null);
 });
 
 test('digest body uses short bullet headlines and does not exceed four items', () => {
@@ -106,7 +133,7 @@ test('5 of 5 item is delivered immediately only once per installation but may re
   assert.ok(Array.isArray(state.installations.phone1.newsState?.breakingSeen));
 });
 
-test('digest slots are sent once per Istanbul day and require at least two important headlines', async () => {
+test('digest slots are sent once per Istanbul day even when the feed has fewer than two important headlines', async () => {
   const entries = [
     item('Önemli ekonomi gelişmesi', '2026-09-16T21:00:00+03:00', { importance:4, id:'n1' }),
     item('Önemli piyasa gelişmesi', '2026-09-17T08:00:00+03:00', { importance:3, id:'n2' }),
@@ -131,4 +158,64 @@ test('digest slots are sent once per Istanbul day and require at least two impor
   assert.equal(sent[0].message.data.kind, 'news_digest');
   assert.equal(sent[0].message.title, '📰 Dünden Kalan Önemliler');
   assert.equal(state.installations.phone1.newsState?.morningDigestDay, '2026-09-17');
+});
+
+test('empty digest window still sends exactly one morning notification', async () => {
+  const state = { installations:{ phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true } } };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  const sender = { async send(token, message) { sent.push({ token, message }); } };
+  const engine = news?.createNewsNotificationEngine?.({
+    store,
+    sender,
+    fetchNews:async () => [],
+    now:() => new Date('2026-09-17T10:30:00+03:00'),
+  });
+  await engine.check();
+  await engine.check();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].message.data.kind, 'news_digest');
+  assert.equal(sent[0].message.data.news_count, '0');
+  assert.equal(state.installations.phone1.newsState?.morningDigestDay, '2026-09-17');
+});
+
+test('one invalid FCM token does not block news delivery to other installations', async () => {
+  const state = {
+    installations:{
+      broken:{ installId:'broken', fcmToken:'bad-token', newsEnabled:true },
+      healthy:{ installId:'healthy', fcmToken:'good-token', newsEnabled:true },
+    },
+  };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  const sender = {
+    async send(token, message) {
+      if (token === 'bad-token') {
+        const error = new Error('unregistered');
+        error.code = 'FCM_TOKEN_INVALID';
+        error.permanentToken = true;
+        throw error;
+      }
+      sent.push({ token, message });
+    },
+  };
+  const engine = news?.createNewsNotificationEngine?.({
+    store,
+    sender,
+    fetchNews:async () => [],
+    now:() => new Date('2026-09-17T10:05:00+03:00'),
+  });
+  const result = await engine.check();
+  assert.equal(state.installations.broken, undefined);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].token, 'good-token');
+  assert.equal(sent[0].message.data.kind, 'news_digest');
+  assert.equal(result?.invalidRemoved, 1);
+  assert.equal(result?.digestSent, 1);
 });
