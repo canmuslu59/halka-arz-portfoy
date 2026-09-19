@@ -43,14 +43,12 @@ test('daily BIST comparison is active only when the latest BIST date is today', 
     sessions:{ daily:1, weekly:5, monthly:22 },
   });
   assert.equal(window.sessionActive, true);
-  assert.equal(percentageMoveBetweenDates(bist, window.startDate, window.endDate), 2);
+  assert.ok(Math.abs(percentageMoveBetweenDates(bist, window.startDate, window.endDate) - 2) < 1e-12);
 });
 
 test('weekly and monthly reference windows are selected from BIST sessions', () => {
-  const bist = Array.from({ length:23 }, (_, index) => ({
-    date:`2026-08-${String(20 + index).padStart(2,'0')}`,
-    close:100 + index,
-  }));
+  const bistDates = ["2026-08-19","2026-08-20","2026-08-21","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04","2026-09-07","2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-14","2026-09-15","2026-09-16","2026-09-17","2026-09-18"];
+  const bist = bistDates.map((date, index) => ({ date, close:100 + index }));
   const weekly = comparisonWindowFromBist(bist, 'weekly', {
     today:'2026-09-30',
     sessions:{ daily:1, weekly:5, monthly:22 },
