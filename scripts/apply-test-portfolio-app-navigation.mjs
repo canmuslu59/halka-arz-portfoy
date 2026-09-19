@@ -10,3 +10,4 @@ await import('./apply-news-preload-cache.mjs');
 await import('./apply-test-stock-logo-assets.mjs');
 await import('./apply-test-news-notification-route.mjs');
 await import('./apply-test-stock-detail-polish.mjs');
+await import('./apply-comparison-accuracy-fix.mjs');
