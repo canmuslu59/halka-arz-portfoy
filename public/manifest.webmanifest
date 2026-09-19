@@ -1,11 +1,11 @@
 {
-  "name": "Halka Arz Portföyüm",
-  "short_name": "ArzPortföy",
+  "name": "Hisse Portföyüm",
+  "short_name": "HissePortföy",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#070b15",
   "theme_color": "#0b1020",
-  "description": "BIST halka arz portföy takip uygulaması",
+  "description": "BIST hisse portföy takip uygulaması",
   "icons": [
     {
       "src": "./icon.svg",
