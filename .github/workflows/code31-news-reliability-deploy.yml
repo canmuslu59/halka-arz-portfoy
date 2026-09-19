@@ -6,6 +6,8 @@ on:
       - release/v2.4.8-code31-news-reliability
     paths:
       - .github/workflows/code31-news-reliability-deploy.yml
+      - cloudflare/news-notifications.js
+      - test/news-notifications.test.js
   workflow_dispatch:
 
 permissions:
