@@ -1,0 +1,30 @@
+name: News Runtime Postdeploy Check
+
+on:
+  push:
+    branches:
+      - release/v2.4.8-code31-news-reliability
+    paths:
+      - .github/workflows/news-runtime-postdeploy-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 5
+    steps:
+      - name: Read production health
+        shell: powershell
+        run: |
+          $h = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -Method Get
+          Write-Host (ConvertTo-Json @{
+            ok = $h.ok
+            now = $h.now
+            installationCount = $h.push.installationCount
+            fcmConfigured = $h.push.fcmConfigured
+            newsNotificationsEnabled = $h.push.newsNotificationsEnabled
+            runtime = $h.push.runtime
+          } -Depth 12 -Compress)
