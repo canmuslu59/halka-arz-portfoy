@@ -126,10 +126,13 @@ const loadReplacement = `async function loadHomeComparison({ force = false } = {
   return task;
 }`;
 
+const loadEndMarker = app.includes('const NEWS_FEED_URL =')
+  ? 'const NEWS_FEED_URL ='
+  : 'function switchView(';
 app = replaceSection(
   app,
   'async function loadHomeComparison({ force = false } = {}) {',
-  'function switchView(',
+  loadEndMarker,
   loadReplacement,
   'aligned comparison loader',
 );
