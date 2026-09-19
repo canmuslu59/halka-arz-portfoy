@@ -15,9 +15,7 @@ on:
       - scripts/apply-comparison-accuracy-fix.mjs
       - scripts/apply-news-preload-cache.mjs
       - scripts/apply-test-portfolio-app-navigation.mjs
-      - test/code32-release-branding.test.js
-      - test/comparison-accuracy.test.js
-      - test/news-preload-cache.test.js
+      - test/**/*.test.js
   workflow_dispatch:
 
 permissions:
