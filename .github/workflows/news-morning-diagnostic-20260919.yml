@@ -6,6 +6,7 @@ on:
       - diagnostic/news-morning-20260919
     paths:
       - .github/workflows/news-morning-diagnostic-20260919.yml
+      - .github/scripts/news-morning-diagnostic-20260919.mjs
   workflow_dispatch:
 
 permissions:
