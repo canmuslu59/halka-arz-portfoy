@@ -1,0 +1,147 @@
+name: Code31 News Reliability Deploy
+
+on:
+  push:
+    branches:
+      - release/v2.4.8-code31-news-reliability
+    paths:
+      - .github/workflows/code31-news-reliability-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code31-news-reliability-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEWS_FEED_URL: 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+      PROD_HEALTH_URL: 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Require Cloudflare credentials
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) { throw 'CLOUDFLARE_API_TOKEN=missing' }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) { throw 'CLOUDFLARE_ACCOUNT_ID=missing' }
+          Write-Host 'Cloudflare production credentials present.'
+
+      - name: Run full regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Probe production news feed candidate
+        shell: powershell
+        run: |
+          $newsFile = Join-Path $env:RUNNER_TEMP 'news.json'
+          curl.exe -fSs -A 'HalkaArzPortfoyum-NewsPush/1.0' -H 'Accept: application/json' $env:NEWS_FEED_URL -o $newsFile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $body = Get-Content -Raw $newsFile | ConvertFrom-Json
+          if ($body.items) { $items = @($body.items) } elseif ($body -is [array]) { $items = @($body) } else { $items = @() }
+          if ($items.Count -lt 1) { throw 'News feed returned no items.' }
+          $usable = @($items | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.title) -and ([string]$_.url) -match '^https://' })
+          if ($usable.Count -lt 1) { throw 'News feed has no usable title/url item.' }
+          Write-Host "News feed OK: $($items.Count) items, $($usable.Count) usable."
+
+      - name: Capture pre-deploy production health
+        shell: powershell
+        run: |
+          $healthFile = Join-Path $env:RUNNER_TEMP 'pre-health.json'
+          curl.exe -fSs $env:PROD_HEALTH_URL -o $healthFile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $h = Get-Content -Raw $healthFile | ConvertFrom-Json
+          if (-not $h.ok) { throw 'Pre-deploy production health is not OK.' }
+          Write-Host (ConvertTo-Json @{
+            fcmConfigured = $h.push.fcmConfigured
+            installationCount = $h.push.installationCount
+            newsNotificationsEnabled = $h.push.newsNotificationsEnabled
+            runtimeStatus = $h.push.runtime.status
+          } -Compress)
+
+      - name: Deploy production worker with news enabled
+        shell: powershell
+        run: |
+          $epoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          "DEPLOY_EPOCH=$epoch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          npx.cmd -y wrangler@4.131.1 deploy --config wrangler.jsonc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify production health and feature flag
+        shell: powershell
+        run: |
+          $healthFile = Join-Path $env:RUNNER_TEMP 'health.json'
+          for ($attempt = 1; $attempt -le 20; $attempt++) {
+            curl.exe -fSs $env:PROD_HEALTH_URL -o $healthFile
+            if ($LASTEXITCODE -eq 0) {
+              $h = Get-Content -Raw $healthFile | ConvertFrom-Json
+              if ($h.ok -and $h.push.newsNotificationsEnabled -eq $true -and $h.push.fcmConfigured -eq $true) {
+                Write-Host (ConvertTo-Json @{
+                  ok = $h.ok
+                  newsNotificationsEnabled = $h.push.newsNotificationsEnabled
+                  fcmConfigured = $h.push.fcmConfigured
+                  installationCount = $h.push.installationCount
+                  runtimeStatus = $h.push.runtime.status
+                } -Compress)
+                exit 0
+              }
+            }
+            Start-Sleep -Seconds 3
+          }
+          throw 'Production health/feature flag verification failed.'
+
+      - name: Verify live news polling actually ran
+        shell: powershell
+        run: |
+          $healthFile = Join-Path $env:RUNNER_TEMP 'runtime-health.json'
+          $deployMs = ([int64]$env:DEPLOY_EPOCH) * 1000
+          $lastNewsError = $null
+          for ($attempt = 1; $attempt -le 40; $attempt++) {
+            curl.exe -fSs $env:PROD_HEALTH_URL -o $healthFile
+            if ($LASTEXITCODE -eq 0) {
+              $h = Get-Content -Raw $healthFile | ConvertFrom-Json
+              $runtime = $h.push.runtime
+              $news = $runtime.result.news
+              if ($news.status -eq 'error') { $lastNewsError = [string]$news.error }
+              try { $startedMs = [DateTimeOffset]::Parse([string]$runtime.startedAt).ToUnixTimeMilliseconds() } catch { $startedMs = 0 }
+              $isFresh = $startedMs -ge ($deployMs - 5000)
+              if ($isFresh -and $news.status -eq 'checked' -and [int]$news.feedCount -gt 0) {
+                Write-Host (ConvertTo-Json @{
+                  runtimeStatus = $runtime.status
+                  startedAt = $runtime.startedAt
+                  newsStatus = $news.status
+                  feedCount = $news.feedCount
+                  breakingSent = $news.breakingSent
+                  digestSent = $news.digestSent
+                } -Compress)
+                exit 0
+              }
+            }
+            Start-Sleep -Seconds 6
+          }
+          if ($lastNewsError) { throw "News polling verification timed out. Last error: $lastNewsError" }
+          throw 'News polling did not produce a fresh checked runtime within the verification window.'
