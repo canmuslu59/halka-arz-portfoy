@@ -1,0 +1,130 @@
+name: Code32 News Preload Test APK
+
+on:
+  push:
+    branches:
+      - feature/code32-news-preload-cache
+    paths:
+      - .github/workflows/code32-news-preload-test-apk.yml
+      - scripts/apply-news-preload-cache.mjs
+      - scripts/apply-test-portfolio-app-navigation.mjs
+      - test/news-preload-cache.test.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Sync Android base assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply current production UI plus news preload fix
+        shell: powershell
+        run: |
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $app = Get-Content -Raw android/app/src/main/assets/www/app.js
+          foreach ($needle in @(
+            'finance_news_cache_v3',
+            'restoreFinanceNewsCache()',
+            'FINANCE_NEWS_BACKGROUND_REFRESH_MS',
+            'preloadFinanceNewsImages',
+            'loading="eager"',
+            'fetchpriority="high"'
+          )) {
+            if (-not $app.Contains($needle)) { throw "News preload marker missing: $needle" }
+          }
+
+      - name: Give test APK a separate identity
+        shell: powershell
+        run: |
+          $path = 'android/app/build.gradle'
+          $text = Get-Content -Raw $path
+          $text = $text.Replace("applicationIdSuffix '.test'", "applicationIdSuffix '.newstest'")
+          $text = $text.Replace("versionNameSuffix '-test'", "versionNameSuffix '-news-preload-test'")
+          $text = $text.Replace("resValue 'string', 'app_name', 'Halka Arz Portföyüm Test'", "resValue 'string', 'app_name', 'Hisse Portföyüm Haber Test'")
+          Set-Content -Path $path -Value $text -Encoding UTF8
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') {
+              $sdk = 'C:\actions-runner\android-sdk'
+            } elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) {
+              $sdk = $env:ANDROID_HOME
+            } else {
+              throw 'Android SDK root not found'
+            }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Build isolated debug APK
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon assembleDebug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          if (-not (Test-Path $apk)) { throw 'Debug APK not produced' }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $apk dist/hisse-portfoyum-news-preload-test.apk
+
+          $hash = (Get-FileHash dist/hisse-portfoyum-news-preload-test.apk -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  hisse-portfoyum-news-preload-test.apk" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code32-news-preload-test-apk
+          path: |
+            dist/hisse-portfoyum-news-preload-test.apk
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
