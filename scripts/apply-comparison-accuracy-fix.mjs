@@ -17,6 +17,74 @@ function replaceSection(text, startMarker, endMarker, replacement, label) {
   return text.slice(0, start) + replacement + '\n\n' + text.slice(end);
 }
 
+function replaceFunction(text, signature, replacement, label) {
+  const start = text.indexOf(signature);
+  if (start < 0) throw new Error(`${label}: function signature not found`);
+  const braceStart = text.indexOf('{', start + signature.length);
+  if (braceStart < 0) throw new Error(`${label}: function opening brace not found`);
+
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = braceStart; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (lineComment) {
+      if (char === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (char === '/' && next === '*') {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+      continue;
+    }
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(0, start) + replacement + text.slice(index + 1);
+      }
+    }
+  }
+  throw new Error(`${label}: function closing brace not found`);
+}
+
 let app = readFileSync(appPath, 'utf8');
 
 const importAnchor = "import { createRefreshGate } from './core/refresh-coordinator.js';";
@@ -126,13 +194,9 @@ const loadReplacement = `async function loadHomeComparison({ force = false } = {
   return task;
 }`;
 
-const loadEndMarker = app.includes('const NEWS_FEED_URL =')
-  ? 'const NEWS_FEED_URL ='
-  : 'function switchView(';
-app = replaceSection(
+app = replaceFunction(
   app,
-  'async function loadHomeComparison({ force = false } = {}) {',
-  loadEndMarker,
+  'async function loadHomeComparison',
   loadReplacement,
   'aligned comparison loader',
 );
