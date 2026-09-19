@@ -2,7 +2,6 @@ const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
 const ISTANBUL_OFFSET = '+03:00';
 const BREAKING_MAX_AGE_MS = 30 * 60_000;
 const CLOCK_SKEW_MS = 5 * 60_000;
-const DIGEST_WINDOW_MINUTES = 15;
 
 function cleanText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -114,7 +113,6 @@ export function selectDigestItems(items, { slot, now = new Date() } = {}) {
     const publishedAt = parseDate(raw?.publishedAt);
     if (!publishedAt || publishedAt < start || publishedAt >= end) continue;
     const importance = effectiveImportance(raw);
-    if (importance < 3) continue;
     const identity = newsIdentity(raw);
     if (!identity || seen.has(identity)) continue;
     seen.add(identity);
@@ -132,10 +130,10 @@ export function selectDigestItems(items, { slot, now = new Date() } = {}) {
 
 export function digestMessage(slot, items) {
   const title = slot === 'morning' ? '📰 Dünden Kalan Önemliler' : '📰 Akşama Düşenler';
-  const body = (Array.isArray(items) ? items : [])
-    .slice(0, 4)
-    .map((item) => `• ${shortHeadline(item?.title, 72)}`)
-    .join('\n');
+  const selected = (Array.isArray(items) ? items : []).slice(0, 4);
+  const body = selected.length
+    ? selected.map((item) => `• ${shortHeadline(item?.title, 72)}`).join('\n')
+    : 'Bu periyotta öne çıkan yeni finans haberi bulunamadı.';
   return { title, body };
 }
 
@@ -143,8 +141,11 @@ export function currentDigestSlot(now = new Date()) {
   const parts = istanbulParts(now);
   if (!parts) return null;
   const minuteOfDay = parts.hour * 60 + parts.minute;
-  if (minuteOfDay >= 10 * 60 && minuteOfDay < 10 * 60 + DIGEST_WINDOW_MINUTES) return 'morning';
-  if (minuteOfDay >= 19 * 60 && minuteOfDay < 19 * 60 + DIGEST_WINDOW_MINUTES) return 'evening';
+
+  // Keep retrying the day's slot until it is successfully delivered.
+  // Normal delivery still happens on the first ~2 minute poll after 10:00 / 19:00.
+  if (minuteOfDay >= 19 * 60) return 'evening';
+  if (minuteOfDay >= 10 * 60) return 'morning';
   return null;
 }
 
@@ -163,6 +164,17 @@ async function updateRegistrationNewsState(store, installKey, patch) {
     if (!state?.installations?.[installKey]) return state;
     const registration = state.installations[installKey];
     registration.newsState = { ...newsStateOf(registration), ...patch };
+    return state;
+  });
+}
+
+function permanentTokenFailure(error) {
+  return error?.permanentToken === true || error?.code === 'FCM_TOKEN_INVALID';
+}
+
+async function removeInstallation(store, installKey) {
+  await store.mutate((state) => {
+    if (state?.installations) delete state.installations[installKey];
     return state;
   });
 }
@@ -186,6 +198,8 @@ export function createNewsNotificationEngine({
       const installations = state?.installations && typeof state.installations === 'object' ? state.installations : {};
       let breakingSent = 0;
       let digestSent = 0;
+      let failed = 0;
+      let invalidRemoved = 0;
 
       const breakingCandidates = feed.filter((item) => {
         if (Number(item.importance) !== 5) return false;
@@ -199,29 +213,41 @@ export function createNewsNotificationEngine({
         if (!registration?.fcmToken || registration.newsEnabled === false) continue;
         let localState = newsStateOf(registration);
         let breakingSeen = Array.isArray(localState.breakingSeen) ? [...localState.breakingSeen] : [];
+        let registrationFailed = false;
 
         for (const item of breakingCandidates) {
           const identity = newsIdentity(item);
           if (!identity || breakingSeen.includes(identity)) continue;
-          await sender.send(registration.fcmToken, {
-            title: '🔴 Son Dakika',
-            body: shortHeadline(item.title, 120),
-            data: {
-              kind: 'news_breaking',
-              news_id: identity,
-              news_url: cleanText(item.url),
-              importance: '5',
-            },
-          });
-          breakingSeen = [...breakingSeen, identity].slice(-100);
-          await updateRegistrationNewsState(store, installKey, { breakingSeen });
-          breakingSent += 1;
+          try {
+            await sender.send(registration.fcmToken, {
+              title: '🔴 Son Dakika',
+              body: shortHeadline(item.title, 120),
+              data: {
+                kind: 'news_breaking',
+                news_id: identity,
+                news_url: cleanText(item.url),
+                importance: '5',
+              },
+            });
+            breakingSeen = [...breakingSeen, identity].slice(-100);
+            await updateRegistrationNewsState(store, installKey, { breakingSeen });
+            breakingSent += 1;
+          } catch (error) {
+            failed += 1;
+            registrationFailed = true;
+            if (permanentTokenFailure(error)) {
+              await removeInstallation(store, installKey);
+              invalidRemoved += 1;
+            }
+            break;
+          }
         }
+
+        if (registrationFailed) continue;
 
         const slot = currentDigestSlot(checkedAt);
         if (!slot) continue;
         const digestItems = selectDigestItems(feed, { slot, now: checkedAt });
-        if (digestItems.length < 2) continue;
 
         const day = istanbulParts(checkedAt)?.day;
         const dayKey = slot === 'morning' ? 'morningDigestDay' : 'eveningDigestDay';
@@ -230,17 +256,25 @@ export function createNewsNotificationEngine({
         if (localState[dayKey] === day) continue;
 
         const message = digestMessage(slot, digestItems);
-        await sender.send(registration.fcmToken, {
-          ...message,
-          data: {
-            kind: 'news_digest',
-            digest_slot: slot,
-            digest_day: day,
-            news_count: String(digestItems.length),
-          },
-        });
-        await updateRegistrationNewsState(store, installKey, { [dayKey]: day });
-        digestSent += 1;
+        try {
+          await sender.send(registration.fcmToken, {
+            ...message,
+            data: {
+              kind: 'news_digest',
+              digest_slot: slot,
+              digest_day: day,
+              news_count: String(digestItems.length),
+            },
+          });
+          await updateRegistrationNewsState(store, installKey, { [dayKey]: day });
+          digestSent += 1;
+        } catch (error) {
+          failed += 1;
+          if (permanentTokenFailure(error)) {
+            await removeInstallation(store, installKey);
+            invalidRemoved += 1;
+          }
+        }
       }
 
       return {
@@ -248,6 +282,8 @@ export function createNewsNotificationEngine({
         feedCount: feed.length,
         breakingSent,
         digestSent,
+        failed,
+        invalidRemoved,
       };
     },
   };
