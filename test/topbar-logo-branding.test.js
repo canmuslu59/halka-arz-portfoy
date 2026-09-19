@@ -19,7 +19,7 @@ test('topbar uses the app logo instead of the BIST / portfolio title block', () 
     assert.match(logo, /src="\.\/icon\.svg"/);
     assert.match(logo, /width="44"/);
     assert.match(logo, /height="44"/);
-    assert.match(logo, /alt="Halka Arz Portföyüm"/);
+    assert.match(logo, /alt="Hisse Portföyüm"/);
     assert.doesNotMatch(topbar, /BIST\s*•\s*HALKA ARZ/);
     assert.doesNotMatch(topbar, /id="screenTitle"/);
   }
