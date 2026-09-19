@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: code32-final-play-aab
+  cancel-in-progress: true
+
 env:
   PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
 
