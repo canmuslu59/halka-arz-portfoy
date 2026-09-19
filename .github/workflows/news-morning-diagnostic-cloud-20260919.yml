@@ -1,0 +1,33 @@
+name: News Morning Diagnostic Cloud 2026-09-19
+
+on:
+  push:
+    branches:
+      - diagnostic/news-morning-20260919
+    paths:
+      - .github/workflows/news-morning-diagnostic-cloud-20260919.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Probe live production health and feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEALTH_FILE="$RUNNER_TEMP/health.json"
+          FEED60_FILE="$RUNNER_TEMP/feed60.json"
+          FEED200_FILE="$RUNNER_TEMP/feed200.json"
+          curl -fSs 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -o "$HEALTH_FILE"
+          curl -fSs -A 'HalkaArzPortfoyum-NewsPush/1.0' 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60' -o "$FEED60_FILE"
+          curl -fSs -A 'HalkaArzPortfoyum-NewsPush/1.0' 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=200' -o "$FEED200_FILE"
+          HEALTH_FILE="$HEALTH_FILE" FEED60_FILE="$FEED60_FILE" FEED200_FILE="$FEED200_FILE" node .github/scripts/news-morning-diagnostic-20260919.mjs
