@@ -20,7 +20,10 @@ function replaceSection(text, startMarker, endMarker, replacement, label) {
 function replaceFunction(text, signature, replacement, label) {
   const start = text.indexOf(signature);
   if (start < 0) throw new Error(`${label}: function signature not found`);
-  const braceStart = text.indexOf('{', start + signature.length);
+  const braceOffset = signature.lastIndexOf('{');
+  const braceStart = braceOffset >= 0
+    ? start + braceOffset
+    : text.indexOf('{', start + signature.length);
   if (braceStart < 0) throw new Error(`${label}: function opening brace not found`);
 
   let depth = 0;
@@ -196,7 +199,7 @@ const loadReplacement = `async function loadHomeComparison({ force = false } = {
 
 app = replaceFunction(
   app,
-  'async function loadHomeComparison',
+  'async function loadHomeComparison({ force = false } = {}) {',
   loadReplacement,
   'aligned comparison loader',
 );
