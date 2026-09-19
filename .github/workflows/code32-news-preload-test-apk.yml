@@ -80,7 +80,7 @@ jobs:
           $text = $text.Replace("applicationIdSuffix '.test'", "applicationIdSuffix '.newstest'")
           $text = $text.Replace("versionNameSuffix '-test'", "versionNameSuffix '-news-preload-test'")
           $text = $text.Replace("resValue 'string', 'app_name', 'Halka Arz Portföyüm Test'", "resValue 'string', 'app_name', 'Hisse Portföyüm Haber Test'")
-          Set-Content -Path $path -Value $text -Encoding UTF8
+          [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
 
       - name: Configure Android SDK 36
         shell: powershell
