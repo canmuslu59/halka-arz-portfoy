@@ -81,8 +81,8 @@ test('Play milestone identity is versionCode 32 / versionName 2.4.9', async () =
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
   assert.match(gradle, /versionCode 32/);
-  assert.match(gradle, /versionName ['"]2\.4\.8['"]/);
-  assert.match(html, /v2\.4\.8\s*•\s*Build 32/);
+  assert.match(gradle, /versionName ['"]2\.4\.9['"]/);
+  assert.match(html, /v2\.4\.9\s*•\s*Build 32/);
 });
 
 test('Android requests notification permission automatically on app startup when still missing', async () => {
