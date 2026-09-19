@@ -1,0 +1,47 @@
+name: News Morning Diagnostic 2026-09-19
+
+on:
+  push:
+    branches:
+      - diagnostic/news-morning-20260919
+    paths:
+      - .github/workflows/news-morning-diagnostic-20260919.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Probe live production health and feed
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $healthUrl = 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health'
+          $feed60 = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+          $feed200 = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=200'
+
+          $healthFile = Join-Path $env:RUNNER_TEMP 'health.json'
+          $feed60File = Join-Path $env:RUNNER_TEMP 'feed60.json'
+          $feed200File = Join-Path $env:RUNNER_TEMP 'feed200.json'
+
+          curl.exe -fSs $healthUrl -o $healthFile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          curl.exe -fSs -A 'HalkaArzPortfoyum-NewsPush/1.0' $feed60 -o $feed60File
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          curl.exe -fSs -A 'HalkaArzPortfoyum-NewsPush/1.0' $feed200 -o $feed200File
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $env:HEALTH_FILE = $healthFile
+          $env:FEED60_FILE = $feed60File
+          $env:FEED200_FILE = $feed200File
+          node .github/scripts/news-morning-diagnostic-20260919.mjs
