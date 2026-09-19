@@ -109,7 +109,7 @@ test('5 of 5 item is delivered immediately only once per installation but may re
   const critical = item('TCMB olağanüstü toplantı sonrası faiz kararını açıkladı', '2026-09-17T13:00:00+03:00', { importance:5, id:'critical-1' });
   const state = {
     installations:{
-      phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true, newsState:null },
+      phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true, newsState:{ morningDigestDay:'2026-09-17' } },
     },
   };
   const store = {
