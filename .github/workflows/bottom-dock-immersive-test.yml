@@ -1,0 +1,90 @@
+name: Bottom Dock Immersive Test APK
+
+on:
+  pull_request:
+    branches:
+      - release/v2.4.9-code32-final
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bottom-dock-immersive-test
+  cancel-in-progress: true
+
+jobs:
+  build-test-apk:
+    runs-on: self-hosted
+    timeout-minutes: 35
+    env:
+      PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Configure Android SDK
+        shell: powershell
+        run: |
+          $sdk = "C:\actions-runner\android-sdk"
+          if (-not (Test-Path "$sdk\cmdline-tools\latest\bin\sdkmanager.bat")) {
+            throw "Android SDK not found at $sdk"
+          }
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$sdk\platform-tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "$sdk\cmdline-tools\latest\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify toolchain
+        shell: powershell
+        run: |
+          java -version
+          gradle --version
+          & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" --list_installed
+
+      - name: Ensure Android SDK 36
+        shell: powershell
+        run: |
+          & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Compile debug Java
+        shell: powershell
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
+
+      - name: Build installable test APK
+        shell: powershell
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Package APK
+        shell: powershell
+        run: |
+          $src = "android/app/build/outputs/apk/debug/app-debug.apk"
+          if (-not (Test-Path $src)) { throw "APK not produced: $src" }
+          Copy-Item $src "Hisse-Portfoyum-bottom-dock-test.apk" -Force
+          (Get-FileHash "Hisse-Portfoyum-bottom-dock-test.apk" -Algorithm SHA256).Hash.ToLower() | Set-Content "Hisse-Portfoyum-bottom-dock-test.sha256.txt"
+
+      - name: Verify APK signature and package
+        shell: powershell
+        run: |
+          $buildTools = "$env:ANDROID_HOME\build-tools\36.0.0"
+          & "$buildTools\apksigner.bat" verify --verbose --print-certs "Hisse-Portfoyum-bottom-dock-test.apk"
+          if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed" }
+          & "$buildTools\aapt.exe" dump badging "Hisse-Portfoyum-bottom-dock-test.apk" | Select-String "package: name=|application-label:"
+          if ($LASTEXITCODE -ne 0) { throw "APK package inspection failed" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hisse-portfoyum-bottom-dock-test-apk
+          path: |
+            Hisse-Portfoyum-bottom-dock-test.apk
+            Hisse-Portfoyum-bottom-dock-test.sha256.txt
+          if-no-files-found: error
+          retention-days: 14

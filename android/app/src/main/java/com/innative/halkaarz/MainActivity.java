@@ -92,6 +92,7 @@ public class MainActivity extends ComponentActivity {
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
         applyInsets(webView);
         setSystemBarIcons(false);
+        hideSystemNavigation();
         configureWebView(webView);
         setContentView(webView);
         capturePushRoute(getIntent());
@@ -143,6 +144,12 @@ public class MainActivity extends ComponentActivity {
         controller.setAppearanceLightNavigationBars(lightTheme);
     }
 
+    private void hideSystemNavigation() {
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.hide(WindowInsetsCompat.Type.navigationBars());
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+    }
+
     private void configureWebView(WebView view) {
         WebSettings settings = view.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -169,6 +176,7 @@ public class MainActivity extends ComponentActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        hideSystemNavigation();
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
         if (webView != null) {

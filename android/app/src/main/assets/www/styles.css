@@ -332,3 +332,35 @@ body{
 
 /* Keep the stock-add sheet above the on-screen keyboard. */
 #addSheet{bottom:max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px));max-height:calc(92dvh - max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px)))}
+
+
+/* 2026-09-21: fixed bottom navigation dock + immersive Android navigation. */
+.bottom-nav{
+  left:0;
+  right:0;
+  bottom:0;
+  width:100%;
+  max-width:none;
+  min-height:var(--dock-height);
+  transform:none;
+  border-radius:22px 22px 0 0;
+  padding-left:max(6px,var(--android-safe-left,0px));
+  padding-right:max(6px,var(--android-safe-right,0px));
+  transition:none;
+}
+.bottom-nav.dock-hidden{
+  opacity:1;
+  transform:none;
+  pointer-events:auto;
+}
+.main{padding-bottom:calc(var(--dock-height) + 38px)}
+.fab{
+  bottom:calc(var(--dock-height) + 14px);
+}
+.toast{bottom:calc(var(--dock-height) + 18px)}
+@media(max-width:720px){
+  .bottom-nav{width:100%}
+}
+@media(max-width:365px){
+  .bottom-nav{width:100%}
+}
