@@ -45,7 +45,7 @@ test('raw worker timestamp is replaced by source verified Bloomberg time before 
   const result = await metadata?.verifyNewsNotificationMetadata?.([
     {
       title:'TCMB politika faizini artırdı',
-      url:'https://www.bloomberght.com/ornek-haber-1',
+      url:'https://www.bloomberght.com/ornek-haber-3789001',
       source:'Bloomberg HT',
       category:'ekonomi',
       publishedAt:'2026-09-17T12:59:00+03:00',
@@ -88,7 +88,7 @@ test('verified article metadata is cached so repeated two-minute checks do not r
   let fetchCount = 0;
   const item = {
     title:'TCMB politika faizini artırdı',
-    url:'https://www.bloomberght.com/ornek-haber-cache',
+    url:'https://www.bloomberght.com/ornek-haber-cache-3789002',
     source:'Bloomberg HT',
     category:'ekonomi',
     importance:5,
