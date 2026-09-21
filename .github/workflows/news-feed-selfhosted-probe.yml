@@ -1,0 +1,34 @@
+name: News Feed Selfhosted Probe
+
+on:
+  push:
+    branches:
+      - feature/news-notification-polish-20260921
+    paths:
+      - .github/workflows/news-feed-selfhosted-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 5
+    steps:
+      - name: Probe live finance news feed
+        shell: powershell
+        run: |
+          $url = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
+          $response = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 30 -Headers @{ Accept='application/json' }
+          $items = @($response.items)
+          Write-Host "items=$($items.Count)"
+          $items | Select-Object -First 30 | ForEach-Object {
+            [pscustomobject]@{
+              category = $_.category
+              source = $_.source
+              title = $_.title
+              publishedAt = $_.publishedAt
+              importance = $_.importance
+              url = $_.url
+            } | ConvertTo-Json -Compress
+          }
