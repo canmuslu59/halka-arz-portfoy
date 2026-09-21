@@ -1192,8 +1192,8 @@ function showChartPoint(clientX) {
   tooltip.innerHTML =
     '<strong>'+trDate(row.date)+'</strong>'+
     '<span class="tooltip-total"><span>Toplam</span><b>'+money(total)+'</b></span>'+
-    '<span class="tooltip-external"><span>Dışarıdan eklenen</span><b>'+money(external)+'</b></span>'+
-    '<span class="tooltip-natural '+(natural==null?'neutral':signClass(natural))+'"><span>Doğal gelişim</span><b>'+money(natural)+'</b></span>'+
+    '<span class="tooltip-external"><span>Sermaye Girişi</span><b>'+money(external)+'</b></span>'+
+    '<span class="tooltip-natural '+(natural==null?'neutral':signClass(natural))+'"><span>Değer Değişimi</span><b>'+money(natural)+'</b></span>'+
     (added>0?'<span class="tooltip-added"><span>Bu tarihte eklenen</span><b>+'+money(added)+'</b></span>':'');
   tooltip.hidden=false;
   const x=state.chartGeometry.x(index);
