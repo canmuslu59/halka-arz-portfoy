@@ -45,9 +45,9 @@ final class NotificationHelper {
         NotificationChannel ipo = new NotificationChannel(CHANNEL_IPO, "Yeni halka arzlar", NotificationManager.IMPORTANCE_DEFAULT);
         ipo.setDescription("Yeni açıklanan halka arz bildirimleri");
         NotificationChannel newsBreaking = new NotificationChannel(CHANNEL_NEWS_BREAKING, "Son dakika haberleri", NotificationManager.IMPORTANCE_HIGH);
-        newsBreaking.setDescription("Yalnız 5/5 önem derecesindeki kritik finans haberleri");
+        newsBreaking.setDescription("5/5 önem derecesindeki kritik finans haberleri");
         NotificationChannel newsDigest = new NotificationChannel(CHANNEL_NEWS_DIGEST, "Haber özetleri", NotificationManager.IMPORTANCE_DEFAULT);
-        newsDigest.setDescription("10:00 ve 19:00 önemli finans haberleri özeti");
+        newsDigest.setDescription("Günde iki kez öne çıkan finans haberleri özeti");
         manager.createNotificationChannel(market);
         manager.createNotificationChannel(rise);
         manager.createNotificationChannel(fall);
