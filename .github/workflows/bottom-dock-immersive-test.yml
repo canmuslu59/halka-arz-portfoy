@@ -1,9 +1,6 @@
 name: Bottom Dock Immersive Test APK
 
 on:
-  push:
-    branches:
-      - feature/live-bottom-dock-immersive-20260921
   pull_request:
     branches:
       - release/v2.4.9-code32-final
@@ -11,6 +8,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: bottom-dock-immersive-test
+  cancel-in-progress: true
 
 jobs:
   build-test-apk:
