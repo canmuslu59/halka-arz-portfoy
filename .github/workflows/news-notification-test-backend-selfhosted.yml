@@ -1,4 +1,5 @@
 name: News Notification Test Backend Selfhosted
+# retry-seq: 2
 
 on:
   push:
