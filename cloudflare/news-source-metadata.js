@@ -1,9 +1,9 @@
-import { scoreNewsImportance } from './news-notifications.js';
+import { scoreNewsImportance, isGenericNewsHeadline, isLikelyNewsArticle } from './news-notifications.js';
 
 const SUCCESS_CACHE_MS = 24 * 60 * 60_000;
 const FAILURE_CACHE_MS = 10 * 60_000;
 const MAX_CACHE_ENTRIES = 150;
-const DEFAULT_MAX_FETCHES = 12;
+const DEFAULT_MAX_FETCHES = 20;
 
 function cleanText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -180,10 +180,19 @@ export async function verifyNewsNotificationMetadata(items, {
 
   for (let i = 0; i < result.length; i += 1) {
     const item = result[i];
-    if (importanceOf(item) < 3) continue;
-
     const alreadyVerified = validVerifiedTime(item, checkedAt);
-    if (alreadyVerified) {
+    const headlineNeedsRepair = isGenericNewsHeadline(item?.title)
+      || /^(?:HABERLER|PİYASALAR)\s+/iu.test(cleanText(item?.title));
+
+    // Bloomberg category/price pages are not articles and must never become
+    // notification candidates, even if the feed gives them a fresh timestamp.
+    if (isBloombergHt(item) && !isLikelyNewsArticle(item)) {
+      item.publishedAt = null;
+      item.publicationTimeVerified = false;
+      continue;
+    }
+
+    if (alreadyVerified && !headlineNeedsRepair) {
       item.publishedAt = alreadyVerified;
       continue;
     }
