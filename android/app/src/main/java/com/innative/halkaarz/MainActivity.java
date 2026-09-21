@@ -98,6 +98,7 @@ public class MainActivity extends ComponentActivity {
         capturePushRoute(getIntent());
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
+        NewsTestScheduler.ensure(this);
         PushConfigSync.installId(this);
         PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
@@ -185,6 +186,7 @@ public class MainActivity extends ComponentActivity {
         hideSystemNavigation();
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
+        NewsTestScheduler.ensure(this);
         if (webView != null) {
             webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
         }
@@ -264,6 +266,7 @@ public class MainActivity extends ComponentActivity {
             webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
         }
         BackgroundAlertScheduler.ensure(this);
+        NewsTestScheduler.ensure(this);
     }
 
     private void openAppNotificationSettings() {
