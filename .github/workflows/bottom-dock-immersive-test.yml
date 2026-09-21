@@ -14,38 +14,37 @@ permissions:
 
 jobs:
   build-test-apk:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 35
     env:
       PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.11.1'
+      - name: Verify local Android toolchain
+        shell: powershell
+        run: |
+          java -version
+          gradle --version
+          if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
+            throw "ANDROID_HOME / ANDROID_SDK_ROOT is not set"
+          }
 
       - name: Compile debug Java
+        shell: powershell
         run: gradle -p android --no-daemon compileDebugJavaWithJavac
 
       - name: Build installable test APK
+        shell: powershell
         run: gradle -p android --no-daemon assembleDebug
 
       - name: Package APK
+        shell: powershell
         run: |
-          test -s android/app/build/outputs/apk/debug/app-debug.apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk Hisse-Portfoyum-bottom-dock-test.apk
-          sha256sum Hisse-Portfoyum-bottom-dock-test.apk > Hisse-Portfoyum-bottom-dock-test.sha256.txt
+          $src = "android/app/build/outputs/apk/debug/app-debug.apk"
+          if (-not (Test-Path $src)) { throw "APK not produced: $src" }
+          Copy-Item $src "Hisse-Portfoyum-bottom-dock-test.apk" -Force
+          (Get-FileHash "Hisse-Portfoyum-bottom-dock-test.apk" -Algorithm SHA256).Hash.ToLower() | Set-Content "Hisse-Portfoyum-bottom-dock-test.sha256.txt"
 
       - uses: actions/upload-artifact@v4
         with:
