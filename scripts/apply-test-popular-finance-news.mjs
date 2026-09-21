@@ -196,9 +196,33 @@ function formatFinanceNewsTime(iso) {
   return FINANCE_NEWS_DAY_FMT.format(date) + ' • ' + clock;
 }
 
+const GENERIC_FINANCE_NEWS_TITLES = new Set([
+  'hisse senetleri','borsa kapanış','çeyrek altın','cumhuriyet altını','ziynet altını',
+  'yatırım fonları','halka arz takvimi','ekonomi haberleri','borsa haberleri',
+  'altın fiyatları','gram altın fiyatı','çeyrek altın fiyatı'
+]);
+
+function financeNewsCleanTitle(value) {
+  return String(value || '').replace(/\s+/g,' ').trim().replace(/^(?:HABERLER|PİYASALAR)\s+/iu,'').trim();
+}
+
+function financeNewsIsArticle(item) {
+  if (!item?.url) return false;
+  try {
+    const url = new URL(String(item.url));
+    const host = url.hostname.toLocaleLowerCase('tr-TR');
+    if ((host === 'bloomberght.com' || host === 'www.bloomberght.com') && !/-\d{6,}\/?$/u.test(url.pathname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function financeNewsItemsOnly(items) {
   return (Array.isArray(items) ? items : [])
-    .filter(item => item && NEWS_CATEGORY_NAMES[item.category] && item.title && item.url)
+    .filter(item => item && NEWS_CATEGORY_NAMES[item.category] && item.title && item.url && financeNewsIsArticle(item))
+    .map(item => ({ ...item, title:financeNewsCleanTitle(item.title) }))
+    .filter(item => !GENERIC_FINANCE_NEWS_TITLES.has(item.title.toLocaleLowerCase('tr-TR')))
     .slice()
     .sort((a,b) => (parseFinanceNewsDate(b.publishedAt)?.getTime() || 0) - (parseFinanceNewsDate(a.publishedAt)?.getTime() || 0));
 }
