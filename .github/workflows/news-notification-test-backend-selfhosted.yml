@@ -1,5 +1,5 @@
 name: News Notification Test Backend Selfhosted
-# retry-seq: 2
+# retry-seq: 4
 
 on:
   push:
@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Install dependencies
         shell: powershell
