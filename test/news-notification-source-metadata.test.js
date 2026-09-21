@@ -110,3 +110,51 @@ test('verified article metadata is cached so repeated two-minute checks do not r
   assert.equal(first?.[0]?.publishedAt, second?.[0]?.publishedAt);
   assert.ok(store.state.newsMetadataCache?.[item.url]);
 });
+
+
+test('Bloomberg landing and quote pages are rejected before notification metadata verification', async () => {
+  const store = makeStore();
+  let fetchCount = 0;
+  const result = await metadata?.verifyNewsNotificationMetadata?.([
+    {
+      title:'Altın Fiyatları',
+      url:'https://www.bloomberght.com/altin',
+      source:'Bloomberg HT',
+      category:'altin',
+      publishedAt:'2026-09-17T12:59:00+03:00',
+      importance:4,
+    },
+  ], {
+    store,
+    now:() => new Date('2026-09-17T13:00:00+03:00'),
+    fetchImpl:async () => { fetchCount += 1; throw new Error('landing page must not be fetched'); },
+  });
+  assert.equal(fetchCount, 0);
+  assert.equal(result?.[0]?.publishedAt, null);
+  assert.equal(result?.[0]?.publicationTimeVerified, false);
+});
+
+test('generic or prefixed Bloomberg feed title is repaired from the original article og:title', async () => {
+  const store = makeStore();
+  const result = await metadata?.verifyNewsNotificationMetadata?.([
+    {
+      title:'HABERLER Altın piyasasında yeni hareket Ayrıntılı özet metni',
+      url:'https://www.bloomberght.com/altin-piyasasinda-yeni-hareket-3789999',
+      source:'Bloomberg HT',
+      category:'altin',
+      publishedAt:'2026-09-17T12:59:00+03:00',
+      publicationTimeVerified:true,
+      importance:2,
+    },
+  ], {
+    store,
+    now:() => new Date('2026-09-17T13:00:00+03:00'),
+    fetchImpl:async () => new Response(`<html><head>
+      <meta property="og:title" content="Altın, Fed beklentileriyle geriledi | Bloomberg HT">
+      <meta property="article:published_time" content="2026-09-17T12:45:00+03:00">
+    </head></html>`, { status:200 }),
+  });
+  assert.equal(result?.[0]?.title, 'Altın, Fed beklentileriyle geriledi');
+  assert.equal(result?.[0]?.publishedAt, '2026-09-17T09:45:00.000Z');
+  assert.equal(result?.[0]?.publicationTimeVerified, true);
+});
