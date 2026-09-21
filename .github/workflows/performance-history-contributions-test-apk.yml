@@ -62,6 +62,16 @@ jobs:
           node scripts/apply-test-portfolio-app-navigation.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Guarantee post-purchase portfolio history
+        shell: powershell
+        run: |
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/core/portfolio-service.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Keep fixed responsive five-item dock
         shell: powershell
         run: |
@@ -77,6 +87,7 @@ jobs:
           $styles = Get-Content -Raw android/app/src/main/assets/www/styles.css
           $app = Get-Content -Raw android/app/src/main/assets/www/app.js
           $domain = Get-Content -Raw android/app/src/main/assets/www/core/domain.js
+          $service = Get-Content -Raw android/app/src/main/assets/www/core/portfolio-service.js
 
           foreach ($needle in @('id="holdingsTab"','id="performanceTab"','id="walletHomeTab"','id="marketsTab"','id="settingsTab"')) {
             if (-not $index.Contains($needle)) { throw "Five-item navigation missing: $needle" }
@@ -87,8 +98,11 @@ jobs:
           foreach ($needle in @('history-summary','history-chart-wrap','bottom:0!important','grid-template-columns:repeat(5')) {
             if (-not $styles.Contains($needle)) { throw "Required style missing: $needle" }
           }
-          foreach ($needle in @('historyFinite','Dışarıdan eklenen','Doğal gelişim','capitalAdded','historyCompactMoney')) {
+          foreach ($needle in @('historyFinite','Dışarıdan eklenen','Doğal gelişim','capitalAdded','historyCompactMoney','refreshBackgroundHistory({ force:true })')) {
             if (-not $app.Contains($needle)) { throw "History chart behavior missing: $needle" }
+          }
+          foreach ($needle in @('downloadedHistory.length ? downloadedHistory : quoteHistory','fetchedLocalDate:downloadedHistory.length ? localDate : null','Tam geçmiş fiyat kaynağı boş döndü')) {
+            if (-not $service.Contains($needle)) { throw "History fallback missing: $needle" }
           }
           foreach ($needle in @('capitalAdded','calculatePurchaseLedger','totalPurchaseCost')) {
             if (-not $domain.Contains($needle)) { throw "Contribution history model missing: $needle" }
