@@ -30,9 +30,9 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix '.test'
-            versionNameSuffix '-test'
-            resValue 'string', 'app_name', 'Hisse Portföyüm Test'
+            applicationIdSuffix '.docktest'
+            versionNameSuffix '-docktest'
+            resValue 'string', 'app_name', 'Hisse Portföyüm Dock Test'
         }
         release {
             minifyEnabled false
