@@ -72,8 +72,9 @@ test('digest body uses short bullet headlines and does not exceed four items', (
     item('Beşinci haber gösterilmemeli', '2026-09-17T14:00:00+03:00', { importance:3 }),
   ];
   const message = news?.digestMessage?.('evening', selected);
-  assert.equal(message?.title, '📰 Akşama Düşenler');
-  const bullets = String(message?.body || '').split('\n').filter(line => line.startsWith('• '));
+  assert.equal(message?.title, '🏦 Faiz ve Piyasa Gündemi');
+  assert.match(String(message?.body || ''), /\n\n/);
+  const bullets = String(message?.body || '').split('\n\n').filter(line => line.startsWith('• '));
   assert.equal(bullets.length, 4);
   assert.ok(bullets.every(line => line.length <= 76));
 });
@@ -106,7 +107,7 @@ test('5 of 5 item is delivered immediately only once per installation but may re
   assert.ok(Array.isArray(state.installations.phone1.newsState?.breakingSeen));
 });
 
-test('digest slots are sent once per Istanbul day and require at least two important headlines', async () => {
+test('digest slots are sent once per Istanbul day and can send the single best headline', async () => {
   const entries = [
     item('Önemli ekonomi gelişmesi', '2026-09-16T21:00:00+03:00', { importance:4, id:'n1' }),
     item('Önemli piyasa gelişmesi', '2026-09-17T08:00:00+03:00', { importance:3, id:'n2' }),
@@ -129,6 +130,53 @@ test('digest slots are sent once per Istanbul day and require at least two impor
   await engine.check();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].message.data.kind, 'news_digest');
-  assert.equal(sent[0].message.title, '📰 Dünden Kalan Önemliler');
+  assert.equal(sent[0].message.title, '📊 Ekonomi Gündeminde Öne Çıkanlar');
   assert.equal(state.installations.phone1.newsState?.morningDigestDay, '2026-09-17');
+});
+
+
+test('digest delivery remains due after the old 15-minute window instead of being missed for the day', () => {
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T10:47:00+03:00')), 'morning');
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T18:59:00+03:00')), 'morning');
+  assert.equal(news?.currentDigestSlot?.(new Date('2026-09-17T20:15:00+03:00')), 'evening');
+});
+
+test('generic Bloomberg quote/category pages are never notification news items', () => {
+  const generic = [
+    item('Hisse Senetleri', '2026-09-17T12:00:00+03:00', { category:'borsa', url:'https://www.bloomberght.com/borsa/hisseler' }),
+    item('Borsa Haberleri', '2026-09-17T12:00:00+03:00', { category:'borsa', url:'https://www.bloomberght.com/piyasalar' }),
+    item('Altın Fiyatları', '2026-09-17T12:00:00+03:00', { category:'altin', url:'https://www.bloomberght.com/altin' }),
+  ];
+  assert.ok(generic.every(entry => news?.isNotificationNewsItem?.(entry) === false));
+  const selected = news?.selectDigestItems?.(generic, { slot:'evening', now:new Date('2026-09-17T19:30:00+03:00') }) || [];
+  assert.equal(selected.length, 0);
+});
+
+test('when no 3 of 5 item exists, digest still selects the single best real headline', () => {
+  const entries = [
+    item('Altın güne sınırlı yükselişle başladı', '2026-09-17T12:00:00+03:00', { importance:2, category:'altin' }),
+    item('Dolar yatay seyretti', '2026-09-17T13:00:00+03:00', { importance:2, category:'doviz' }),
+  ];
+  const selected = news?.selectDigestItems?.(entries, { slot:'evening', now:new Date('2026-09-17T19:20:00+03:00') }) || [];
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].title, 'Dolar yatay seyretti');
+});
+
+test('breaking 5 of 5 news remains eligible for ninety minutes', async () => {
+  const critical = item('TCMB politika faizini 300 baz puan artırdı', '2026-09-17T12:00:00+03:00', { importance:5, id:'critical-90m' });
+  const state = { installations:{ phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true } } };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  const sender = { async send(token, message) { sent.push({ token, message }); } };
+  const engine = news?.createNewsNotificationEngine?.({
+    store,
+    sender,
+    fetchNews:async () => [critical],
+    now:() => new Date('2026-09-17T13:20:00+03:00'),
+  });
+  await engine.check();
+  assert.equal(sent.filter(entry => entry.message.data.kind === 'news_breaking').length, 1);
 });
