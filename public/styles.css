@@ -332,3 +332,60 @@ body{
 
 /* Keep the stock-add sheet above the on-screen keyboard. */
 #addSheet{bottom:max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px));max-height:calc(92dvh - max(var(--keyboard-inset,0px),var(--android-ime-bottom,0px)))}
+
+
+/* Test-only contribution-aware portfolio history chart. */
+.history-chart-card{padding:18px 18px 15px;overflow:hidden}
+.history-chart-head{align-items:flex-start}
+.history-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.history-summary-item{min-width:0;padding:10px 10px 9px;border:1px solid rgba(255,255,255,.075);border-radius:15px;background:rgba(255,255,255,.028);display:grid;gap:5px}
+.history-summary-item>span{display:flex;align-items:center;gap:6px;min-width:0;color:#98a6ba;font-size:9px;font-weight:750;line-height:1.15}
+.history-summary-item>span i,.history-chart-legend i{display:inline-block;width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.history-summary-item strong{min-width:0;font-size:clamp(11px,3vw,14px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-summary-item.total{border-color:rgba(66,227,232,.18);background:rgba(66,227,232,.045)}
+.history-summary-item.external{border-color:rgba(74,132,255,.20);background:rgba(74,132,255,.055)}
+.history-summary-item.natural{border-color:rgba(53,212,154,.18);background:rgba(53,212,154,.045)}
+.history-summary-item.total i,.history-chart-legend .total i{background:#42e3e8;box-shadow:0 0 10px rgba(66,227,232,.45)}
+.history-summary-item.external i,.history-chart-legend .external i{background:#4a84ff;box-shadow:0 0 10px rgba(74,132,255,.35)}
+.history-summary-item.natural i,.history-chart-legend .natural i{background:#35d49a;box-shadow:0 0 10px rgba(53,212,154,.35)}
+.history-summary-item.total strong{color:#d9ffff}
+.history-summary-item.external strong{color:#74a3ff}
+.history-summary-item.natural strong.positive{color:#35d49a!important}
+.history-summary-item.natural strong.negative{color:#ff6b78!important}
+.history-chart-wrap{height:270px;margin-top:13px}
+.history-chart-wrap #portfolioChart{height:270px}
+.history-chart-legend{display:flex;justify-content:center;align-items:center;gap:15px;margin-top:7px;color:#8290a5;font-size:9px;font-weight:750}
+.history-chart-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.history-chart-tooltip{display:grid;gap:4px;padding:9px 11px;line-height:1.25}
+.history-chart-tooltip strong{font-size:11px;color:#f1f5fb}
+.history-chart-tooltip span{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:9px;color:#9ba8bb}
+.history-chart-tooltip span b{font-size:10px;color:#e8edf6;font-variant-numeric:tabular-nums}
+.history-chart-tooltip .tooltip-total b{color:#62edf0}
+.history-chart-tooltip .tooltip-external b{color:#79a5ff}
+.history-chart-tooltip .tooltip-natural.positive b{color:#35d49a}
+.history-chart-tooltip .tooltip-natural.negative b{color:#ff6b78}
+.history-chart-tooltip .tooltip-added{margin-top:2px;padding-top:5px;border-top:1px solid rgba(255,255,255,.08)}
+.history-chart-tooltip .tooltip-added b{color:#9bbcff}
+html[data-theme="light"] .history-summary-item{background:#f7f9fc;border-color:#e1e7f0}
+html[data-theme="light"] .history-summary-item.total{background:#f0fbfc;border-color:#d6f2f3}
+html[data-theme="light"] .history-summary-item.external{background:#f1f5ff;border-color:#dce5ff}
+html[data-theme="light"] .history-summary-item.natural{background:#f0fbf7;border-color:#d8f0e7}
+html[data-theme="light"] .history-summary-item>span,html[data-theme="light"] .history-chart-legend{color:#69788f}
+@media(max-width:430px){
+  .history-chart-card{padding:15px 13px 13px}
+  .history-summary{gap:5px;margin-top:12px}
+  .history-summary-item{padding:8px 6px 7px;border-radius:12px}
+  .history-summary-item>span{font-size:8px;gap:4px}
+  .history-summary-item strong{font-size:11px}
+  .history-chart-wrap,.history-chart-wrap #portfolioChart{height:250px}
+  .history-chart-legend{gap:9px;font-size:8px}
+}
+@media(max-width:365px){
+  .history-chart-card{padding-inline:10px}
+  .history-summary{gap:4px}
+  .history-summary-item{padding-inline:5px}
+  .history-summary-item>span{font-size:7.5px}
+  .history-summary-item strong{font-size:10px}
+  .history-chart-wrap,.history-chart-wrap #portfolioChart{height:232px}
+  .history-chart-legend{gap:7px;font-size:7.5px}
+}
