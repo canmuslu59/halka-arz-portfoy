@@ -72,6 +72,6 @@ jobs:
               && usable.some(item => ['Hisse Senetleri','Borsa Haberleri','Altın Fiyatları'].includes(String(item?.title)))) {
             throw new Error('generic feed pages leaked into notification candidates');
           }
-          if (selected.length && !String(message.body).includes('• ')) throw new Error('digest body missing');
+          if (selected.length && !String(message.body).startsWith(String.fromCharCode(8226) + ' ')) throw new Error('digest body missing');
           if (selected.length > 1 && !String(message.body).includes('\n\n')) throw new Error('digest spacing missing');
           '@ | node --input-type=module -
