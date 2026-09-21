@@ -196,7 +196,7 @@ function formatFinanceNewsTime(iso) {
   return FINANCE_NEWS_DAY_FMT.format(date) + ' • ' + clock;
 }
 
-const GENERIC_FINANCE_NEWS_TITLES = new Set([
+const GENERIC_FINANCE_NEWS_FEED_TITLES = new Set([
   'hisse senetleri','borsa kapanış','çeyrek altın','cumhuriyet altını','ziynet altını',
   'yatırım fonları','halka arz takvimi','ekonomi haberleri','borsa haberleri',
   'altın fiyatları','gram altın fiyatı','çeyrek altın fiyatı'
@@ -222,7 +222,7 @@ function financeNewsItemsOnly(items) {
   return (Array.isArray(items) ? items : [])
     .filter(item => item && NEWS_CATEGORY_NAMES[item.category] && item.title && item.url && financeNewsIsArticle(item))
     .map(item => ({ ...item, title:financeNewsCleanTitle(item.title) }))
-    .filter(item => !GENERIC_FINANCE_NEWS_TITLES.has(item.title.toLocaleLowerCase('tr-TR')))
+    .filter(item => !GENERIC_FINANCE_NEWS_FEED_TITLES.has(item.title.toLocaleLowerCase('tr-TR')))
     .slice()
     .sort((a,b) => (parseFinanceNewsDate(b.publishedAt)?.getTime() || 0) - (parseFinanceNewsDate(a.publishedAt)?.getTime() || 0));
 }
