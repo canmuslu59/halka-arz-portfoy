@@ -21,14 +21,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify local Android toolchain
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Configure Android SDK
+        shell: powershell
+        run: |
+          $sdk = "C:\actions-runner\android-sdk"
+          if (-not (Test-Path "$sdk\cmdline-tools\latest\bin\sdkmanager.bat")) {
+            throw "Android SDK not found at $sdk"
+          }
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$sdk\platform-tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "$sdk\cmdline-tools\latest\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify toolchain
         shell: powershell
         run: |
           java -version
           gradle --version
-          if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
-            throw "ANDROID_HOME / ANDROID_SDK_ROOT is not set"
-          }
+          & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" --list_installed
+
+      - name: Ensure Android SDK 36
+        shell: powershell
+        run: |
+          & "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Compile debug Java
         shell: powershell
