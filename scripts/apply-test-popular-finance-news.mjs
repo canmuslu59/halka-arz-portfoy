@@ -203,7 +203,7 @@ const GENERIC_FINANCE_NEWS_TITLES = new Set([
 ]);
 
 function financeNewsCleanTitle(value) {
-  return String(value || '').replace(/\s+/g,' ').trim().replace(/^(?:HABERLER|PİYASALAR)\s+/iu,'').trim();
+  return String(value || '').replace(/\\s+/g,' ').trim().replace(/^(?:HABERLER|PİYASALAR)\\s+/iu,'').trim();
 }
 
 function financeNewsIsArticle(item) {
@@ -211,7 +211,7 @@ function financeNewsIsArticle(item) {
   try {
     const url = new URL(String(item.url));
     const host = url.hostname.toLocaleLowerCase('tr-TR');
-    if ((host === 'bloomberght.com' || host === 'www.bloomberght.com') && !/-\d{6,}\/?$/u.test(url.pathname)) return false;
+    if ((host === 'bloomberght.com' || host === 'www.bloomberght.com') && !/-\\d{6,}\\/?$/u.test(url.pathname)) return false;
     return true;
   } catch {
     return false;
