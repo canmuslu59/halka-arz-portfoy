@@ -66,8 +66,8 @@
       </div>
     </section>
 
-    <section class="chart-card">
-      <div class="section-head">
+    <section class="chart-card history-chart-card">
+      <div class="section-head history-chart-head">
         <div>
           <span class="eyebrow">PERFORMANS</span>
           <h2>Portföy geçmişi</h2>
@@ -79,10 +79,29 @@
           <option value="0">Tümü</option>
         </select>
       </div>
-      <div class="chart-wrap">
-        <canvas id="portfolioChart" height="220"></canvas>
-        <div id="chartTooltip" class="chart-tooltip" hidden></div>
+      <div class="history-summary" aria-label="Portföy geçmişi özeti">
+        <div class="history-summary-item total">
+          <span><i></i>Toplam portföy</span>
+          <strong id="historyTotalValue">—</strong>
+        </div>
+        <div class="history-summary-item external">
+          <span><i></i>Dışarıdan eklenen</span>
+          <strong id="historyExternalValue">—</strong>
+        </div>
+        <div class="history-summary-item natural">
+          <span><i></i>Doğal gelişim</span>
+          <strong id="historyNaturalValue">—</strong>
+        </div>
+      </div>
+      <div class="chart-wrap history-chart-wrap">
+        <canvas id="portfolioChart" height="270" aria-label="Toplam portföy, dışarıdan eklenen tutar ve doğal gelişim grafiği"></canvas>
+        <div id="chartTooltip" class="chart-tooltip history-chart-tooltip" hidden></div>
         <div id="chartEmpty" class="empty-chart">Hisse eklediğinde performans grafiği burada oluşacak.</div>
+      </div>
+      <div class="history-chart-legend" aria-hidden="true">
+        <span class="total"><i></i>Toplam</span>
+        <span class="external"><i></i>Dışarıdan eklenen</span>
+        <span class="natural"><i></i>Doğal gelişim</span>
       </div>
     </section>
 
