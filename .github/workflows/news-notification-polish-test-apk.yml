@@ -1,0 +1,201 @@
+name: News Notification Polish Test APK
+
+on:
+  push:
+    branches:
+      - feature/news-notification-polish-20260921
+    paths:
+      - .github/workflows/news-notification-polish-test-apk.yml
+
+permissions:
+  contents: read
+
+env:
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push-news-test.grass-airboat.workers.dev
+
+jobs:
+  build-test-apk:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JS dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run focused news and graph tests
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/news-notifications.test.js test/news-notification-source-metadata.test.js test/news-notification-integration.test.js test/popular-finance-news-overlay.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check public/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Sync Android base assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply exact live Code32 experience
+        shell: powershell
+        run: |
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Keep fixed graph data and bottom dock behavior
+        shell: powershell
+        run: |
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify generated test experience
+        shell: powershell
+        run: |
+          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
+          $styles = Get-Content -Raw android/app/src/main/assets/www/styles.css
+          $app = Get-Content -Raw android/app/src/main/assets/www/app.js
+          $service = Get-Content -Raw android/app/src/main/assets/www/core/portfolio-service.js
+          $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+
+          foreach ($needle in @('id="holdingsTab"','id="performanceTab"','id="walletHomeTab"','id="marketsTab"','id="settingsTab"')) {
+            if (-not $index.Contains($needle)) { throw "Navigation missing: $needle" }
+          }
+          foreach ($needle in @('Sermaye Girişi','Değer Değişimi','history-chart-legend')) {
+            if (-not $index.Contains($needle)) { throw "Graph label missing: $needle" }
+          }
+          foreach ($needle in @('function historyFinite','function renderHistoryChartSummary','function historyRoundedRect','refreshBackgroundHistory({ force:true })')) {
+            if (-not $app.Contains($needle)) { throw "Graph behavior missing: $needle" }
+          }
+          foreach ($needle in @('GENERIC_FINANCE_NEWS_TITLES','financeNewsIsArticle','financeNewsCleanTitle','loadPopularFinanceNews')) {
+            if (-not $app.Contains($needle)) { throw "News UI quality behavior missing: $needle" }
+          }
+          foreach ($needle in @('downloadedHistory.length ? downloadedHistory : quoteHistory','Tam geçmiş fiyat kaynağı boş döndü')) {
+            if (-not $service.Contains($needle)) { throw "History fallback missing: $needle" }
+          }
+          foreach ($needle in @('news_breaking_v1','news_digest_v1','Günde iki kez öne çıkan finans haberleri özeti')) {
+            if (-not $helper.Contains($needle)) { throw "Native news notification support missing: $needle" }
+          }
+          if (-not $styles.Contains('grid-template-columns:repeat(5')) { throw 'Fixed five-column dock missing' }
+
+      - name: Configure test build identity
+        shell: powershell
+        run: |
+          $path = 'android/app/build.gradle'
+          $text = Get-Content -Raw $path
+          $versionCode = 33000 + [int]$env:GITHUB_RUN_NUMBER
+          $text = [regex]::Replace($text, 'versionCode\s+\d+', "versionCode $versionCode", 1)
+          $text = $text.Replace("resValue 'string', 'app_name', 'Hisse Portföyüm Test'", "resValue 'string', 'app_name', 'Hisse Portföyüm Haber Test'")
+          [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
+          "TEST_VERSION_CODE=$versionCode" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Inject Firebase test client
+        shell: powershell
+        env:
+          GOOGLE_SERVICES_TEST_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_TEST_JSON_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GOOGLE_SERVICES_TEST_JSON_BASE64)) {
+            throw 'GOOGLE_SERVICES_TEST_JSON_BASE64 missing for com.innative.halkaarz.test'
+          }
+          $bytes = [Convert]::FromBase64String($env:GOOGLE_SERVICES_TEST_JSON_BASE64)
+          [IO.File]::WriteAllBytes('android/app/google-services.json', $bytes)
+          $config = Get-Content -Raw 'android/app/google-services.json' | ConvertFrom-Json
+          $client = @($config.client) | Where-Object { $_.client_info.android_client_info.package_name -eq 'com.innative.halkaarz.test' } | Select-Object -First 1
+          if (-not $client) { throw 'Firebase config does not contain com.innative.halkaarz.test' }
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') {
+              $sdk = 'C:\actions-runner\android-sdk'
+            } elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) {
+              $sdk = $env:ANDROID_HOME
+            } else {
+              throw 'Android SDK root not found'
+            }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Compile and build debug APK
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileDebugJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gradle -p android --no-daemon assembleDebug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package and verify APK
+        shell: powershell
+        run: |
+          $src = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          if (-not (Test-Path $src)) { throw "APK not produced: $src" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $apk = 'dist/Hisse-Portfoyum-Haber-Grafik-Test.apk'
+          Copy-Item $src $apk -Force
+
+          $buildTools = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0'
+          & (Join-Path $buildTools 'apksigner.bat') verify --verbose --print-certs $apk
+          if ($LASTEXITCODE -ne 0) { throw 'APK signature verification failed' }
+          $badging = (& (Join-Path $buildTools 'aapt.exe') dump badging $apk | Out-String)
+          if (-not $badging.Contains("package: name='com.innative.halkaarz.test'")) { throw 'Unexpected APK package' }
+          if (-not $badging.Contains("application-label:'Hisse Portföyüm Haber Test'")) { throw 'Unexpected APK label' }
+          if (-not $badging.Contains("versionCode='$env:TEST_VERSION_CODE'")) { throw 'Unexpected APK versionCode' }
+          $badging | Set-Content -Encoding utf8 'dist/APK-IDENTITY.txt'
+
+          $sha = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-Haber-Grafik-Test.apk" | Set-Content -Encoding ascii 'dist/SHA256SUMS.txt'
+          @(
+            "package=com.innative.halkaarz.test",
+            "versionCode=$env:TEST_VERSION_CODE",
+            "pushBackend=$env:PUSH_BACKEND_URL",
+            "graphLabels=Sermaye Girişi | Değer Değişimi",
+            "newsWorker=isolated test backend",
+            "liveMainChanged=false"
+          ) | Set-Content -Encoding utf8 'dist/BUILD-INFO.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: news-notification-polish-test-apk
+          path: |
+            dist/Hisse-Portfoyum-Haber-Grafik-Test.apk
+            dist/SHA256SUMS.txt
+            dist/APK-IDENTITY.txt
+            dist/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 14
