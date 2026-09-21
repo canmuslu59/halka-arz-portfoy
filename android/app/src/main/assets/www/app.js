@@ -915,11 +915,54 @@ $('#addForm').addEventListener('submit', async event => {
   finally { addForm.dataset.saving = 'false'; btn.disabled = false; btn.textContent = 'Otomatik bul ve ekle'; }
 });
 
+function historyFinite(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function historyCompactMoney(value) {
+  const number = historyFinite(value);
+  if (number == null) return '—';
+  return money(number).replace(',00','');
+}
+
+function renderHistoryChartSummary(rows) {
+  const usable = rows.filter(row => historyFinite(row?.value) != null && historyFinite(row?.cost) != null);
+  const latest = usable[usable.length - 1] || null;
+  const total = $('#historyTotalValue');
+  const external = $('#historyExternalValue');
+  const natural = $('#historyNaturalValue');
+  if (total) total.textContent = latest ? money(latest.value) : '—';
+  if (external) external.textContent = latest ? money(latest.cost) : '—';
+  if (natural) {
+    const growth = latest ? historyFinite(latest.value) - historyFinite(latest.cost) : null;
+    natural.textContent = growth == null ? '—' : money(growth);
+    natural.classList.remove('positive','negative','neutral');
+    natural.classList.add(growth == null ? 'neutral' : signClass(growth));
+  }
+}
+
+function historyRoundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function chartWindow() {
   const canvas = $('#portfolioChart');
   const rows = selectedHistoryRows();
   const rect = canvas.getBoundingClientRect();
-  const pad = { l:12, r:12, t:18, b:24 };
+  const compact = rect.width > 0 && rect.width < 340;
+  const pad = { l:compact ? 42 : 48, r:10, t:18, b:27 };
   return { canvas, rows, rect, pad };
 }
 
@@ -928,12 +971,17 @@ function drawChart() {
   const empty = $('#chartEmpty');
   const tooltip = $('#chartTooltip');
   state.chartRows = rows;
-  if (!rows.length || rect.width <= 0 || rect.height <= 0) {
+  renderHistoryChartSummary(rows);
+
+  if (state.chartSelectedIndex >= rows.length) state.chartSelectedIndex = null;
+  const usable = rows.filter(row => historyFinite(row?.value) != null && historyFinite(row?.cost) != null);
+  if (!usable.length || rect.width <= 0 || rect.height <= 0) {
     empty.hidden = false;
     canvas.style.opacity = 0;
     tooltip.hidden = true;
     return;
   }
+
   empty.hidden = true;
   canvas.style.opacity = 1;
   const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
@@ -944,47 +992,153 @@ function drawChart() {
   const w = rect.width, h = rect.height;
   ctx.clearRect(0,0,w,h);
 
-  const values = rows.filter(row => Number.isFinite(row.value)).map(row => row.value);
-  if (!values.length) { empty.hidden=false; empty.textContent='Geçmiş verisi eksik';canvas.style.opacity=0;tooltip.hidden=true;return; }
-  let min = Math.min(...values), max = Math.max(...values);
-  if (min === max) { min -= Math.max(1,min*.01); max += Math.max(1,max*.01); }
-  const extra = (max-min) * .12;
-  min -= extra; max += extra;
-  const plotWidth = w-pad.l-pad.r;
-  const plotHeight = h-pad.t-pad.b;
+  const values = [];
+  rows.forEach(row => {
+    const value = historyFinite(row?.value);
+    const cost = historyFinite(row?.cost);
+    if (value != null) values.push(value);
+    if (cost != null) values.push(cost);
+  });
+  let max = Math.max(...values, 1);
+  max *= 1.14;
+  const plotWidth = Math.max(1, w-pad.l-pad.r);
+  const plotHeight = Math.max(1, h-pad.t-pad.b);
   const x = index => pad.l + (index / Math.max(1, rows.length-1)) * plotWidth;
-  const y = value => pad.t + (max-value)/(max-min) * plotHeight;
-  state.chartGeometry = { x, y, pad, w, h, rect };
+  const y = value => pad.t + (max-Math.max(0,value))/max * plotHeight;
+  state.chartGeometry = { x, y, pad, w, h, rect, max };
 
-  ctx.strokeStyle = state.theme === 'light' ? 'rgba(35,52,78,.10)' : 'rgba(255,255,255,.06)';
-  ctx.lineWidth = 1;
-  for (let line=0; line<3; line += 1) {
-    const yy = pad.t + (line/2)*plotHeight;
+  const light = state.theme === 'light';
+  const grid = light ? 'rgba(35,52,78,.10)' : 'rgba(255,255,255,.065)';
+  const axisText = light ? '#69788f' : '#74839a';
+  ctx.font='9px system-ui';
+  ctx.textBaseline='middle';
+  for (let line=0; line<=4; line += 1) {
+    const ratio=line/4;
+    const yy=pad.t+ratio*plotHeight;
+    const tick=max*(1-ratio);
+    ctx.strokeStyle=grid;
+    ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(w-pad.r,yy); ctx.stroke();
+    ctx.fillStyle=axisText;
+    ctx.textAlign='right';
+    const label = tick >= 1000 ? Math.round(tick/1000).toLocaleString('tr-TR') + 'K' : Math.round(tick).toLocaleString('tr-TR');
+    ctx.fillText(label,pad.l-6,yy);
   }
 
-  const last = rows[rows.length - 1];
-  const positive = Number(last?.profit) >= 0;
-  const stroke = positive ? '#35d49a' : '#ff6b78';
-  const grad = ctx.createLinearGradient(0,pad.t,0,h-pad.b);
-  grad.addColorStop(0, positive ? 'rgba(53,212,154,.26)' : 'rgba(255,107,120,.24)');
-  grad.addColorStop(1,'rgba(0,0,0,0)');
+  // Blue stepped invested-capital base.
+  const firstValid = rows.findIndex(row => historyFinite(row?.cost) != null);
+  if (firstValid >= 0) {
+    const baseGrad = ctx.createLinearGradient(0,pad.t,0,h-pad.b);
+    baseGrad.addColorStop(0, light ? 'rgba(74,132,255,.20)' : 'rgba(74,132,255,.32)');
+    baseGrad.addColorStop(1, light ? 'rgba(74,132,255,.05)' : 'rgba(74,132,255,.10)');
+    ctx.beginPath();
+    ctx.moveTo(x(firstValid), h-pad.b);
+    ctx.lineTo(x(firstValid), y(historyFinite(rows[firstValid].cost)));
+    let previousCost = historyFinite(rows[firstValid].cost);
+    for (let i=firstValid+1;i<rows.length;i++) {
+      const cost=historyFinite(rows[i]?.cost);
+      if (cost == null) continue;
+      ctx.lineTo(x(i), y(previousCost));
+      ctx.lineTo(x(i), y(cost));
+      previousCost=cost;
+    }
+    const lastIndex=rows.length-1;
+    ctx.lineTo(x(lastIndex),h-pad.b);
+    ctx.closePath();
+    ctx.fillStyle=baseGrad;
+    ctx.fill();
 
+    ctx.beginPath();
+    ctx.moveTo(x(firstValid),y(historyFinite(rows[firstValid].cost)));
+    previousCost=historyFinite(rows[firstValid].cost);
+    for(let i=firstValid+1;i<rows.length;i++){
+      const cost=historyFinite(rows[i]?.cost);
+      if(cost==null) continue;
+      ctx.lineTo(x(i),y(previousCost));
+      ctx.lineTo(x(i),y(cost));
+      previousCost=cost;
+    }
+    ctx.strokeStyle='#4a84ff';
+    ctx.lineWidth=2;
+    ctx.lineJoin='round';
+    ctx.stroke();
+  }
+
+  // Natural growth/loss band between invested capital and total portfolio.
+  for (let i=0;i<rows.length-1;i++) {
+    const aValue=historyFinite(rows[i]?.value), bValue=historyFinite(rows[i+1]?.value);
+    const aCost=historyFinite(rows[i]?.cost), bCost=historyFinite(rows[i+1]?.cost);
+    if ([aValue,bValue,aCost,bCost].some(value => value == null)) continue;
+    const averageGrowth=((aValue-aCost)+(bValue-bCost))/2;
+    ctx.beginPath();
+    ctx.moveTo(x(i),y(aValue));
+    ctx.lineTo(x(i+1),y(bValue));
+    ctx.lineTo(x(i+1),y(bCost));
+    ctx.lineTo(x(i),y(aCost));
+    ctx.closePath();
+    ctx.fillStyle = averageGrowth >= 0
+      ? (light ? 'rgba(53,212,154,.16)' : 'rgba(53,212,154,.24)')
+      : (light ? 'rgba(255,107,120,.13)' : 'rgba(255,107,120,.20)');
+    ctx.fill();
+  }
+
+  // Main total-portfolio line.
   ctx.beginPath();
-  let connected = false;
-  rows.forEach((row,index) => { if (!Number.isFinite(row.value)) { connected=false;return; } const xx=x(index), yy=y(row.value); connected ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy);connected=true; });
-  ctx.lineTo(x(rows.length-1),h-pad.b); ctx.lineTo(x(0),h-pad.b); ctx.closePath();
-  ctx.fillStyle = grad; if (rows.every(row => Number.isFinite(row.value))) ctx.fill();
+  let connected=false;
+  rows.forEach((row,index) => {
+    const value=historyFinite(row?.value);
+    if(value==null){connected=false;return;}
+    const xx=x(index), yy=y(value);
+    connected ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy);
+    connected=true;
+  });
+  ctx.strokeStyle='#42e3e8';
+  ctx.lineWidth=2.6;
+  ctx.lineJoin='round';
+  ctx.lineCap='round';
+  ctx.shadowColor='rgba(66,227,232,.22)';
+  ctx.shadowBlur=6;
+  ctx.stroke();
+  ctx.shadowBlur=0;
 
-  ctx.beginPath();
-  connected = false;
-  rows.forEach((row,index) => { if (!Number.isFinite(row.value)) { connected=false;return; } const xx=x(index), yy=y(row.value); connected ? ctx.lineTo(xx,yy) : ctx.moveTo(xx,yy);connected=true; });
-  ctx.strokeStyle = stroke; ctx.lineWidth = 2.3; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+  // External contribution markers and labels.
+  const contributionIndexes = rows
+    .map((row,index) => ({ index, added:historyFinite(row?.capitalAdded) || 0 }))
+    .filter(item => item.added > 0);
+  const labeled = new Set(contributionIndexes.filter(item => item.index > firstValid).slice(-4).map(item => item.index));
+  for (const item of contributionIndexes) {
+    const cost=historyFinite(rows[item.index]?.cost);
+    if(cost==null) continue;
+    const xx=x(item.index), yy=y(cost);
+    ctx.beginPath(); ctx.arc(xx,yy,4,0,Math.PI*2);
+    ctx.fillStyle='#f7fbff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(xx,yy,5.8,0,Math.PI*2);
+    ctx.strokeStyle='#4a84ff'; ctx.lineWidth=1.6; ctx.stroke();
 
-  ctx.fillStyle = state.theme === 'light' ? '#66758c' : '#758198'; ctx.font='10px system-ui';
-  ctx.textAlign='left'; ctx.fillText(trDate(rows[0].date).replace(/ 20\d{2}/,''),pad.l,h-5);
-  ctx.textAlign='right'; ctx.fillText(trDate(rows[rows.length - 1].date).replace(/ 20\d{2}/,''),w-pad.r,h-5);
-  ctx.textAlign='left'; ctx.fillText(money(max).replace(',00',''),pad.l,pad.t-5);
+    if (!labeled.has(item.index)) continue;
+    const label='+'+historyCompactMoney(item.added);
+    ctx.font='700 9px system-ui';
+    const tw=ctx.measureText(label).width;
+    const bw=tw+14, bh=20;
+    let bx=xx-bw/2;
+    bx=Math.max(pad.l,Math.min(w-pad.r-bw,bx));
+    let by=yy-30;
+    if(by<pad.t+2) by=yy+10;
+    historyRoundedRect(ctx,bx,by,bw,bh,8);
+    ctx.fillStyle=light ? 'rgba(238,244,255,.98)' : 'rgba(14,31,62,.96)';
+    ctx.fill();
+    ctx.strokeStyle=light ? 'rgba(74,132,255,.45)' : 'rgba(74,132,255,.78)';
+    ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle=light ? '#325db5' : '#d8e5ff';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(label,bx+bw/2,by+bh/2+.5);
+  }
+
+  ctx.fillStyle=axisText; ctx.font='9px system-ui'; ctx.textBaseline='alphabetic';
+  ctx.textAlign='left';
+  ctx.fillText(trDate(rows[0].date).replace(/ 20\d{2}/,''),pad.l,h-5);
+  ctx.textAlign='right';
+  ctx.fillText(trDate(rows[rows.length-1].date).replace(/ 20\d{2}/,''),w-pad.r,h-5);
 
   if (Number.isInteger(state.chartSelectedIndex) && state.chartSelectedIndex < rows.length) {
     drawChartSelection(state.chartSelectedIndex);
@@ -992,37 +1146,61 @@ function drawChart() {
 }
 
 function drawChartSelection(index) {
-  const geometry = state.chartGeometry;
-  const row = state.chartRows[index];
-  if (!geometry || !row || !Number.isFinite(row.value)) return;
-  const canvas = $('#portfolioChart');
-  const ctx = canvas.getContext('2d');
-  const { x, y, pad, h } = geometry;
-  const xx = x(index), yy = y(row.value);
-  ctx.strokeStyle = state.theme === 'light' ? 'rgba(35,52,78,.28)' : 'rgba(255,255,255,.30)'; ctx.lineWidth=1;
+  const geometry=state.chartGeometry;
+  const row=state.chartRows[index];
+  const total=historyFinite(row?.value);
+  const external=historyFinite(row?.cost);
+  if(!geometry || !row || total==null) return;
+  const canvas=$('#portfolioChart');
+  const ctx=canvas.getContext('2d');
+  const {x,y,pad,h}=geometry;
+  const xx=x(index), yy=y(total);
+  ctx.save();
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle=state.theme==='light'?'rgba(35,52,78,.30)':'rgba(255,255,255,.34)';
+  ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(xx,pad.t); ctx.lineTo(xx,h-pad.b); ctx.stroke();
-  ctx.beginPath(); ctx.arc(xx,yy,4.5,0,Math.PI*2); ctx.fillStyle = state.theme === 'light' ? '#17233a' : '#f8fafc'; ctx.fill();
-  ctx.beginPath(); ctx.arc(xx,yy,7.5,0,Math.PI*2); ctx.strokeStyle = state.theme === 'light' ? 'rgba(23,35,58,.18)' : 'rgba(248,250,252,.22)'; ctx.stroke();
+  ctx.restore();
+
+  if(external!=null){
+    ctx.beginPath(); ctx.arc(xx,y(external),3.4,0,Math.PI*2);
+    ctx.fillStyle='#4a84ff'; ctx.fill();
+    ctx.strokeStyle='#f7fbff'; ctx.lineWidth=1.2; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(xx,yy,4.8,0,Math.PI*2);
+  ctx.fillStyle='#42e3e8'; ctx.fill();
+  ctx.strokeStyle='#f7fbff'; ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(xx,yy,8.2,0,Math.PI*2);
+  ctx.strokeStyle='rgba(66,227,232,.24)'; ctx.lineWidth=2; ctx.stroke();
 }
 
 function showChartPoint(clientX) {
   if (!state.chartRows.length || !state.chartGeometry) return;
-  const canvasRect = $('#portfolioChart').getBoundingClientRect();
-  const pad = state.chartGeometry.pad;
-  const index = nearestChartIndex(clientX, { left:canvasRect.left+pad.l, right:canvasRect.right-pad.r }, state.chartRows.length);
-  if (index < 0) return;
-  state.chartSelectedIndex = index;
+  const canvasRect=$('#portfolioChart').getBoundingClientRect();
+  const pad=state.chartGeometry.pad;
+  const index=nearestChartIndex(clientX,{left:canvasRect.left+pad.l,right:canvasRect.right-pad.r},state.chartRows.length);
+  if(index<0) return;
+  state.chartSelectedIndex=index;
   drawChart();
-  const row = state.chartRows[index];
-  const tooltip = $('#chartTooltip');
-  tooltip.innerHTML = `<strong>${trDate(row.date)}</strong><span>Portföy ${money(row.value)}</span><span class="${signClass(row.profit)}">Toplam ${money(row.profit)} · ${pct(row.profitPct)}</span><span class="${signClass(row.dailyProfit)}">Günlük ${money(row.dailyProfit)} · ${pct(row.dailyPct)}</span>`;
-  tooltip.hidden = false;
-  const x = state.chartGeometry.x(index);
-  const available = canvasRect.width;
-  const tooltipWidth = Math.min(230, Math.max(170, available - 20));
-  const left = Math.max(8, Math.min(available-tooltipWidth-8, x-tooltipWidth/2));
-  tooltip.style.width = `${tooltipWidth}px`;
-  tooltip.style.left = `${left}px`;
+  const row=state.chartRows[index];
+  const total=historyFinite(row?.value);
+  const external=historyFinite(row?.cost);
+  const natural=total==null||external==null?null:total-external;
+  const added=historyFinite(row?.capitalAdded)||0;
+  const tooltip=$('#chartTooltip');
+  tooltip.innerHTML =
+    '<strong>'+trDate(row.date)+'</strong>'+
+    '<span class="tooltip-total"><span>Toplam</span><b>'+money(total)+'</b></span>'+
+    '<span class="tooltip-external"><span>Dışarıdan eklenen</span><b>'+money(external)+'</b></span>'+
+    '<span class="tooltip-natural '+(natural==null?'neutral':signClass(natural))+'"><span>Doğal gelişim</span><b>'+money(natural)+'</b></span>'+
+    (added>0?'<span class="tooltip-added"><span>Bu tarihte eklenen</span><b>+'+money(added)+'</b></span>':'');
+  tooltip.hidden=false;
+  const x=state.chartGeometry.x(index);
+  const available=canvasRect.width;
+  const tooltipWidth=Math.min(245,Math.max(185,available-18));
+  const left=Math.max(6,Math.min(available-tooltipWidth-6,x-tooltipWidth/2));
+  tooltip.style.width=tooltipWidth+'px';
+  tooltip.style.left=left+'px';
 }
 
 function resetAddEntryForm() {
