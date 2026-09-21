@@ -13,22 +13,65 @@ permissions:
 jobs:
   probe:
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Probe live finance news feed
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Simulate live news notification selection
         shell: powershell
         run: |
-          $url = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60'
-          $response = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 30 -Headers @{ Accept='application/json' }
-          $items = @($response.items)
-          Write-Host "items=$($items.Count)"
-          $items | Select-Object -First 30 | ForEach-Object {
-            [pscustomobject]@{
-              category = $_.category
-              source = $_.source
-              title = $_.title
-              publishedAt = $_.publishedAt
-              importance = $_.importance
-              url = $_.url
-            } | ConvertTo-Json -Compress
+          @'
+          import { verifyNewsNotificationMetadata } from './cloudflare/news-source-metadata.js';
+          import { currentDigestSlot, selectDigestItems, digestMessage, isNotificationNewsItem } from './cloudflare/news-notifications.js';
+
+          const url = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60';
+          const response = await fetch(url, { headers:{ accept:'application/json' } });
+          if (!response.ok) throw new Error('feed HTTP ' + response.status);
+          const payload = await response.json();
+          const raw = Array.isArray(payload.items) ? payload.items : [];
+
+          const state = { installations:{} };
+          const store = {
+            async read() { return structuredClone(state); },
+            async mutate(fn) { return fn(state); },
+          };
+
+          const now = new Date();
+          const verified = await verifyNewsNotificationMetadata(raw, {
+            store,
+            fetchImpl:globalThis.fetch,
+            now:() => now,
+            maxFetches:20,
+          });
+          const usable = verified.filter(isNotificationNewsItem);
+          const slot = currentDigestSlot(now);
+          const selected = slot ? selectDigestItems(usable, { slot, now }) : [];
+          const message = digestMessage(slot, selected);
+
+          console.log(JSON.stringify({
+            now:now.toISOString(),
+            rawCount:raw.length,
+            notificationCandidateCount:usable.length,
+            filteredGenericCount:raw.length - usable.length,
+            slot,
+            selected:selected.map(item => ({
+              title:item.title,
+              category:item.category,
+              importance:item.importance,
+              publishedAt:item.publishedAt,
+              url:item.url,
+            })),
+            notification:message,
+          }, null, 2));
+
+          if (raw.some(item => ['Hisse Senetleri','Borsa Haberleri','Altın Fiyatları'].includes(String(item?.title)))
+              && usable.some(item => ['Hisse Senetleri','Borsa Haberleri','Altın Fiyatları'].includes(String(item?.title)))) {
+            throw new Error('generic feed pages leaked into notification candidates');
           }
+          if (selected.length && !String(message.body).includes('• ')) throw new Error('digest body missing');
+          if (selected.length > 1 && !String(message.body).includes('\n\n')) throw new Error('digest spacing missing');
+          '@ | node --input-type=module -
