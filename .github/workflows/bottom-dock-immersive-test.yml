@@ -71,6 +71,15 @@ jobs:
           Copy-Item $src "Hisse-Portfoyum-bottom-dock-test.apk" -Force
           (Get-FileHash "Hisse-Portfoyum-bottom-dock-test.apk" -Algorithm SHA256).Hash.ToLower() | Set-Content "Hisse-Portfoyum-bottom-dock-test.sha256.txt"
 
+      - name: Verify APK signature and package
+        shell: powershell
+        run: |
+          $buildTools = "$env:ANDROID_HOME\build-tools\36.0.0"
+          & "$buildTools\apksigner.bat" verify --verbose --print-certs "Hisse-Portfoyum-bottom-dock-test.apk"
+          if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed" }
+          & "$buildTools\aapt.exe" dump badging "Hisse-Portfoyum-bottom-dock-test.apk" | Select-String "package: name=|application-label:"
+          if ($LASTEXITCODE -ne 0) { throw "APK package inspection failed" }
+
       - uses: actions/upload-artifact@v4
         with:
           name: hisse-portfoyum-bottom-dock-test-apk
