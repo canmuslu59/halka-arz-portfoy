@@ -103,7 +103,7 @@ test('empty news state preserves the actual runtime failure reason for device di
 
 
 test('Haberler UI filters Bloomberg quote/category pages and strips feed prefixes', () => {
-  assert.match(overlay, /GENERIC_FINANCE_NEWS_TITLES/);
+  assert.match(overlay, /GENERIC_FINANCE_NEWS_FEED_TITLES/);
   assert.match(overlay, /function financeNewsIsArticle\(/);
   assert.ok(overlay.includes("!/-\\\\d{6,}\\\\/?$/u.test(url.pathname)"));
   assert.match(overlay, /function financeNewsCleanTitle\(/);
