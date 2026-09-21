@@ -83,6 +83,8 @@ jobs:
           $app = Get-Content -Raw android/app/src/main/assets/www/app.js
           $service = Get-Content -Raw android/app/src/main/assets/www/core/portfolio-service.js
           $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          $newsTestScheduler = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java
+          $newsTestWorker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
 
           foreach ($needle in @('id="holdingsTab"','id="performanceTab"','id="walletHomeTab"','id="marketsTab"','id="settingsTab"')) {
             if (-not $index.Contains($needle)) { throw "Navigation missing: $needle" }
@@ -101,6 +103,12 @@ jobs:
           }
           foreach ($needle in @('news_breaking_v1','news_digest_v1','Günde iki kez öne çıkan finans haberleri özeti')) {
             if (-not $helper.Contains($needle)) { throw "Native news notification support missing: $needle" }
+          }
+          foreach ($needle in @('BuildConfig.DEBUG','push-news-test','PeriodicWorkRequest.Builder(NewsTestWorker.class, 15')) {
+            if (-not $newsTestScheduler.Contains($needle)) { throw "Local news test scheduler missing: $needle" }
+          }
+          foreach ($needle in @('BREAKING_MAX_AGE_MINUTES = 90L','article:published_time','body.append("\n\n")','news_digest','news_breaking')) {
+            if (-not $newsTestWorker.Contains($needle)) { throw "Local news test worker behavior missing: $needle" }
           }
           if (-not $styles.Contains('grid-template-columns:repeat(5')) { throw 'Fixed five-column dock missing' }
 
@@ -197,4 +205,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# regex-fix build trigger 3
+# final local-news test build trigger
