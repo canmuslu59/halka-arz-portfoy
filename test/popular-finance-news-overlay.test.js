@@ -100,3 +100,13 @@ test('empty news state preserves the actual runtime failure reason for device di
   assert.match(fallback, /status\.textContent = financeNewsLastError/);
   assert.match(fallback, /esc\(financeNewsLastError/);
 });
+
+
+test('Haberler UI filters Bloomberg quote/category pages and strips feed prefixes', () => {
+  assert.match(overlay, /GENERIC_FINANCE_NEWS_TITLES/);
+  assert.match(overlay, /function financeNewsIsArticle\(/);
+  assert.match(overlay, /-\\d\{6,\}/);
+  assert.match(overlay, /function financeNewsCleanTitle\(/);
+  assert.match(overlay, /HABERLER\|PİYASALAR/);
+  assert.match(overlay, /financeNewsIsArticle\(item\)/);
+});
