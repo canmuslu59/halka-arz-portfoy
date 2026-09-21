@@ -1,0 +1,62 @@
+name: Bottom Dock Immersive Test APK
+
+on:
+  push:
+    branches:
+      - feature/live-bottom-dock-immersive-20260921
+  pull_request:
+    branches:
+      - release/v2.4.9-code32-final
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Full regression suite
+        run: npm test
+      - name: Synchronize Android assets
+        run: |
+          npm run android:sync
+          diff -qr public android/app/src/main/assets/www
+          git diff --check
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4.0.1
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+      - name: Compile debug Java
+        run: gradle -p android --no-daemon compileDebugJavaWithJavac
+      - name: Build installable test APK
+        run: gradle -p android --no-daemon assembleDebug
+      - name: Package APK
+        run: |
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk Hisse-Portfoyum-bottom-dock-test.apk
+          sha256sum Hisse-Portfoyum-bottom-dock-test.apk > Hisse-Portfoyum-bottom-dock-test.sha256.txt
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: hisse-portfoyum-bottom-dock-test-apk
+          path: |
+            Hisse-Portfoyum-bottom-dock-test.apk
+            Hisse-Portfoyum-bottom-dock-test.sha256.txt
+          if-no-files-found: error
+          retention-days: 14
