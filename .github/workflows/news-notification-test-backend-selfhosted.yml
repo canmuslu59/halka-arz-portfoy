@@ -1,0 +1,85 @@
+name: News Notification Test Backend Selfhosted
+
+on:
+  push:
+    branches:
+      - feature/news-notification-polish-20260921
+    paths:
+      - .github/workflows/news-notification-test-backend-selfhosted.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-test-backend:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON || secrets.FIREBASE_ADMIN_JSON || secrets.FIREBASE_ADMIN_SDK_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run focused news notification tests
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/news-notifications.test.js test/news-notification-source-metadata.test.js test/news-notification-integration.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Require isolated test deployment credentials
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) { throw 'CLOUDFLARE_API_TOKEN missing' }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) { throw 'CLOUDFLARE_ACCOUNT_ID missing' }
+          if ([string]::IsNullOrWhiteSpace($env:FIREBASE_SA)) { throw 'Firebase Admin service account secret missing' }
+          Write-Host 'Cloudflare and Firebase credentials are present.'
+
+      - name: Deploy isolated news test worker
+        shell: powershell
+        run: |
+          npx -y wrangler@4.131.1 deploy --config wrangler-news-test.jsonc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configure Firebase Admin secret on test worker
+        shell: powershell
+        run: |
+          $secretFile = Join-Path $env:RUNNER_TEMP 'firebase-news-test.json'
+          [System.IO.File]::WriteAllText($secretFile, $env:FIREBASE_SA, (New-Object System.Text.UTF8Encoding($false)))
+          Get-Content -Raw $secretFile | npx -y wrangler@4.131.1 secret put FIREBASE_SERVICE_ACCOUNT_JSON --config wrangler-news-test.jsonc
+          $exit = $LASTEXITCODE
+          Remove-Item $secretFile -Force -ErrorAction SilentlyContinue
+          if ($exit -ne 0) { exit $exit }
+
+      - name: Verify isolated news test worker health
+        shell: powershell
+        run: |
+          $url = 'https://halka-arz-portfoy-push-news-test.grass-airboat.workers.dev/api/health'
+          $ok = $false
+          for ($i = 0; $i -lt 15; $i++) {
+            try {
+              $health = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 20
+              if ($health.ok -eq $true -and $health.push.newsNotificationsEnabled -eq $true -and $health.push.fcmConfigured -eq $true) {
+                $health | ConvertTo-Json -Depth 8
+                $ok = $true
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ok) { throw 'Isolated news test worker health verification failed' }
