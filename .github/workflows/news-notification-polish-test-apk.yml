@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: news-notification-polish-test-apk
+  cancel-in-progress: true
+
 env:
   PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
 
@@ -234,3 +238,5 @@ jobs:
 # trigger: dedicated-10-19-news-scheduler-v1
 
 # trigger: live-market-push-parity-v1
+
+# trigger: final-live-market-parity-v2
