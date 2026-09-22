@@ -1,6 +1,7 @@
 package com.innative.halkaarz;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
@@ -47,16 +48,33 @@ public final class NewsTestWorker extends Worker {
     @Override
     public Result doWork() {
         if (!NewsTestScheduler.enabled()) return Result.success();
+        Context app = getApplicationContext();
+        SharedPreferences prefs = app.getSharedPreferences(NewsTestScheduler.PREFS, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putLong(NewsTestScheduler.LAST_RUN_AT, System.currentTimeMillis())
+                .putString(NewsTestScheduler.LAST_ERROR, "")
+                .apply();
         try {
             List<NewsItem> items = fetchVerifiedItems();
-            if (items.isEmpty()) return Result.success();
+            prefs.edit().putInt(NewsTestScheduler.LAST_ITEM_COUNT, items.size()).apply();
 
-            ZonedDateTime now = ZonedDateTime.now(ISTANBUL);
-            sendBreakingIfNeeded(items, now);
-            sendDigestIfDue(items, now);
+            if (!items.isEmpty()) {
+                ZonedDateTime now = ZonedDateTime.now(ISTANBUL);
+                sendBreakingIfNeeded(items, now);
+                sendDigestIfDue(items, now);
+            }
+
+            prefs.edit()
+                    .putLong(NewsTestScheduler.LAST_SUCCESS_AT, System.currentTimeMillis())
+                    .apply();
             return Result.success();
         } catch (Exception error) {
+            prefs.edit()
+                    .putString(NewsTestScheduler.LAST_ERROR, String.valueOf(error.getMessage()))
+                    .apply();
             return Result.retry();
+        } finally {
+            NewsTestScheduler.scheduleDailyTargets(app);
         }
     }
 
@@ -94,6 +112,14 @@ public final class NewsTestWorker extends Worker {
             return;
         }
 
+        SharedPreferences prefs = getApplicationContext()
+                .getSharedPreferences(NewsTestScheduler.PREFS, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putString(NewsTestScheduler.LAST_DIGEST_SLOT, slot)
+                .putLong(NewsTestScheduler.LAST_DIGEST_ATTEMPT_AT, System.currentTimeMillis())
+                .putBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, false)
+                .apply();
+
         Instant startInstant = start.toInstant();
         List<NewsItem> eligible = new ArrayList<>();
         for (NewsItem item : items) {
@@ -127,7 +153,10 @@ public final class NewsTestWorker extends Worker {
         data.put("digest_day", now.toLocalDate().toString());
         data.put("title", digestTitle(selected));
         data.put("body", body.toString());
-        NotificationHelper.show(getApplicationContext(), data);
+        boolean delivered = NotificationHelper.show(getApplicationContext(), data);
+        prefs.edit()
+                .putBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, delivered)
+                .apply();
     }
 
     private List<NewsItem> fetchVerifiedItems() throws Exception {
