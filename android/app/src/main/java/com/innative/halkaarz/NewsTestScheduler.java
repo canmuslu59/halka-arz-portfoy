@@ -44,8 +44,8 @@ final class NewsTestScheduler {
     private NewsTestScheduler() {}
 
     static boolean enabled() {
-        String backend = BuildConfig.PUSH_BACKEND_URL == null ? "" : BuildConfig.PUSH_BACKEND_URL;
-        return BuildConfig.DEBUG && backend.contains("halka-arz-portfoy-push-news-test");
+        String appId = BuildConfig.APPLICATION_ID == null ? "" : BuildConfig.APPLICATION_ID;
+        return BuildConfig.DEBUG && appId.endsWith(".graphtest");
     }
 
     static void ensure(Context context) {
