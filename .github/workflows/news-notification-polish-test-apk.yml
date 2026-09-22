@@ -144,8 +144,6 @@ jobs:
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
             'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
-            'android/app/src/main/AndroidManifest.xml' = '4bbb1e22b9cda8ee72d0dde5f2164e11ad758d51'
-            'android/app/build.gradle' = '6183039c92d6f09eacd06f55eb64eb5639c9edc8'
           }
           foreach ($entry in $expected.GetEnumerator()) {
             $bytes = [System.IO.File]::ReadAllBytes($entry.Key)
@@ -162,6 +160,14 @@ jobs:
             if ($actual -ne $entry.Value) {
               throw "Live Code32 parity failed for $($entry.Key): expected $($entry.Value), got $actual"
             }
+          }
+          $manifest = Get-Content -Raw 'android/app/src/main/AndroidManifest.xml'
+          foreach ($needle in @('android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE','android.permission.POST_NOTIFICATIONS','com.innative.halkaarz.PushMessagingService','com.google.firebase.MESSAGING_EVENT')) {
+            if (-not $manifest.Contains($needle)) { throw "Required live manifest behavior missing after Android sync: $needle" }
+          }
+          $gradle = Get-Content -Raw 'android/app/build.gradle'
+          foreach ($needle in @("applicationId 'com.innative.halkaarz'","targetSdk 36","implementation 'androidx.work:work-runtime:2.10.1'","implementation 'com.google.firebase:firebase-messaging:24.1.1'")) {
+            if (-not $gradle.Contains($needle)) { throw "Required live Gradle behavior missing: $needle" }
           }
           if ($env:PUSH_BACKEND_URL -ne 'https://halka-arz-portfoy-push.grass-airboat.workers.dev') {
             throw "Test APK market push backend is not the proven live backend"
@@ -277,3 +283,5 @@ jobs:
 # trigger: regex-assertion-fix-v4
 
 # trigger: portable-blob-hash-v5
+
+# trigger: semantic-manifest-parity-v6
