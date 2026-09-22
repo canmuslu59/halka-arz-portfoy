@@ -7,9 +7,10 @@ const worker = readFileSync('android/app/src/main/java/com/innative/halkaarz/New
 const activity = readFileSync('android/app/src/main/java/com/innative/halkaarz/MainActivity.java', 'utf8');
 const helper = readFileSync('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java', 'utf8');
 
-test('local news fallback is guarded to debug news-test backend only', () => {
+test('local news fallback is guarded to the debug graph-test package only', () => {
   assert.match(scheduler, /BuildConfig\.DEBUG/);
-  assert.match(scheduler, /halka-arz-portfoy-push-news-test/);
+  assert.match(scheduler, /BuildConfig\.APPLICATION_ID/);
+  assert.match(scheduler, /endsWith\("\\.graphtest"\)/);
 });
 
 test('local news fallback schedules immediate, 10:00, 19:00 and 15-minute catch-up checks', () => {
