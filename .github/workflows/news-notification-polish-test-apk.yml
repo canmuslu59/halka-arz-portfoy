@@ -148,7 +148,17 @@ jobs:
             'android/app/build.gradle' = '6183039c92d6f09eacd06f55eb64eb5639c9edc8'
           }
           foreach ($entry in $expected.GetEnumerator()) {
-            $actual = (& git hash-object $entry.Key).Trim()
+            $bytes = [System.IO.File]::ReadAllBytes($entry.Key)
+            $header = [System.Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)" + [char]0)
+            $all = New-Object byte[] ($header.Length + $bytes.Length)
+            [Array]::Copy($header, 0, $all, 0, $header.Length)
+            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
+            $sha1 = [System.Security.Cryptography.SHA1]::Create()
+            try {
+              $actual = ([BitConverter]::ToString($sha1.ComputeHash($all))).Replace('-', '').ToLowerInvariant()
+            } finally {
+              $sha1.Dispose()
+            }
             if ($actual -ne $entry.Value) {
               throw "Live Code32 parity failed for $($entry.Key): expected $($entry.Value), got $actual"
             }
@@ -265,3 +275,5 @@ jobs:
 # trigger: hash-locked-live-market-parity-v3
 
 # trigger: regex-assertion-fix-v4
+
+# trigger: portable-blob-hash-v5
