@@ -5,14 +5,21 @@ import { readFileSync } from 'node:fs';
 const scheduler = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java', 'utf8');
 const worker = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java', 'utf8');
 const activity = readFileSync('android/app/src/main/java/com/innative/halkaarz/MainActivity.java', 'utf8');
+const helper = readFileSync('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java', 'utf8');
 
 test('local news fallback is guarded to debug news-test backend only', () => {
   assert.match(scheduler, /BuildConfig\.DEBUG/);
   assert.match(scheduler, /halka-arz-portfoy-push-news-test/);
 });
 
-test('local news fallback schedules immediate plus Android minimum 15-minute periodic checks', () => {
-  assert.match(scheduler, /OneTimeWorkRequest\.Builder\(NewsTestWorker\.class\)/);
+test('local news fallback schedules immediate, 10:00, 19:00 and 15-minute catch-up checks', () => {
+  assert.match(scheduler, /IMMEDIATE_WORK/);
+  assert.match(scheduler, /MORNING_WORK/);
+  assert.match(scheduler, /EVENING_WORK/);
+  assert.match(scheduler, /delayUntil\(now, 10, 0\)/);
+  assert.match(scheduler, /delayUntil\(now, 19, 0\)/);
+  assert.match(scheduler, /setInitialDelay/);
+  assert.match(scheduler, /ExistingWorkPolicy\.REPLACE/);
   assert.match(scheduler, /PeriodicWorkRequest\.Builder\(NewsTestWorker\.class, 15, TimeUnit\.MINUTES\)/);
   assert.match(activity, /NewsTestScheduler\.ensure\(this\)/);
 });
@@ -34,4 +41,15 @@ test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute a
   assert.match(worker, /BREAKING_MAX_AGE_MINUTES = 90L/);
   assert.match(worker, /item\.importance == 5/);
   assert.match(worker, /news_breaking/);
+});
+
+
+test('local news worker reschedules daily targets and records digest diagnostics', () => {
+  assert.match(worker, /NewsTestScheduler\.scheduleDailyTargets\(app\)/);
+  assert.match(worker, /LAST_RUN_AT/);
+  assert.match(worker, /LAST_DIGEST_ATTEMPT_AT/);
+  assert.match(worker, /LAST_DIGEST_DELIVERED/);
+  assert.match(helper, /newsTest/);
+  assert.match(helper, /nextMorningTargetAt/);
+  assert.match(helper, /nextEveningTargetAt/);
 });
