@@ -96,6 +96,20 @@ final class NotificationHelper {
                 status.put("channels", channels);
             }
             status.put("background", AlertDiagnostics.read(context));
+            if (NewsTestScheduler.enabled()) {
+                android.content.SharedPreferences newsTest = context.getSharedPreferences(NewsTestScheduler.PREFS, Context.MODE_PRIVATE);
+                JSONObject news = new JSONObject();
+                news.put("lastRunAt", newsTest.getLong(NewsTestScheduler.LAST_RUN_AT, 0L));
+                news.put("lastSuccessAt", newsTest.getLong(NewsTestScheduler.LAST_SUCCESS_AT, 0L));
+                news.put("lastError", newsTest.getString(NewsTestScheduler.LAST_ERROR, ""));
+                news.put("verifiedItemCount", newsTest.getInt(NewsTestScheduler.LAST_ITEM_COUNT, 0));
+                news.put("lastDigestSlot", newsTest.getString(NewsTestScheduler.LAST_DIGEST_SLOT, ""));
+                news.put("lastDigestAttemptAt", newsTest.getLong(NewsTestScheduler.LAST_DIGEST_ATTEMPT_AT, 0L));
+                news.put("lastDigestDelivered", newsTest.getBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, false));
+                news.put("nextMorningTargetAt", newsTest.getLong(NewsTestScheduler.MORNING_TARGET_AT, 0L));
+                news.put("nextEveningTargetAt", newsTest.getLong(NewsTestScheduler.EVENING_TARGET_AT, 0L));
+                status.put("newsTest", news);
+            }
             return status.toString();
         } catch (Exception error) {
             return "{\"permissionGranted\":false,\"notificationsEnabled\":false,\"error\":\"diagnostic_failed\"}";
