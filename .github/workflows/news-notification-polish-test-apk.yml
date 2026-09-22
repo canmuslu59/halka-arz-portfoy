@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  PUSH_BACKEND_URL: https://halka-arz-portfoy-push-news-test.grass-airboat.workers.dev
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
 
 jobs:
   build-test-apk:
@@ -85,6 +85,10 @@ jobs:
           $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
           $newsTestScheduler = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java
           $newsTestWorker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
+          $marketScheduler = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java
+          $marketWorker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java
+          $pushSync = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java
+          $pushMessaging = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/PushMessagingService.java
 
           foreach ($needle in @('id="holdingsTab"','id="performanceTab"','id="walletHomeTab"','id="marketsTab"','id="settingsTab"')) {
             if (-not $index.Contains($needle)) { throw "Navigation missing: $needle" }
@@ -104,7 +108,7 @@ jobs:
           foreach ($needle in @('news_breaking_v1','news_digest_v1','Günde iki kez öne çıkan finans haberleri özeti')) {
             if (-not $helper.Contains($needle)) { throw "Native news notification support missing: $needle" }
           }
-          foreach ($needle in @('BuildConfig.DEBUG','push-news-test','PeriodicWorkRequest.Builder(NewsTestWorker.class, 15','MORNING_WORK','EVENING_WORK','delayUntil(now, 10, 0)','delayUntil(now, 19, 0)','setInitialDelay','ExistingWorkPolicy.REPLACE')) {
+          foreach ($needle in @('BuildConfig.DEBUG','BuildConfig.APPLICATION_ID','endsWith(".graphtest")','PeriodicWorkRequest.Builder(NewsTestWorker.class, 15','MORNING_WORK','EVENING_WORK','delayUntil(now, 10, 0)','delayUntil(now, 19, 0)','setInitialDelay','ExistingWorkPolicy.REPLACE')) {
             if (-not $newsTestScheduler.Contains($needle)) { throw "Local news test scheduler missing: $needle" }
           }
           foreach ($needle in @('BREAKING_MAX_AGE_MINUTES = 90L','article:published_time','body.append("\n\n")','news_digest','news_breaking','LAST_RUN_AT','LAST_DIGEST_ATTEMPT_AT','LAST_DIGEST_DELIVERED','scheduleDailyTargets(app)')) {
@@ -112,6 +116,20 @@ jobs:
           }
           foreach ($needle in @('newsTest','nextMorningTargetAt','nextEveningTargetAt')) {
             if (-not $helper.Contains($needle)) { throw "News diagnostic field missing: $needle" }
+          }
+
+          # Market notification path must remain identical to the proven live Code32 implementation.
+          foreach ($needle in @('background_market_alerts_v2','background_alert_immediate_v2','ExistingWorkPolicy.REPLACE','ExistingPeriodicWorkPolicy.UPDATE')) {
+            if (-not $marketScheduler.Contains($needle)) { throw "Live market scheduler behavior missing: $needle" }
+          }
+          foreach ($needle in @('query1.finance.yahoo.com/v8/finance/chart/','https://webservice.foreks.com/foreks-web-widget/singlepage/','https://www.oyakyatirim.com.tr/hisse-detay/','reference.ceilingPrice','reference.floorPrice','PortfolioAlertRules.sampledPercentages')) {
+            if (-not $marketWorker.Contains($needle)) { throw "Live market worker behavior missing: $needle" }
+          }
+          foreach ($needle in @('marketReferenceProtocol','trustedMarketEnabled','/v1/installations','ensureSynced(context)')) {
+            if (-not $pushSync.Contains($needle)) { throw "Live push registration behavior missing: $needle" }
+          }
+          foreach ($needle in @('NotificationHelper.show(this, message.getData())','news_breaking','news_digest','endsWith(".graphtest")')) {
+            if (-not $pushMessaging.Contains($needle)) { throw "Test push isolation behavior missing: $needle" }
           }
           if (-not $styles.Contains('grid-template-columns:repeat(5')) { throw 'Fixed five-column dock missing' }
 
@@ -193,7 +211,8 @@ jobs:
             "versionCode=$env:TEST_VERSION_CODE",
             "pushBackend=$env:PUSH_BACKEND_URL",
             "graphLabels=Sermaye Girişi | Değer Değişimi",
-            "newsWorker=isolated test backend",
+            "marketPushBackend=production-live",
+            "newsWorker=isolated local test worker",
             "liveMainChanged=false"
           ) | Set-Content -Encoding utf8 'dist/BUILD-INFO.txt'
 
@@ -213,3 +232,5 @@ jobs:
 # trigger: regex-fix-v2
 
 # trigger: dedicated-10-19-news-scheduler-v1
+
+# trigger: live-market-push-parity-v1
