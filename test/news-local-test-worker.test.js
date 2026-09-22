@@ -6,6 +6,7 @@ const scheduler = readFileSync('android/app/src/main/java/com/innative/halkaarz/
 const worker = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java', 'utf8');
 const activity = readFileSync('android/app/src/main/java/com/innative/halkaarz/MainActivity.java', 'utf8');
 const helper = readFileSync('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java', 'utf8');
+const pushMessaging = readFileSync('android/app/src/main/java/com/innative/halkaarz/PushMessagingService.java', 'utf8');
 
 test('local news fallback is guarded to the debug graph-test package only', () => {
   assert.match(scheduler, /BuildConfig\.DEBUG/);
@@ -53,4 +54,15 @@ test('local news worker reschedules daily targets and records digest diagnostics
   assert.match(helper, /newsTest/);
   assert.match(helper, /nextMorningTargetAt/);
   assert.match(helper, /nextEveningTargetAt/);
+});
+
+
+test('production market pushes remain delivered while only production news pushes are isolated in graph test', () => {
+  assert.match(pushMessaging, /NotificationHelper\.show\(this, message\.getData\(\)\)/);
+  assert.match(pushMessaging, /news_breaking/);
+  assert.match(pushMessaging, /news_digest/);
+  assert.match(pushMessaging, /endsWith\("\\.graphtest"\)/);
+  assert.doesNotMatch(pushMessaging, /ceiling.*return;/s);
+  assert.doesNotMatch(pushMessaging, /floor.*return;/s);
+  assert.doesNotMatch(pushMessaging, /portfolio_fall.*return;/s);
 });
