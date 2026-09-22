@@ -11,7 +11,7 @@ const pushMessaging = readFileSync('android/app/src/main/java/com/innative/halka
 test('local news fallback is guarded to the debug graph-test package only', () => {
   assert.match(scheduler, /BuildConfig\.DEBUG/);
   assert.match(scheduler, /BuildConfig\.APPLICATION_ID/);
-  assert.match(scheduler, /endsWith\("\\.graphtest"\)/);
+  assert.match(scheduler, /endsWith\("\.graphtest"\)/);
 });
 
 test('local news fallback schedules immediate, 10:00, 19:00 and 15-minute catch-up checks', () => {
@@ -61,7 +61,7 @@ test('production market pushes remain delivered while only production news pushe
   assert.match(pushMessaging, /NotificationHelper\.show\(this, message\.getData\(\)\)/);
   assert.match(pushMessaging, /news_breaking/);
   assert.match(pushMessaging, /news_digest/);
-  assert.match(pushMessaging, /endsWith\("\\.graphtest"\)/);
+  assert.match(pushMessaging, /endsWith\("\.graphtest"\)/);
   assert.doesNotMatch(pushMessaging, /ceiling.*return;/s);
   assert.doesNotMatch(pushMessaging, /floor.*return;/s);
   assert.doesNotMatch(pushMessaging, /portfolio_fall.*return;/s);
