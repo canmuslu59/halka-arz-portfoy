@@ -137,6 +137,27 @@ jobs:
           }
           if (-not $styles.Contains('grid-template-columns:repeat(5')) { throw 'Fixed five-column dock missing' }
 
+      - name: Verify live Code32 market notification parity
+        shell: powershell
+        run: |
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+            'android/app/src/main/AndroidManifest.xml' = '4bbb1e22b9cda8ee72d0dde5f2164e11ad758d51'
+            'android/app/build.gradle' = '6183039c92d6f09eacd06f55eb64eb5639c9edc8'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = (& git hash-object $entry.Key).Trim()
+            if ($actual -ne $entry.Value) {
+              throw "Live Code32 parity failed for $($entry.Key): expected $($entry.Value), got $actual"
+            }
+          }
+          if ($env:PUSH_BACKEND_URL -ne 'https://halka-arz-portfoy-push.grass-airboat.workers.dev') {
+            throw "Test APK market push backend is not the proven live backend"
+          }
+          Write-Host 'Live Code32 market notification core and production push backend verified.'
+
       - name: Configure test build identity
         shell: powershell
         run: |
@@ -240,3 +261,5 @@ jobs:
 # trigger: live-market-push-parity-v1
 
 # trigger: final-live-market-parity-v2
+
+# trigger: hash-locked-live-market-parity-v3
