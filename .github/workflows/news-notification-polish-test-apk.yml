@@ -263,3 +263,5 @@ jobs:
 # trigger: final-live-market-parity-v2
 
 # trigger: hash-locked-live-market-parity-v3
+
+# trigger: regex-assertion-fix-v4
