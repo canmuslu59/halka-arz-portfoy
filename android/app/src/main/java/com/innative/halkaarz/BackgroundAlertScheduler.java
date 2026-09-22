@@ -29,18 +29,19 @@ final class BackgroundAlertScheduler {
 
     static void ensure(Context context) {
         Context app = context.getApplicationContext();
+        sync(app, enabledByConfig(app));
+    }
+
+    static boolean enabledByConfig(Context context) {
+        Context app = context.getApplicationContext();
         SharedPreferences prefs = app.getSharedPreferences(PushConfigSync.PREFS, Context.MODE_PRIVATE);
         String raw = prefs.getString(PushConfigSync.CONFIG_KEY, "");
-        if (raw == null || raw.trim().isEmpty()) {
-            // No holdings/config exist yet. Do not leave stale market work active.
-            sync(app, false);
-            return;
-        }
+        if (raw == null || raw.trim().isEmpty()) return false;
         try {
             JSONObject config = new JSONObject(raw);
-            sync(app, config.optBoolean("enabled", true) || config.optBoolean("ipoEnabled", true));
+            return config.optBoolean("enabled", true) || config.optBoolean("ipoEnabled", true);
         } catch (Exception ignored) {
-            sync(app, false);
+            return false;
         }
     }
 
