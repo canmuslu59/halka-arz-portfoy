@@ -144,7 +144,7 @@ app = app.replace(
 );
 app = app.replace(
   `setInterval(() => { if (!document.hidden && state.view === 'markets') loadIpoCalendar({ force:true }); }, 300_000);`,
-  `setInterval(() => { if (!document.hidden && state.view === 'markets') loadPopularFinanceNews({ force:true }); }, 300_000);`
+  `setInterval(() => { if (!document.hidden && state.view === 'markets') loadPopularFinanceNews({ force:true }); }, 120_000);`
 );
 
 const switchMarker = 'function switchView(view, { push = true, selectedTicker = null } = {}) {';
