@@ -8,7 +8,7 @@ on:
       - .github/workflows/news-notification-polish-test-apk.yml
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: news-notification-polish-test-apk
@@ -288,3 +288,21 @@ jobs:
 # trigger: portable-blob-hash-v5
 
 # trigger: semantic-manifest-parity-v6
+
+
+      - name: Publish locally signed APK to branch
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force local_build_output | Out-Null
+          Copy-Item 'dist/Hisse-Portfoyum-Haber-Local-Fallback-FIX.apk' 'local_build_output/Hisse-Portfoyum-Haber-Local-Fallback-FIX.apk' -Force
+          Copy-Item 'dist/SHA256SUMS.txt' 'local_build_output/SHA256SUMS.txt' -Force
+          Copy-Item 'dist/APK-IDENTITY.txt' 'local_build_output/APK-IDENTITY.txt' -Force
+          Copy-Item 'dist/BUILD-INFO.txt' 'local_build_output/BUILD-INFO.txt' -Force
+
+          git config user.name "halka-arz-self-hosted"
+          git config user.email "actions@users.noreply.github.com"
+          git add local_build_output
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "build: publish locally signed news fallback APK [skip ci]"
+            git push origin HEAD:fix/news-local-fallback-20260923
+          }
