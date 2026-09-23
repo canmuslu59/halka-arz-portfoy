@@ -6,12 +6,13 @@ const gradle = fs.readFileSync(new URL('../android/app/build.gradle', import.met
 const main = fs.readFileSync(new URL('../android/app/src/main/java/com/innative/halkaarz/MainActivity.java', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../android/app/src/main/assets/www/styles.css', import.meta.url), 'utf8');
 
-test('release explicitly enables edge-to-edge with AndroidX helper and targets API 36', () => {
+test('release relies on Android 15 enforced edge-to-edge without deprecated AndroidX helper path', () => {
   assert.match(gradle, /compileSdk\s+36/);
   assert.match(gradle, /targetSdk\s+36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
-  assert.match(main, /WindowCompat\.enableEdgeToEdge\(getWindow\(\)\);/);
-  assert.doesNotMatch(main, /WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\);/);
+  assert.doesNotMatch(main, /WindowCompat\.enableEdgeToEdge/);
+  assert.doesNotMatch(main, /setStatusBarColor|setNavigationBarColor/);
+  assert.match(main, /Build\.VERSION\.SDK_INT >= 35/);
 });
 
 test('system bars and cutouts are converted to CSS safe insets', () => {
