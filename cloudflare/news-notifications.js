@@ -134,9 +134,9 @@ export function scoreNewsImportance(item) {
   const category = cleanText(item?.category).toLocaleLowerCase('tr-TR');
   if (!title) return 1;
 
-  const centralBank = /(tcmb|para politikası kurulu|ppk)/.test(title);
-  const rateOrSystemPolicy = /(politika faiz|faiz|zorunlu karşılık|rezerv opsiyon|kur korumalı|likidite)/.test(title);
-  const decisionVerb = /(artırdı|artirdi|indirdi|sabit tuttu|kararını açıkladı|kararini acikladi|değiştirdi|degistirdi|olağanüstü|olaganustu)/.test(title);
+  const centralBank = /(tcmb|para politikası kurulu|ppk|merkez bankası|federal reserve|\bfed\b|fomc|avrupa merkez bankası|\bamb\b|\becb\b|bank of england|\bboe\b|bank of japan|\bboj\b|people'?s bank of china|\bpbo?c\b|isviçre merkez bankası|\bsnb\b|bank of canada|reserve bank)/.test(title);
+  const rateOrSystemPolicy = /(politika faiz|faiz karar|faiz oran|faizini|faizi|zorunlu karşılık|rezerv opsiyon|kur korumalı|likidite)/.test(title);
+  const decisionVerb = /(artırdı|artirdi|indirdi|sabit tuttu|kararını açıkladı|kararini acikladi|değiştirdi|degistirdi|karar verdi|beklentilere paralel|olağanüstü|olaganustu)/.test(title);
   if (centralBank && rateOrSystemPolicy && decisionVerb) return 5;
 
   const marketWideExchange = /(borsa istanbul|\bbist\b|piyasa genelinde|piyasa geneli|pay piyasasında|pay piyasasinda|tüm piyasada|tum piyasada)/.test(title);
@@ -147,9 +147,13 @@ export function scoreNewsImportance(item) {
   const systemicRestriction = /(açığa satış yasa|işlem yasa|olağanüstü tedbir|sermaye kontrol|vergi oran.*değiş|stopaj.*değiş)/.test(title);
   if (regulator && systemicRestriction) return 5;
 
-  const capitalMarketInvestigation = /(fon soruştur|sermaye piyasası.*soruştur|piyasa dolandırıcılı|piyasa manipülasyon|manipülatif işlem|spk.*soruştur)/.test(title);
+  const financialContext = /(finans|fon\b|borsa|hisse|yatırım|yatirim|banka|bankacılık|bankacilik|piyasa|sermaye|spk|şirket|sirket|holding|portföy|portfoy|kripto|döviz|doviz)/.test(title);
   const enforcementAction = /(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|el koy|kayyum)/.test(title);
-  if (capitalMarketInvestigation && enforcementAction) return 5;
+  if (financialContext && enforcementAction) return 5;
+
+  const ministerStatement = /(bakan\b|bakanlık|bakanlik)/.test(title)
+    && /(açıkl|acikl|duyur|bildir|konuş|konus|değerlendir|degerlendir)/.test(title);
+  if (ministerStatement) return 5;
 
   if (centralBank || regulator || /borsa istanbul/.test(title)) return 4;
   if (/(halka arz|sermaye artır|temettü|bilanço|kredi not|enflasyon|işsizlik|büyüme|döviz rezerv)/.test(title)) return 3;
@@ -247,6 +251,30 @@ export function currentDigestSlot(now = new Date()) {
   return null;
 }
 
+const ROUTINE_NEWS_INTERVAL_MS = 6 * 60 * 60_000;
+
+export function routineNewsSlot(now = new Date()) {
+  const parts = istanbulParts(now);
+  if (!parts) return null;
+  return `routine-${String(Math.floor(parts.hour / 6) * 6).padStart(2, '0')}`;
+}
+
+export function selectRoutineNewsItem(items, { now = new Date() } = {}) {
+  const checkedAt = parseDate(now);
+  if (!checkedAt) return null;
+  const candidates = normalizeFeed(items)
+    .map(item => ({ ...item, _published:parseDate(item.publishedAt) }))
+    .filter(item => item._published && item._published <= checkedAt)
+    .sort((a, b) => {
+      const importance = Number(b.importance) - Number(a.importance);
+      if (importance) return importance;
+      return b._published.getTime() - a._published.getTime();
+    });
+  if (!candidates.length) return null;
+  const { _published, ...selected } = candidates[0];
+  return selected;
+}
+
 function normalizeFeed(payload) {
   const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
   return items
@@ -287,6 +315,7 @@ export function createNewsNotificationEngine({
       const installations = state?.installations && typeof state.installations === 'object' ? state.installations : {};
       let breakingSent = 0;
       let digestSent = 0;
+      let routineSent = 0;
 
       const breakingCandidates = feed.filter((item) => {
         if (Number(item.importance) !== 5) return false;
@@ -315,7 +344,10 @@ export function createNewsNotificationEngine({
             },
           });
           breakingSeen = [...breakingSeen, identity].slice(-100);
-          await updateRegistrationNewsState(store, installKey, { breakingSeen });
+          await updateRegistrationNewsState(store, installKey, {
+            breakingSeen,
+            lastNotificationAt:checkedAt.toISOString(),
+          });
           breakingSent += 1;
         }
 
@@ -340,8 +372,41 @@ export function createNewsNotificationEngine({
             news_count: String(digestItems.length),
           },
         });
-        await updateRegistrationNewsState(store, installKey, { [dayKey]: day });
+        await updateRegistrationNewsState(store, installKey, {
+          [dayKey]: day,
+          lastNotificationAt:checkedAt.toISOString(),
+        });
         digestSent += 1;
+      }
+
+      // Six-hour silence guard is evaluated per installation after breaking/digest work.
+      for (const [installKey, registration] of Object.entries(installations)) {
+        if (!registration?.fcmToken || registration.newsEnabled === false) continue;
+        let localState = newsStateOf((await store.read())?.installations?.[installKey] || registration);
+        const lastNotificationAt = parseDate(localState.lastNotificationAt);
+        const routineDue = !lastNotificationAt
+          || checkedAt.getTime() - lastNotificationAt.getTime() >= ROUTINE_NEWS_INTERVAL_MS;
+        if (!routineDue) continue;
+        const routineItem = selectRoutineNewsItem(feed, { now:checkedAt });
+        if (!routineItem) continue;
+        const routineSlot = routineNewsSlot(checkedAt);
+        const routineDay = istanbulParts(checkedAt)?.day;
+        const message = digestMessage(routineSlot, [routineItem]);
+        await sender.send(registration.fcmToken, {
+          ...message,
+          data: {
+            kind:'news_digest',
+            digest_slot:routineSlot,
+            digest_day:routineDay,
+            news_count:'1',
+            routine_interval_hours:'6',
+          },
+        });
+        await updateRegistrationNewsState(store, installKey, {
+          lastNotificationAt:checkedAt.toISOString(),
+          lastRoutineSlot:`${routineDay}:${routineSlot}`,
+        });
+        routineSent += 1;
       }
 
       return {
@@ -349,6 +414,7 @@ export function createNewsNotificationEngine({
         feedCount: feed.length,
         breakingSent,
         digestSent,
+        routineSent,
       };
     },
   };
