@@ -613,6 +613,19 @@ async function refreshBackgroundHistory({ force = false, announce = false } = {}
 
 function renderPortfolio(data) {
   const t = data.totals;
+  try {
+    window.AndroidBridge?.updateWalletWidget?.(JSON.stringify({
+      totalWealth:Number.isFinite(Number(t.totalWealth)) ? Number(t.totalWealth) : null,
+      totalProfit:Number.isFinite(Number(t.totalProfit)) ? Number(t.totalProfit) : null,
+      totalProfitPct:Number.isFinite(Number(t.totalProfitPct)) ? Number(t.totalProfitPct) : null,
+      dailyProfit:Number.isFinite(Number(t.dailyProfit)) ? Number(t.dailyProfit) : null,
+      dailyPct:Number.isFinite(Number(t.dailyPct)) ? Number(t.dailyPct) : null,
+      invested:Number.isFinite(Number(t.invested)) ? Number(t.invested) : null,
+      activeValue:Number.isFinite(Number(t.activeValue)) ? Number(t.activeValue) : null,
+      salesProceeds:Number.isFinite(Number(t.salesProceeds)) ? Number(t.salesProceeds) : null,
+      updatedAt:new Date().toISOString(),
+    }));
+  } catch {}
   setMetric('#totalWealth', money(t.totalWealth));
   const totalBadge = $('#totalProfitBadge');
   totalBadge.textContent = `${money(t.totalProfit)} · ${pct(t.totalProfitPct)}`;
