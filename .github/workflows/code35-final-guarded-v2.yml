@@ -165,12 +165,23 @@ jobs:
       - name: Restore production Firebase config privately
         shell: powershell
         run: |
-          $source = Get-Content -Raw '.github/workflows/code35-final-play-aab.yml'
-          $match = [regex]::Match($source, "\$firebaseJson\s*=\s*'([^']+)'")
-          if (-not $match.Success) { throw 'Production Firebase template not found in guarded workflow' }
-          $firebaseJson = $match.Groups[1].Value
+          $line = Get-Content '.github/workflows/code35-final-play-aab.yml' |
+            Where-Object { $_ -like '*$firebaseJson*' -and $_ -like '*package_name*com.innative.halkaarz*' } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($line)) { throw 'Production Firebase template not found in guarded workflow' }
+
+          $equals = $line.IndexOf('=')
+          if ($equals -lt 0) { throw 'Production Firebase template assignment is invalid' }
+          $firebaseJson = $line.Substring($equals + 1).Trim()
+          if ($firebaseJson.Length -lt 2 -or -not $firebaseJson.StartsWith("'") -or -not $firebaseJson.EndsWith("'")) {
+            throw 'Production Firebase template quoting is invalid'
+          }
+          $firebaseJson = $firebaseJson.Substring(1, $firebaseJson.Length - 2)
+
           if (-not $firebaseJson.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
-          if ($firebaseJson.Contains('.graphtest')) { throw 'Graph-test Firebase leaked into production' }
+          if ($firebaseJson.Contains('.graphtest') -or $firebaseJson.Contains('"package_name":"com.innative.halkaarz.test"')) {
+            throw 'Test Firebase identity leaked into production'
+          }
           [IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object Text.UTF8Encoding($false)))
           Write-Host 'PRODUCTION_FIREBASE_CONFIG=RESTORED'
 
