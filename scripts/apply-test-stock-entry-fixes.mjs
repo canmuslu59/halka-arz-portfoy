@@ -30,8 +30,8 @@ writeFileSync(stylesPath, styles);
 let app = readFileSync(appPath, 'utf8');
 app = replaceOnce(
   app,
-  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $$$('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n}",
-  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n  document.body.classList.remove('sheet-open');\n}",
+  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $$('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n}",
+  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $$('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n  document.body.classList.remove('sheet-open');\n}",
   'sheet closed class',
 );
 app = replaceOnce(
