@@ -173,12 +173,19 @@ public final class NewsTestWorker extends Worker {
             if (!isRealArticleUrl(url)) continue;
             String rawTitle = cleanFeedTitle(item.optString("title", ""));
             if (isGenericTitle(rawTitle)) continue;
-            candidates.add(new NewsItem(url, rawTitle, category, null, score(rawTitle)));
+            Instant feedPublishedAt = parseInstant(item.optString("publishedAt", ""));
+            candidates.add(new NewsItem(url, rawTitle, category, feedPublishedAt, score(rawTitle)));
             if (candidates.size() >= MAX_ARTICLES_TO_VERIFY) break;
         }
 
         List<NewsItem> verified = new ArrayList<>();
         for (NewsItem candidate : candidates) {
+            // The feed already carries publication timestamps. Use them first so the
+            // fallback does not depend on opening every source article successfully.
+            if (candidate.publishedAt != null) {
+                verified.add(candidate);
+                continue;
+            }
             try {
                 ArticleMetadata metadata = fetchArticleMetadata(candidate.url);
                 String title = metadata.title == null || metadata.title.isEmpty() ? candidate.title : metadata.title;
@@ -191,7 +198,7 @@ public final class NewsTestWorker extends Worker {
                         score(title)
                 ));
             } catch (Exception ignored) {
-                // Source-verified publication time is required for delivery.
+                // No trustworthy time was available from either the feed or article.
             }
         }
         return verified;
