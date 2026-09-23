@@ -32,7 +32,7 @@ test('wallet widget is declared, pin-requested once, and fed by exact rendered t
   assert.match(activity, /wallet_widget_prompted_v1/);
   assert.match(activity, /requestPinAppWidget/);
   assert.match(activity, /updateWalletWidget/);
-  assert.match(app, /updateWalletWidget/);
+  assert.match(app, /AndroidBridge\?\.updateWalletWidget/);
   for (const key of ['totalWealth','totalProfit','totalProfitPct','dailyProfit','dailyPct','invested','activeValue','salesProceeds']) {
     assert.match(app, new RegExp(key));
   }
