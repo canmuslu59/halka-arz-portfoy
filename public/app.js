@@ -1322,6 +1322,28 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+function closeWalletWidgetPromo() {
+  const promo = $('#walletWidgetPromo');
+  if (promo) promo.hidden = true;
+  document.body.style.overflow = '';
+}
+
+window.__showWalletWidgetPromo = () => {
+  const promo = $('#walletWidgetPromo');
+  if (!promo) return false;
+  promo.hidden = false;
+  document.body.style.overflow = 'hidden';
+  return true;
+};
+
+$('#walletWidgetPromoClose')?.addEventListener('click', closeWalletWidgetPromo);
+$('#walletWidgetPromoLater')?.addEventListener('click', closeWalletWidgetPromo);
+$('#walletWidgetPromoAdd')?.addEventListener('click', () => {
+  closeWalletWidgetPromo();
+  try { window.AndroidBridge?.requestWalletWidgetPin?.(); }
+  catch { toast('Widget ekleme ekranı açılamadı.'); }
+});
+
 window.__showBackExitHint = () => toast('Çıkmak için tekrar geri basın.');
 
 if (!window.history.state?.appRoot) window.history.replaceState(createRootNavigationState('portfolio'), '', `${location.pathname}${location.search}`);
