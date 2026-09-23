@@ -389,3 +389,19 @@ html[data-theme="light"] .history-summary-item>span,html[data-theme="light"] .hi
   .history-chart-wrap,.history-chart-wrap #portfolioChart{height:232px}
   .history-chart-legend{gap:7px;font-size:7.5px}
 }
+
+
+/* Branded first-open wallet widget promo */
+.widget-promo-backdrop{position:fixed;inset:0;z-index:95;display:grid;place-items:center;padding:calc(20px + var(--android-safe-top,0px)) 18px calc(20px + var(--android-safe-bottom,0px));background:rgba(4,8,17,.74);backdrop-filter:blur(14px)}
+.widget-promo-card{position:relative;width:min(100%,420px);border:1px solid rgba(255,255,255,.11);border-radius:28px;background:linear-gradient(160deg,#18213a,#0b1121 72%);box-shadow:0 30px 90px rgba(0,0,0,.48);padding:18px;display:grid;gap:15px}
+.widget-promo-close{position:absolute;z-index:2;top:11px;right:12px;width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#dfe7f5;font-size:24px;line-height:1;cursor:pointer}
+.widget-promo-visual{border-radius:20px;overflow:hidden;background:radial-gradient(circle at 50% 20%,rgba(92,125,255,.16),transparent 60%);padding:3px}
+.widget-promo-visual svg{display:block;width:100%;height:auto}
+.widget-promo-copy{display:grid;gap:7px}.widget-promo-copy h2{font-size:25px;letter-spacing:-.035em;line-height:1.08}.widget-promo-copy p{color:#94a2ba;font-size:12px;line-height:1.6}
+.widget-promo-actions{display:grid;grid-template-columns:.85fr 1.15fr;gap:9px}.widget-promo-actions button{min-height:48px}
+html[data-theme="light"] .widget-promo-backdrop{background:rgba(24,34,52,.46)}
+html[data-theme="light"] .widget-promo-card{background:linear-gradient(160deg,#ffffff,#f4f7fc);border-color:rgba(22,37,63,.12);box-shadow:0 28px 80px rgba(41,57,83,.24)}
+html[data-theme="light"] .widget-promo-close{background:rgba(32,52,85,.07);color:#30415f}
+html[data-theme="light"] .widget-promo-copy p{color:#66758b}
+html[data-theme="light"] .hero-value{color:var(--text)!important}
+@media(max-width:390px){.widget-promo-card{padding:15px;border-radius:24px}.widget-promo-copy h2{font-size:22px}.widget-promo-actions{grid-template-columns:1fr 1.2fr}}
