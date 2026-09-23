@@ -28,6 +28,7 @@ final class NotificationHelper {
     private static final String CHANNEL_IPO = "new_ipos";
     private static final String CHANNEL_NEWS_BREAKING = "news_breaking_v1";
     private static final String CHANNEL_NEWS_DIGEST = "news_digest_v1";
+    private static final String NEWS_LAST_DELIVERED_AT = "news_last_delivered_at";
 
     private NotificationHelper() {}
 
@@ -47,7 +48,7 @@ final class NotificationHelper {
         NotificationChannel newsBreaking = new NotificationChannel(CHANNEL_NEWS_BREAKING, "Son dakika haberleri", NotificationManager.IMPORTANCE_HIGH);
         newsBreaking.setDescription("5/5 önem derecesindeki kritik finans haberleri");
         NotificationChannel newsDigest = new NotificationChannel(CHANNEL_NEWS_DIGEST, "Haber özetleri", NotificationManager.IMPORTANCE_DEFAULT);
-        newsDigest.setDescription("Günde iki kez öne çıkan finans haberleri özeti");
+        newsDigest.setDescription("Öne çıkan finans haberleri ve altı saatlik haber akışı");
         manager.createNotificationChannel(market);
         manager.createNotificationChannel(rise);
         manager.createNotificationChannel(fall);
@@ -198,11 +199,20 @@ final class NotificationHelper {
             manager.notify(requestCode, builder.build());
             android.content.SharedPreferences.Editor delivery = delivered.edit();
             if (!day.equals(delivered.getString("day", ""))) delivery.clear();
-            delivery.putString("day", day).putBoolean(eventKey, true).commit();
+            delivery.putString("day", day).putBoolean(eventKey, true);
+            if ("news_breaking".equals(kind) || "news_digest".equals(kind)) {
+                delivery.putLong(NEWS_LAST_DELIVERED_AT, System.currentTimeMillis());
+            }
+            delivery.commit();
             return true;
         } catch (RuntimeException error) {
             return false;
         }
+    }
+
+    static long lastNewsDeliveredAt(Context context) {
+        return context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE)
+                .getLong(NEWS_LAST_DELIVERED_AT, 0L);
     }
 
     private static String value(Map<String, String> data, String key, String fallback) {
