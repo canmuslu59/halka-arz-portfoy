@@ -151,8 +151,9 @@ public final class NewsTestWorker extends Worker {
         data.put("kind", "news_digest");
         data.put("digest_slot", slot);
         data.put("digest_day", now.toLocalDate().toString());
-        data.put("title", digestTitle(selected));
-        data.put("body", body.toString());
+        String digestBody = body.toString();
+        data.put("title", NewsNotificationFormatter.digestTitle("📰 Ekonomi ve Finans Gündemi", digestBody));
+        data.put("body", digestBody);
         boolean delivered = NotificationHelper.show(getApplicationContext(), data);
         prefs.edit()
                 .putBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, delivered)
@@ -171,7 +172,7 @@ public final class NewsTestWorker extends Worker {
             String url = item.optString("url", "").trim();
             String category = item.optString("category", "").trim();
             if (!isRealArticleUrl(url)) continue;
-            String rawTitle = cleanFeedTitle(item.optString("title", ""));
+            String rawTitle = NewsNotificationFormatter.cleanHeadline(cleanFeedTitle(item.optString("title", "")));
             if (isGenericTitle(rawTitle)) continue;
             Instant feedPublishedAt = parseInstant(item.optString("publishedAt", ""));
             candidates.add(new NewsItem(url, rawTitle, category, feedPublishedAt, score(rawTitle)));
@@ -180,26 +181,29 @@ public final class NewsTestWorker extends Worker {
 
         List<NewsItem> verified = new ArrayList<>();
         for (NewsItem candidate : candidates) {
-            // The feed already carries publication timestamps. Use them first so the
-            // fallback does not depend on opening every source article successfully.
-            if (candidate.publishedAt != null) {
-                verified.add(candidate);
-                continue;
-            }
+            String title = NewsNotificationFormatter.cleanHeadline(candidate.title);
+            Instant publishedAt = candidate.publishedAt;
+
+            // Try to repair the feed headline from the article's real og:title.
+            // Failure here must never discard a feed item that already has a valid time.
             try {
                 ArticleMetadata metadata = fetchArticleMetadata(candidate.url);
-                String title = metadata.title == null || metadata.title.isEmpty() ? candidate.title : metadata.title;
-                if (isGenericTitle(title)) continue;
-                verified.add(new NewsItem(
-                        candidate.url,
-                        title,
-                        candidate.category,
-                        metadata.publishedAt,
-                        score(title)
-                ));
+                if (metadata.title != null && !metadata.title.isEmpty()) {
+                    title = NewsNotificationFormatter.cleanHeadline(metadata.title);
+                }
+                if (publishedAt == null) publishedAt = metadata.publishedAt;
             } catch (Exception ignored) {
-                // No trustworthy time was available from either the feed or article.
+                // Feed timestamp/title remain usable as a resilient fallback.
             }
+
+            if (publishedAt == null || isGenericTitle(title)) continue;
+            verified.add(new NewsItem(
+                    candidate.url,
+                    title,
+                    candidate.category,
+                    publishedAt,
+                    score(title)
+            ));
         }
         return verified;
     }
@@ -222,8 +226,7 @@ public final class NewsTestWorker extends Worker {
             }
         }
 
-        if (title == null || title.length() < 8) throw new IllegalStateException("article title unavailable");
-        if (publishedAt == null) throw new IllegalStateException("article time unavailable");
+        if (title != null && title.length() < 8) title = null;
         return new ArticleMetadata(title, publishedAt);
     }
 
