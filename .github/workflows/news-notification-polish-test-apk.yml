@@ -1,6 +1,7 @@
 name: News Notification Polish Test APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feature/news-notification-polish-20260921
