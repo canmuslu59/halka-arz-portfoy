@@ -117,8 +117,8 @@ jobs:
 
           if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
           if (-not $gradle.Contains('versionCode 34')) { throw 'versionCode 34 missing' }
-          if (-not $gradle.Contains("versionName '2.5.1'")) { throw 'versionName 2.5.0 missing' }
-          if (-not $index.Contains('v2.5.1 • Build 33')) { throw 'Release identity missing from UI' }
+          if (-not $gradle.Contains("versionName '2.5.1'")) { throw 'versionName 2.5.1 missing' }
+          if (-not $index.Contains('v2.5.1 • Build 34')) { throw 'Release identity missing from UI' }
 
           foreach ($needle in @(
             'id="walletHomeTab"',
@@ -267,3 +267,5 @@ jobs:
 # trigger: code34-edge-to-edge-tests-v3
 
 # trigger: code34-edge-to-edge-tests-v4
+
+# trigger: code34-edge-to-edge-tests-v5
