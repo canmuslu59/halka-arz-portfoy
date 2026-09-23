@@ -7,6 +7,8 @@ const worker = readFileSync('android/app/src/main/java/com/innative/halkaarz/New
 const activity = readFileSync('android/app/src/main/java/com/innative/halkaarz/MainActivity.java', 'utf8');
 const helper = readFileSync('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java', 'utf8');
 const pushMessaging = readFileSync('android/app/src/main/java/com/innative/halkaarz/PushMessagingService.java', 'utf8');
+const formatter = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsNotificationFormatter.java', 'utf8');
+const previewWorker = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java', 'utf8');
 
 test('local news fallback is guarded to the debug graph-test package only', () => {
   assert.match(scheduler, /BuildConfig\.DEBUG/);
@@ -32,11 +34,13 @@ test('local news fallback rejects Bloomberg landing pages and resolves source me
   assert.match(worker, /og:title/);
 });
 
-test('local digest uses one blank line between summaries and dynamic finance titles', () => {
+test('news digest presentation cleans description tails and preserves a visible blank line', () => {
   assert.match(worker, /body\.append\("\\n\\n"\)/);
-  assert.match(worker, /Faiz ve Piyasa Gündemi/);
-  assert.match(worker, /Borsa ve Altın Gündemi/);
-  assert.match(worker, /Finans Gündeminde Öne Çıkanlar/);
+  assert.match(formatter, /Türkiye Cumhuriyet Merkez Bankası/);
+  assert.match(formatter, /TCMB,/);
+  assert.match(formatter, /SPK,/);
+  assert.match(formatter, /replace\("\\n\\n", "\\n\\u200B\\n"\)/);
+  assert.match(formatter, /Ekonomi ve Finans Gündemi/);
 });
 
 test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute age', () => {
@@ -64,9 +68,29 @@ test('graph test keeps the production FCM delivery path for news and market push
   assert.doesNotMatch(pushMessaging, /news_digest.*return;/s);
 });
 
-test('local fallback prefers feed publication time before source-page verification', () => {
+test('local fallback keeps feed time while opportunistically repairing the true article title', () => {
   assert.match(worker, /parseInstant\(item\.optString\("publishedAt", ""\)\)/);
-  assert.match(worker, /if \(candidate\.publishedAt != null\)/);
-  assert.match(worker, /verified\.add\(candidate\)/);
+  assert.match(worker, /Instant publishedAt = candidate\.publishedAt/);
   assert.match(worker, /fetchArticleMetadata\(candidate\.url\)/);
+  assert.match(worker, /if \(publishedAt == null\) publishedAt = metadata\.publishedAt/);
+  assert.match(worker, /NewsNotificationFormatter\.cleanHeadline/);
+});
+
+
+test('automatic fake digest preview is graph-test only and reproduces the last bad payload for visual regression', () => {
+  assert.match(scheduler, /PREVIEW_WORK_PREFIX/);
+  assert.match(scheduler, /NewsTestPreviewWorker\.class/);
+  assert.match(scheduler, /setInitialDelay\(8, TimeUnit\.SECONDS\)/);
+  assert.match(previewWorker, /if \(!NewsTestScheduler\.enabled\(\)\) return Result\.success\(\)/);
+  assert.match(previewWorker, /Faiz ve Piyasa Gündemi/);
+  assert.match(previewWorker, /Finansal Hizmetler Güven Endeksi Eylül'de arttı Türkiye Cumhuriyet Merkez Bankası/);
+  assert.match(previewWorker, /Tasfiye edilen 131 fondaki yatırımcı sayısı açıklandı SPK,/);
+  assert.match(previewWorker, /TCMB'den bir elektronik para kuruluşuna faaliyet izni iptali TCMB,/);
+});
+
+test('digest formatting is isolated from market notification kinds', () => {
+  assert.match(helper, /if \("news_digest"\.equals\(kind\)\)/);
+  assert.match(helper, /NewsNotificationFormatter\.digestTitle/);
+  assert.match(helper, /NewsNotificationFormatter\.spacedDigestBody/);
+  assert.doesNotMatch(formatter, /ceiling|floor|portfolio_fall/);
 });
