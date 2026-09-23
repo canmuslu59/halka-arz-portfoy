@@ -27,18 +27,26 @@ test('only genuinely critical finance events reach importance 5 of 5', () => {
   assert.ok((news?.scoreNewsImportance?.(item('Şirket temettü tarihini açıkladı', '2026-09-17T11:00:00+03:00', { category:'sirketler' })) ?? 99) < 5);
 });
 
-test('capital-market investigation enforcement is breaking but unrelated police news is not', () => {
+test('financial enforcement is breaking but unrelated police news is not', () => {
   assert.equal(
     news?.scoreNewsImportance?.(item('Fon soruşturması genişliyor: 14 kişi gözaltına alındı', '2026-09-22T09:59:00+03:00', { category:'borsa' })),
     5
   );
   assert.equal(
-    news?.scoreNewsImportance?.(item('Sermaye piyasası soruşturmasında yeni operasyon: 14 kişi gözaltına alındı', '2026-09-22T10:23:00+03:00', { category:'borsa' })),
+    news?.scoreNewsImportance?.(item('Banka yöneticilerine yönelik operasyonda 8 kişi gözaltına alındı', '2026-09-22T10:23:00+03:00', { category:'ekonomi' })),
     5
   );
   assert.ok(
     (news?.scoreNewsImportance?.(item('Uyuşturucu soruşturmasında 14 kişi gözaltına alındı', '2026-09-22T10:23:00+03:00', { category:'ekonomi' })) ?? 99) < 5
   );
+});
+
+test('minister statements and major global central-bank rate decisions are 5 of 5', () => {
+  assert.equal(news?.scoreNewsImportance?.(item('Bakan Şimşek enflasyon programına ilişkin açıklama yaptı', '2026-09-22T11:00:00+03:00')), 5);
+  assert.equal(news?.scoreNewsImportance?.(item('Ticaret Bakanlığından piyasalara ilişkin açıklama', '2026-09-22T11:00:00+03:00')), 5);
+  assert.equal(news?.scoreNewsImportance?.(item('Fed faiz oranını sabit tuttu', '2026-09-22T21:00:00+03:00')), 5);
+  assert.equal(news?.scoreNewsImportance?.(item('Avrupa Merkez Bankası faiz kararını açıkladı', '2026-09-22T15:15:00+03:00')), 5);
+  assert.equal(news?.scoreNewsImportance?.(item('Japonya Merkez Bankası faizi artırdı', '2026-09-22T06:10:00+03:00')), 5);
 });
 
 test('morning digest covers previous 19:00 through current 10:00 Istanbul', () => {
@@ -174,6 +182,56 @@ test('when no 3 of 5 item exists, digest still selects the single best real head
   const selected = news?.selectDigestItems?.(entries, { slot:'evening', now:new Date('2026-09-17T19:20:00+03:00') }) || [];
   assert.equal(selected.length, 1);
   assert.equal(selected[0].title, 'Dolar yatay seyretti');
+});
+
+test('six-hour silence guard sends one best real headline and resets after delivery', async () => {
+  const entries = [
+    item('Altın piyasasında yeni fiyatlama öne çıktı', '2026-09-22T02:20:00+03:00', { importance:2, category:'altin', id:'routine-1' }),
+    item('BIST şirketlerinden yeni yatırım açıklaması', '2026-09-22T02:10:00+03:00', { importance:3, category:'sirketler', id:'routine-2' }),
+  ];
+  const state = { installations:{ phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true } } };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  let clock = new Date('2026-09-22T03:00:00+03:00');
+  const engine = news?.createNewsNotificationEngine?.({
+    store,
+    sender:{ async send(token, message) { sent.push({ token, message }); } },
+    fetchNews:async () => entries,
+    now:() => clock,
+  });
+  await engine.check();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].message.data.kind, 'news_digest');
+  assert.equal(sent[0].message.data.routine_interval_hours, '6');
+
+  clock = new Date('2026-09-22T08:59:00+03:00');
+  await engine.check();
+  assert.equal(sent.length, 1);
+
+  clock = new Date('2026-09-22T09:01:00+03:00');
+  await engine.check();
+  assert.equal(sent.length, 2);
+});
+
+test('feed importance cannot downgrade a locally critical global rate decision', async () => {
+  const critical = item('Fed faiz oranını sabit tuttu', '2026-09-22T08:55:00+03:00', { importance:2, id:'fed-rate' });
+  const state = { installations:{ phone1:{ installId:'phone1', fcmToken:'token-1', newsEnabled:true } } };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  const engine = news?.createNewsNotificationEngine?.({
+    store,
+    sender:{ async send(token, message) { sent.push({ token, message }); } },
+    fetchNews:async () => [critical],
+    now:() => new Date('2026-09-22T09:00:00+03:00'),
+  });
+  await engine.check();
+  assert.ok(sent.some(entry => entry.message.data.kind === 'news_breaking'));
 });
 
 test('breaking 5 of 5 news remains eligible for ninety minutes', async () => {
