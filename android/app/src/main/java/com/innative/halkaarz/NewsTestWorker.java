@@ -306,6 +306,28 @@ public final class NewsTestWorker extends Worker {
         boolean regulator = containsAny(title, "spk", "sermaye piyasası kurulu", "hazine ve maliye", "resmî gazete", "resmi gazete");
         boolean restriction = containsAny(title, "açığa satış yasa", "işlem yasa", "olağanüstü tedbir", "stopaj", "vergi oran");
         if (regulator && restriction) return 5;
+
+        boolean capitalMarketInvestigation = containsAny(
+                title,
+                "fon soruştur",
+                "sermaye piyasası soruştur",
+                "piyasa dolandırıcılı",
+                "piyasa manipülasyon",
+                "manipülatif işlem",
+                "spk soruştur"
+        );
+        boolean enforcementAction = containsAny(
+                title,
+                "gözalt",
+                "tutuklan",
+                "yakalama kararı",
+                "operasyon",
+                "malvarlığ",
+                "el koy",
+                "kayyum"
+        );
+        if (capitalMarketInvestigation && enforcementAction) return 5;
+
         if (centralBank || regulator || title.contains("borsa istanbul")) return 4;
         if (containsAny(title, "halka arz", "sermaye artır", "temettü", "bilanço", "kredi not", "enflasyon", "işsizlik", "büyüme", "döviz rezerv")) return 3;
         if (containsAny(title, "dolar", "euro", "altın", "borsa", "endeks", "hisse")) return 2;
