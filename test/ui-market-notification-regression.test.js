@@ -19,10 +19,14 @@ test('Android shell and bundled UI follow the Milestone Code34 release identity'
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
   assert.match(gradle, /androidx\.fragment:fragment:1\.9\.0/);
+  assert.match(java, /EdgeToEdge\.enable\(/);
+  assert.match(java, /SystemBarStyle\.dark\(Color\.TRANSPARENT\)/);
   assert.doesNotMatch(java, /WindowCompat\.enableEdgeToEdge/);
   assert.doesNotMatch(java, /setStatusBarColor|setNavigationBarColor/);
-  assert.match(java, /Build\.VERSION\.SDK_INT >= 35/);
+  assert.doesNotMatch(java, /Build\.VERSION\.SDK_INT >= 35/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
+  assert.match(java, /safeTopCssPx = Math\.round\(bars\.top \/ density\)/);
+  assert.match(java, /safeBottomCssPx = Math\.round\(bars\.bottom \/ density\)/);
   assert.match(html, /v2\.5\.1 • Build 34/);
 });
 
