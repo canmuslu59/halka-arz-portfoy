@@ -10,6 +10,20 @@ function replaceOnce(text, needle, replacement, label) {
   return text.replace(needle, () => replacement);
 }
 
+function replaceInsideFunction(text, functionName, needle, replacement, label) {
+  const marker = `function ${functionName}`;
+  const start = text.indexOf(marker);
+  if (start < 0) throw new Error(`${label}: function not found`);
+  const next = text.indexOf('\nfunction ', start + marker.length);
+  const end = next >= 0 ? next : text.length;
+  const block = text.slice(start, end);
+  const first = block.indexOf(needle);
+  if (first < 0) throw new Error(`${label}: expected source block not found in ${functionName}`);
+  if (block.indexOf(needle, first + needle.length) >= 0) throw new Error(`${label}: source block is not unique in ${functionName}`);
+  const updated = block.replace(needle, () => replacement);
+  return text.slice(0, start) + updated + text.slice(end);
+}
+
 let styles = readFileSync(stylesPath, 'utf8');
 styles += `
 
@@ -28,16 +42,18 @@ html[data-theme="light"] .purchase-history-row{background:#f7f9fc;border-color:#
 writeFileSync(stylesPath, styles);
 
 let app = readFileSync(appPath, 'utf8');
-app = replaceOnce(
+app = replaceInsideFunction(
   app,
-  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $$('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n}",
-  "function hideSheets() {\n  $('#sheetBackdrop').hidden = true;\n  $$('.sheet').forEach(sheet => { sheet.hidden = true; });\n  document.body.style.overflow = '';\n  document.body.classList.remove('sheet-open');\n}",
+  'hideSheets()',
+  "  document.body.style.overflow = '';",
+  "  document.body.style.overflow = '';\n  document.body.classList.remove('sheet-open');",
   'sheet closed class',
 );
-app = replaceOnce(
+app = replaceInsideFunction(
   app,
-  "function showSheet(id) {\n  hideSheets();\n  $('#sheetBackdrop').hidden = false;\n  $(id).hidden = false;\n  document.body.style.overflow = 'hidden';\n}",
-  "function showSheet(id) {\n  hideSheets();\n  $('#sheetBackdrop').hidden = false;\n  $(id).hidden = false;\n  document.body.style.overflow = 'hidden';\n  document.body.classList.add('sheet-open');\n}",
+  'showSheet(id)',
+  "  document.body.style.overflow = 'hidden';",
+  "  document.body.style.overflow = 'hidden';\n  document.body.classList.add('sheet-open');",
   'sheet open class',
 );
 
