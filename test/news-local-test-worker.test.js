@@ -57,12 +57,16 @@ test('local news worker reschedules daily targets and records digest diagnostics
 });
 
 
-test('production market pushes remain delivered while only production news pushes are isolated in graph test', () => {
+test('graph test keeps the production FCM delivery path for news and market pushes', () => {
   assert.match(pushMessaging, /NotificationHelper\.show\(this, message\.getData\(\)\)/);
-  assert.match(pushMessaging, /news_breaking/);
-  assert.match(pushMessaging, /news_digest/);
-  assert.match(pushMessaging, /endsWith\("\.graphtest"\)/);
-  assert.doesNotMatch(pushMessaging, /ceiling.*return;/s);
-  assert.doesNotMatch(pushMessaging, /floor.*return;/s);
-  assert.doesNotMatch(pushMessaging, /portfolio_fall.*return;/s);
+  assert.doesNotMatch(pushMessaging, /isolatedNewsTest/);
+  assert.doesNotMatch(pushMessaging, /news_breaking.*return;/s);
+  assert.doesNotMatch(pushMessaging, /news_digest.*return;/s);
+});
+
+test('local fallback prefers feed publication time before source-page verification', () => {
+  assert.match(worker, /parseInstant\(item\.optString\("publishedAt", ""\)\)/);
+  assert.match(worker, /if \(candidate\.publishedAt != null\)/);
+  assert.match(worker, /verified\.add\(candidate\)/);
+  assert.match(worker, /fetchArticleMetadata\(candidate\.url\)/);
 });
