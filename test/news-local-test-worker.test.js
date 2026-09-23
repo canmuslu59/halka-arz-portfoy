@@ -10,10 +10,11 @@ const pushMessaging = readFileSync('android/app/src/main/java/com/innative/halka
 const formatter = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsNotificationFormatter.java', 'utf8');
 const previewWorker = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java', 'utf8');
 
-test('local news fallback is guarded to the debug graph-test package only', () => {
+test('local news fallback is enabled for production and graph-test, while preview remains test-only', () => {
+  assert.match(scheduler, /"com\.innative\.halkaarz"\.equals\(appId\)/);
   assert.match(scheduler, /BuildConfig\.DEBUG/);
-  assert.match(scheduler, /BuildConfig\.APPLICATION_ID/);
   assert.match(scheduler, /endsWith\("\.graphtest"\)/);
+  assert.match(scheduler, /static boolean previewEnabled\(\)/);
 });
 
 test('local news fallback schedules immediate, 10:00, 19:00 and 15-minute catch-up checks', () => {
@@ -81,7 +82,7 @@ test('automatic fake digest preview is graph-test only and reproduces the last b
   assert.match(scheduler, /PREVIEW_WORK_PREFIX/);
   assert.match(scheduler, /NewsTestPreviewWorker\.class/);
   assert.match(scheduler, /setInitialDelay\(8, TimeUnit\.SECONDS\)/);
-  assert.match(previewWorker, /if \(!NewsTestScheduler\.enabled\(\)\) return Result\.success\(\)/);
+  assert.match(previewWorker, /if \(!NewsTestScheduler\.previewEnabled\(\)\) return Result\.success\(\)/);
   assert.match(previewWorker, /Faiz ve Piyasa Gündemi/);
   assert.match(previewWorker, /Finansal Hizmetler Güven Endeksi Eylül'de arttı Türkiye Cumhuriyet Merkez Bankası/);
   assert.match(previewWorker, /Tasfiye edilen 131 fondaki yatırımcı sayısı açıklandı SPK,/);
