@@ -152,7 +152,7 @@ export function scoreNewsImportance(item) {
   const enforcementAction = /(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|el koy|kayyum)/.test(title);
   if (financialContext && enforcementAction) return 5;
 
-  const ministerStatement = /(bakan\b|bakanlık|bakanlik)/.test(title)
+  const ministerStatement = /(bakan\b|bakanl)/.test(title)
     && /(açıkl|acikl|duyur|bildir|konuş|konus|değerlendir|degerlendir)/.test(title);
   if (ministerStatement) return 5;
 
