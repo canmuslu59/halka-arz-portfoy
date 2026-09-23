@@ -17,7 +17,7 @@ test('wallet widget is compact 4 by 1 and replaces active value with daily perce
   assert.match(info, /android:targetCellWidth="4"/);
   assert.doesNotMatch(layout, /widget_active/);
   assert.match(layout, /widget_daily_pct/);
-  assert.match(layout, />Günlük %</);
+  assert.match(layout, /android:text="Günlük %"/);
   assert.match(provider, /R\.id\.widget_daily_pct/);
   assert.doesNotMatch(provider, /R\.id\.widget_active/);
 });
