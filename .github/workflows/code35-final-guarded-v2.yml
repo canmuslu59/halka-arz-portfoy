@@ -1,0 +1,226 @@
+name: Code35 Final Guarded AAB V2
+
+on:
+  push:
+    branches:
+      - release/v2.5.2-code35
+    paths:
+      - .github/workflows/code35-final-guarded-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code35-final-guarded-v2
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Lock live market notification core against main
+        shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java',
+            'public/core/notification-rules.js',
+            'public/core/market-reference.js',
+            'public/core/market-calendar.js'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) { throw "LIVE MARKET CORE CHANGED: $path" }
+          }
+          Write-Host 'LIVE_MARKET_CORE_BYTE_LOCK=PASS'
+
+      - name: Sync Android assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply approved production overlays
+        shell: powershell
+        run: |
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Code35 changes and production guards
+        shell: powershell
+        run: |
+          $gradle = Get-Content -Raw android/app/build.gradle
+          $activity = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          $worker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
+          $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          $widgetInfo = Get-Content -Raw android/app/src/main/res/xml/wallet_widget_info.xml
+          $widgetLayout = Get-Content -Raw android/app/src/main/res/layout/wallet_widget.xml
+          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
+          $styles = Get-Content -Raw android/app/src/main/assets/www/styles.css
+          $cloudNews = Get-Content -Raw cloudflare/news-notifications.js
+
+          if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
+          if (-not $gradle.Contains('versionCode 35')) { throw 'versionCode 35 missing' }
+          if (-not $gradle.Contains("versionName '2.5.2'")) { throw 'versionName 2.5.2 missing' }
+          if (-not $index.Contains('v2.5.2 • Build 35')) { throw 'Code35 UI identity missing' }
+
+          if (-not $activity.Contains('EdgeToEdge.enable(')) { throw 'EdgeToEdge.enable missing' }
+          if ($activity.Contains('setStatusBarColor') -or $activity.Contains('setNavigationBarColor')) { throw 'Deprecated system-bar setter present' }
+
+          if ($activity.Contains('AlertDialog')) { throw 'Native widget AlertDialog still present' }
+          if (-not $activity.Contains('__showWalletWidgetPromo')) { throw 'In-app widget promo bridge missing' }
+          if (-not $index.Contains('id="walletWidgetPromo"')) { throw 'In-app widget promo UI missing' }
+          if (-not $widgetInfo.Contains('android:minHeight="55dp"')) { throw 'Widget compact height missing' }
+          if (-not $widgetInfo.Contains('android:targetCellHeight="1"')) { throw 'Widget must target one row' }
+          if ($widgetLayout.Contains('widget_active')) { throw 'Old active widget metric present' }
+          if (-not $widgetLayout.Contains('widget_daily_pct')) { throw 'Daily percent widget metric missing' }
+
+          if (-not $styles.Contains('html[data-theme="light"] .hero-value{color:var(--text)!important}')) { throw 'Light theme total value contrast fix missing' }
+
+          if (-not $worker.Contains('ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L')) { throw 'Native 6-hour news guard missing' }
+          if (-not $worker.Contains('ministerStatement')) { throw 'Native minister breaking rule missing' }
+          if (-not $worker.Contains('financialContext && enforcementAction')) { throw 'Native financial enforcement rule missing' }
+          if (-not $worker.Contains('federal reserve')) { throw 'Native global rate rule missing' }
+          if (-not $helper.Contains('NEWS_LAST_DELIVERED_AT')) { throw 'Shared delivered-news timestamp missing' }
+
+          if (-not $cloudNews.Contains('ROUTINE_NEWS_INTERVAL_MS = 6 * 60 * 60_000')) { throw 'Cloud 6-hour news guard missing' }
+          if (-not $cloudNews.Contains('ministerStatement')) { throw 'Cloud minister breaking rule missing' }
+          if (-not $cloudNews.Contains('Math.max(explicit, scored)')) { throw 'Feed importance can downgrade critical rule' }
+
+      - name: Recheck market core after overlays
+        shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) { throw "LIVE MARKET CORE MUTATED: $path" }
+          }
+          Write-Host 'LIVE_MARKET_CORE_POST_OVERLAY_LOCK=PASS'
+
+      - name: Restore production Firebase config privately
+        shell: powershell
+        run: |
+          $source = Get-Content -Raw '.github/workflows/code35-final-play-aab.yml'
+          $match = [regex]::Match($source, "\$firebaseJson\s*=\s*'([^']+)'")
+          if (-not $match.Success) { throw 'Production Firebase template not found in guarded workflow' }
+          $firebaseJson = $match.Groups[1].Value
+          if (-not $firebaseJson.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
+          if ($firebaseJson.Contains('.graphtest')) { throw 'Graph-test Firebase leaked into production' }
+          [IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object Text.UTF8Encoding($false)))
+          Write-Host 'PRODUCTION_FIREBASE_CONFIG=RESTORED'
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') { $sdk = 'C:\actions-runner\android-sdk' }
+            elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile production release
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build production AAB
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon bundleRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package guarded unsigned Code35 AAB
+        shell: powershell
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          New-Item -ItemType Directory -Force unsigned-dist | Out-Null
+          Copy-Item $unsigned 'unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab' -Force
+          $sha = (Get-FileHash 'unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab" | Set-Content -Encoding ascii 'unsigned-dist/SHA256SUMS-UNSIGNED.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code35-guarded-unsigned-aab-v2
+          path: |
+            unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab
+            unsigned-dist/SHA256SUMS-UNSIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
