@@ -44,6 +44,15 @@ test('news digest presentation cleans description tails and preserves a visible 
   assert.match(formatter, /Ekonomi ve Finans Gündemi/);
 });
 
+test('local breaking score covers capital-market investigations with enforcement actions', () => {
+  assert.match(worker, /fon soruştur/);
+  assert.match(worker, /sermaye piyasası soruştur/);
+  assert.match(worker, /piyasa dolandırıcılı/);
+  assert.match(worker, /gözalt/);
+  assert.match(worker, /yakalama kararı/);
+  assert.match(worker, /if \(capitalMarketInvestigation && enforcementAction\) return 5/);
+});
+
 test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute age', () => {
   assert.match(worker, /BREAKING_MAX_AGE_MINUTES = 90L/);
   assert.match(worker, /item\.importance == 5/);
