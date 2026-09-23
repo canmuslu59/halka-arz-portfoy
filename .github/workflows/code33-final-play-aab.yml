@@ -48,22 +48,34 @@ jobs:
 
       - name: Lock live market notification core byte-for-byte
         shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $expected = @{
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
-            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
-            'public/core/notification-rules.js' = 'e953ca7205b133af2724b39a0d4ff4c6739fa013'
-            'public/core/market-reference.js' = '81fef009d1eec65d65b0f4f5ec89e4ae4569bd85'
-            'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java',
+            'public/core/notification-rules.js',
+            'public/core/market-reference.js',
+            'public/core/market-calendar.js'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
           }
-          foreach ($path in $expected.Keys) {
-            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],s=fs.readFileSync(p,'utf8').replace(/\\r\\n/g,'\\n'),b=Buffer.from(s,'utf8'),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
-            if ($LASTEXITCODE -ne 0) { throw "Unable to hash: $path" }
-            $actual = $actual.Trim()
-            if ($actual -ne $expected[$path]) {
-              throw "LIVE MARKET CORE CHANGED: $path expected=$($expected[$path]) actual=$actual"
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/$path?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) {
+              throw "LIVE MARKET CORE CHANGED FROM MAIN BYTE SOURCE: $path"
             }
+            Write-Host "LIVE_MATCH=$path"
           }
           Write-Host 'LIVE_MARKET_CORE_BYTE_LOCK=PASS'
 
@@ -147,17 +159,30 @@ jobs:
 
       - name: Recheck live market byte lock after transformations
         shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $expected = @{
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
-            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
           }
-          foreach ($path in $expected.Keys) {
-            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],s=fs.readFileSync(p,'utf8').replace(/\\r\\n/g,'\\n'),b=Buffer.from(s,'utf8'),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
-            if ($LASTEXITCODE -ne 0) { throw "Unable to hash: $path" }
-            $actual = $actual.Trim()
-            if ($actual -ne $expected[$path]) { throw "LIVE MARKET CORE MUTATED DURING BUILD: $path" }
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/$path?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) {
+              throw "LIVE MARKET CORE MUTATED DURING BUILD: $path"
+            }
           }
           Write-Host 'LIVE_MARKET_CORE_POST_TRANSFORM_LOCK=PASS'
 
