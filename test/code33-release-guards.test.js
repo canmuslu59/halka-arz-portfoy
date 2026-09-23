@@ -11,17 +11,19 @@ const app = readFileSync('public/app.js', 'utf8');
 const scheduler = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java', 'utf8');
 const preview = readFileSync('android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java', 'utf8');
 
-test('code33 production identity is correct', () => {
+test('current production identity is correct', () => {
   assert.match(gradle, /applicationId 'com\.innative\.halkaarz'/);
-  assert.match(gradle, /versionCode 33/);
-  assert.match(gradle, /versionName '2\.5\.0'/);
+  assert.match(gradle, /versionCode 34/);
+  assert.match(gradle, /versionName '2\.5\.1'/);
 });
 
-test('Android 15 edge-to-edge avoids deprecated system bar color path', () => {
+test('edge-to-edge is backward compatible and avoids direct deprecated system-bar setters', () => {
+  assert.match(activity, /EdgeToEdge\.enable\(/);
+  assert.match(activity, /SystemBarStyle\.dark\(Color\.TRANSPARENT\)/);
   assert.doesNotMatch(activity, /WindowCompat\.enableEdgeToEdge/);
   assert.doesNotMatch(activity, /setStatusBarColor/);
   assert.doesNotMatch(activity, /setNavigationBarColor/);
-  assert.match(activity, /Build\.VERSION\.SDK_INT >= 35/);
+  assert.doesNotMatch(activity, /Build\.VERSION\.SDK_INT >= 35/);
   assert.match(activity, /WindowInsetsCompat\.Type\.systemBars/);
 });
 
