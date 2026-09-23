@@ -44,13 +44,16 @@ test('news digest presentation cleans description tails and preserves a visible 
   assert.match(formatter, /Ekonomi ve Finans Gündemi/);
 });
 
-test('local breaking score covers capital-market investigations with enforcement actions', () => {
-  assert.match(worker, /fon soruştur/);
-  assert.match(worker, /sermaye piyasası soruştur/);
-  assert.match(worker, /piyasa dolandırıcılı/);
+test('local breaking score covers financial enforcement ministers and global central banks', () => {
+  assert.match(worker, /financialContext/);
   assert.match(worker, /gözalt/);
   assert.match(worker, /yakalama kararı/);
-  assert.match(worker, /if \(capitalMarketInvestigation && enforcementAction\) return 5/);
+  assert.match(worker, /ministerStatement/);
+  assert.match(worker, /federal reserve/);
+  assert.match(worker, /avrupa merkez bankası/);
+  assert.match(worker, /bank of japan/);
+  assert.match(worker, /if \(financialContext && enforcementAction\) return 5/);
+  assert.match(worker, /if \(ministerStatement\) return 5/);
 });
 
 test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute age', () => {
@@ -59,6 +62,15 @@ test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute a
   assert.match(worker, /news_breaking/);
 });
 
+
+test('local news fallback has a six-hour silence guard shared with FCM delivery state', () => {
+  assert.match(worker, /ROUTINE_NEWS_INTERVAL_MS = 6L \* 60L \* 60L \* 1000L/);
+  assert.match(worker, /NotificationHelper\.lastNewsDeliveredAt/);
+  assert.match(worker, /sendRoutineIfDue\(items, now\)/);
+  assert.match(worker, /routine_interval_hours/);
+  assert.match(helper, /NEWS_LAST_DELIVERED_AT/);
+  assert.match(helper, /lastNewsDeliveredAt/);
+});
 
 test('local news worker reschedules daily targets and records digest diagnostics', () => {
   assert.match(worker, /NewsTestScheduler\.scheduleDailyTargets\(app\)/);
