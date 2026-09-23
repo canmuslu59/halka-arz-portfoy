@@ -117,8 +117,9 @@ function boundary(day, hour) {
 
 function effectiveImportance(item) {
   const explicit = Number(item?.importance);
-  if (Number.isInteger(explicit) && explicit >= 1 && explicit <= 5) return explicit;
-  return scoreNewsImportance(item);
+  const scored = scoreNewsImportance(item);
+  if (Number.isInteger(explicit) && explicit >= 1 && explicit <= 5) return Math.max(explicit, scored);
+  return scored;
 }
 
 function newsIdentity(item) {
