@@ -406,7 +406,7 @@ public final class NewsTestWorker extends Worker {
         );
         if (financialContext && enforcementAction) return 5;
 
-        boolean ministerStatement = containsAny(title, "bakan ", "bakanlık", "bakan'dan", "bakan’dan")
+        boolean ministerStatement = containsAny(title, "bakan ", "bakanl", "bakan'dan", "bakan’dan")
                 && containsAny(title, "açıkl", "duyur", "bildir", "konuş", "değerlendir");
         if (ministerStatement) return 5;
 
