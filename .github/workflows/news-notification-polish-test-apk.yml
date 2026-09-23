@@ -306,3 +306,5 @@ jobs:
             git commit -m "build: publish locally signed news fallback APK [skip ci]"
             git push origin HEAD:fix/news-local-fallback-20260923
           }
+
+# trigger: self-hosted-home-1790182529798
