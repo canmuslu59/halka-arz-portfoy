@@ -281,3 +281,5 @@ jobs:
             unsigned-dist/SHA256SUMS-UNSIGNED.txt
           if-no-files-found: error
           retention-days: 7
+
+# trigger: code35-news-widget-v2
