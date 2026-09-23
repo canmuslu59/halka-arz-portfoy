@@ -9,12 +9,12 @@ const ROOT = path.resolve('.');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const { evaluateDailyAlerts } = notificationRules;
 
-test('Android shell and bundled UI follow the Milestone Code33 release identity', () => {
+test('Android shell and bundled UI follow the Milestone Code34 release identity', () => {
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 33/);
-  assert.match(gradle, /versionName '2\.5\.0'/);
+  assert.match(gradle, /versionCode 34/);
+  assert.match(gradle, /versionName '2\.5\.1'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
@@ -23,7 +23,7 @@ test('Android shell and bundled UI follow the Milestone Code33 release identity'
   assert.doesNotMatch(java, /setStatusBarColor|setNavigationBarColor/);
   assert.match(java, /Build\.VERSION\.SDK_INT >= 35/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
-  assert.match(html, /v2\.5\.0 • Build 33/);
+  assert.match(html, /v2\.5\.1 • Build 34/);
 });
 
 test('BIST daily upper/lower limits use valid price-step rounding', () => {
