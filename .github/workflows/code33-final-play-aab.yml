@@ -21,7 +21,7 @@ env:
 jobs:
   build-code33:
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 50
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -45,16 +45,33 @@ jobs:
         run: |
           node --test --test-concurrency=1 test/*.test.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check public/app.js
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Sync Android base assets
+      - name: Lock live market notification core byte-for-byte
+        shell: powershell
+        run: |
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+            'public/core/notification-rules.js' = 'e953ca7205b133af2724b39a0d4ff4c6739fa013'
+            'public/core/market-reference.js' = '81fef009d1eec65d65b0f4f5ec89e4ae4569bd85'
+            'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
+          }
+          foreach ($path in $expected.Keys) {
+            $actual = (git hash-object $path).Trim()
+            if ($actual -ne $expected[$path]) {
+              throw "LIVE MARKET CORE CHANGED: $path expected=$($expected[$path]) actual=$actual"
+            }
+          }
+          Write-Host 'LIVE_MARKET_CORE_BYTE_LOCK=PASS'
+
+      - name: Sync Android assets
         shell: powershell
         run: |
           npm run android:sync
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Apply all approved test experience
+      - name: Apply all approved test experience to production assets
         shell: powershell
         run: |
           node scripts/apply-test-share-ui.mjs
@@ -67,60 +84,66 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node scripts/apply-fixed-bottom-dock-test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
           node --check android/app/src/main/assets/www/app.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Verify Code33 promoted UI, widget and edge-to-edge
+      - name: Verify promoted UI, graph, news and production-only safety
         shell: powershell
         run: |
           $gradle = Get-Content -Raw android/app/build.gradle
-          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
-          $app = Get-Content -Raw android/app/src/main/assets/www/app.js
           $activity = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/MainActivity.java
-          $manifest = Get-Content -Raw android/app/src/main/AndroidManifest.xml
           $scheduler = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java
           $preview = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java
+          $manifest = Get-Content -Raw android/app/src/main/AndroidManifest.xml
+          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
+          $app = Get-Content -Raw android/app/src/main/assets/www/app.js
+          $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          $formatter = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsNotificationFormatter.java
 
-          foreach ($needle in @(
-            "applicationId 'com.innative.halkaarz'",
-            'versionCode 33',
-            "versionName '2.5.0'"
-          )) {
-            if (-not $gradle.Contains($needle)) { throw "Release identity missing: $needle" }
-          }
+          if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
+          if (-not $gradle.Contains('versionCode 33')) { throw 'versionCode 33 missing' }
+          if (-not $gradle.Contains("versionName '2.5.0'")) { throw 'versionName 2.5.0 missing' }
+          if (-not $index.Contains('v2.5.0 • Build 33')) { throw 'Release identity missing from UI' }
 
           foreach ($needle in @(
             'id="walletHomeTab"',
             'id="weeklyMoversCard"',
-            'historyFinite',
-            'renderHistoryChartSummary',
-            'Sermaye Girişi',
-            'Değer Değişimi',
             'id="popularNewsRail"',
             'id="latestNewsList"',
-            'GENERIC_FINANCE_NEWS_TITLES',
-            'financeNewsIsArticle',
+            'historyFinite',
+            'renderDailyHistory',
+            'finance_news_cache_v3',
             'updateWalletWidget'
           )) {
-            if (-not ($index.Contains($needle) -or $app.Contains($needle))) { throw "Promoted test behavior missing: $needle" }
+            if (-not ($app.Contains($needle) -or $index.Contains($needle))) { throw "Promoted behavior missing: $needle" }
           }
 
-          foreach ($forbidden in @(
-            'WindowCompat.enableEdgeToEdge',
-            'setStatusBarColor',
-            'setNavigationBarColor'
+          if ($activity.Contains('WindowCompat.enableEdgeToEdge')) { throw 'Deprecated enableEdgeToEdge call still present' }
+          if ($activity.Contains('setStatusBarColor')) { throw 'Deprecated setStatusBarColor call still present' }
+          if ($activity.Contains('setNavigationBarColor')) { throw 'Deprecated setNavigationBarColor call still present' }
+          if (-not $activity.Contains('Build.VERSION.SDK_INT >= 35')) { throw 'Android 15 inset strategy missing' }
+
+          if (-not $manifest.Contains('WalletWidgetProvider')) { throw 'Wallet widget provider missing' }
+          if (-not $activity.Contains('requestPinAppWidget')) { throw 'Widget pin request missing' }
+          if (-not $activity.Contains('wallet_widget_prompted_v1')) { throw 'Widget first-open guard missing' }
+
+          if (-not $scheduler.Contains('"com.innative.halkaarz".equals(appId)')) { throw 'Production news fallback not enabled' }
+          if (-not $scheduler.Contains('BuildConfig.DEBUG && appId.endsWith(".graphtest")')) { throw 'Graph-test preview guard missing' }
+          if (-not $preview.Contains('NewsTestScheduler.previewEnabled()')) { throw 'Fake preview is not hard-gated' }
+
+          foreach ($needle in @(
+            'if ("news_digest".equals(kind))',
+            'NewsNotificationFormatter.digestTitle',
+            'NewsNotificationFormatter.spacedDigestBody'
           )) {
-            if ($activity.Contains($forbidden)) { throw "Deprecated edge-to-edge API path still present: $forbidden" }
+            if (-not $helper.Contains($needle)) { throw "News presentation fix missing: $needle" }
           }
-          if (-not $activity.Contains('Build.VERSION.SDK_INT >= 35')) { throw 'Android 15 inset branch missing' }
-          if (-not $activity.Contains('requestPinAppWidget')) { throw 'Wallet widget pin request missing' }
-          if (-not $manifest.Contains('WalletWidgetProvider')) { throw 'Wallet widget receiver missing' }
+          if ($formatter.Contains('ceiling') -or $formatter.Contains('floor') -or $formatter.Contains('portfolio_fall')) {
+            throw 'News formatter leaked into market notification kinds'
+          }
 
-          if (-not $scheduler.Contains('"com.innative.halkaarz".equals(appId)')) { throw 'Production news fallback is not enabled' }
-          if (-not $scheduler.Contains('static boolean previewEnabled()')) { throw 'Test preview gate missing' }
-          if (-not $preview.Contains('NewsTestScheduler.previewEnabled()')) { throw 'Fake preview is not hard-gated to test' }
-
-      - name: Verify live Code32 market notification core byte parity
+      - name: Recheck live market byte lock after transformations
         shell: powershell
         run: |
           $expected = @{
@@ -128,23 +151,11 @@ jobs:
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
             'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
           }
-          foreach ($entry in $expected.GetEnumerator()) {
-            $bytes = [System.IO.File]::ReadAllBytes($entry.Key)
-            $header = [System.Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)" + [char]0)
-            $all = New-Object byte[] ($header.Length + $bytes.Length)
-            [Array]::Copy($header, 0, $all, 0, $header.Length)
-            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
-            $sha1 = [System.Security.Cryptography.SHA1]::Create()
-            try {
-              $actual = ([BitConverter]::ToString($sha1.ComputeHash($all))).Replace('-', '').ToLowerInvariant()
-            } finally {
-              $sha1.Dispose()
-            }
-            if ($actual -ne $entry.Value) {
-              throw "Live Code32 parity failed for $($entry.Key): expected $($entry.Value), got $actual"
-            }
+          foreach ($path in $expected.Keys) {
+            $actual = (git hash-object $path).Trim()
+            if ($actual -ne $expected[$path]) { throw "LIVE MARKET CORE MUTATED DURING BUILD: $path" }
           }
-          Write-Host 'Live Code32 market scheduler/worker/config are byte-identical.'
+          Write-Host 'LIVE_MARKET_CORE_POST_TRANSFORM_LOCK=PASS'
 
       - name: Configure production Firebase client
         shell: powershell
@@ -153,7 +164,7 @@ jobs:
           [System.IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object System.Text.UTF8Encoding($false)))
           $config = Get-Content -Raw android/app/google-services.json
           if (-not $config.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
-          if ($config.Contains('.graphtest') -or $config.Contains('.test"')) { throw 'Test Firebase identity leaked into production build' }
+          if ($config.Contains('.graphtest') -or $config.Contains('.test"')) { throw 'Test Firebase identity leaked into production' }
 
       - name: Configure Android SDK 36
         shell: powershell
@@ -171,6 +182,7 @@ jobs:
           "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (-not (Test-Path $sdkmanager)) { throw "sdkmanager not found: $sdkmanager" }
           & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -202,6 +214,7 @@ jobs:
           foreach ($name in @('PLAY_UPLOAD_KEYSTORE_BASE64','PLAY_UPLOAD_KEYSTORE_PASSWORD','PLAY_UPLOAD_KEY_PASSWORD')) {
             if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name").Value)) { throw "Missing required signing secret: $name" }
           }
+
           $key = Join-Path $env:RUNNER_TEMP 'hisse-portfoyum-upload.jks'
           [System.IO.File]::WriteAllBytes($key, [Convert]::FromBase64String($env:PLAY_UPLOAD_KEYSTORE_BASE64))
           $alias = if ([string]::IsNullOrWhiteSpace($env:PLAY_UPLOAD_KEY_ALIAS)) { 'halkaarz-upload' } else { $env:PLAY_UPLOAD_KEY_ALIAS }
@@ -210,12 +223,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unable to read configured Play upload certificate' }
           $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
           $expected = '02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272'
-          if (-not $normalized.Contains($expected)) { throw 'Configured upload certificate does not match Code32 Play upload certificate' }
+          if (-not $normalized.Contains($expected)) { throw 'Configured upload certificate does not match previous Play release' }
 
           "PLAY_UPLOAD_KEYSTORE_PATH=$key" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PLAY_UPLOAD_KEY_ALIAS_RESOLVED=$alias" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Sign verify and package Code33
+      - name: Sign and verify final Play AAB
         shell: powershell
         env:
           PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
@@ -238,7 +251,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect signed AAB certificate' }
           $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
           $expected = '02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272'
-          if (-not $normalized.Contains($expected)) { throw 'Signed AAB certificate mismatch with Code32' }
+          if (-not $normalized.Contains($expected)) { throw 'Signed AAB certificate mismatch' }
 
           $sha = (Get-FileHash $signed -Algorithm SHA256).Hash.ToLowerInvariant()
           "$sha  Hisse-Portfoyum-v2.5.0-Code33-Play.aab" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
@@ -250,18 +263,22 @@ jobs:
             "sourceCommit=$env:GITHUB_SHA",
             "backend=$env:PUSH_BACKEND_URL",
             'firebase=production',
-            'marketCore=Code32 byte-identical',
-            'newsFallback=production enabled',
-            'fakeNewsPreview=graph-test only',
+            'playUploadCertificateSha256=02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272',
+            'liveMarketCoreByteLock=PASS',
+            'edgeToEdgeDeprecatedApiGuard=PASS',
             'walletWidget=true',
-            'deprecatedEdgeToEdgeApiPath=false',
-            'playUploadCertificateSha256=02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272'
+            'fakeNewsPreviewProduction=false',
+            'testExperiencePromoted=true'
           ) | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
 
+      - name: Copy final AAB to local runner output
+        shell: powershell
+        run: |
           $out = 'C:\actions-runner\output'
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item $signed (Join-Path $out 'Hisse-Portfoyum-v2.5.0-Code33-Play.aab') -Force
+          Copy-Item 'dist/Hisse-Portfoyum-v2.5.0-Code33-Play.aab' (Join-Path $out 'Hisse-Portfoyum-v2.5.0-Code33-Play.aab') -Force
           Copy-Item 'dist/SHA256SUMS.txt' (Join-Path $out 'Hisse-Portfoyum-v2.5.0-Code33-Play.sha256.txt') -Force
+          Write-Host "AAB_READY=$out\Hisse-Portfoyum-v2.5.0-Code33-Play.aab"
 
       - uses: actions/upload-artifact@v4
         with:
