@@ -58,7 +58,7 @@ jobs:
             'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
           }
           foreach ($path in $expected.Keys) {
-            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],b=fs.readFileSync(p),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
+            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],s=fs.readFileSync(p,'utf8').replace(/\\r\\n/g,'\\n'),b=Buffer.from(s,'utf8'),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
             if ($LASTEXITCODE -ne 0) { throw "Unable to hash: $path" }
             $actual = $actual.Trim()
             if ($actual -ne $expected[$path]) {
@@ -154,7 +154,7 @@ jobs:
             'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
           }
           foreach ($path in $expected.Keys) {
-            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],b=fs.readFileSync(p),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
+            $actual = (& node -e "const fs=require('fs'),c=require('crypto');const p=process.argv[1],s=fs.readFileSync(p,'utf8').replace(/\\r\\n/g,'\\n'),b=Buffer.from(s,'utf8'),h=Buffer.from('blob '+b.length+'\\0');process.stdout.write(c.createHash('sha1').update(h).update(b).digest('hex'));" $path)
             if ($LASTEXITCODE -ne 0) { throw "Unable to hash: $path" }
             $actual = $actual.Trim()
             if ($actual -ne $expected[$path]) { throw "LIVE MARKET CORE MUTATED DURING BUILD: $path" }
