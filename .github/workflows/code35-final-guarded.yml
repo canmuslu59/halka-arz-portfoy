@@ -220,7 +220,7 @@ jobs:
         shell: powershell
         run: |
           $sourceWorkflow = Get-Content -Raw '.github/workflows/code35-final-play-aab.yml'
-          $match = [regex]::Match($sourceWorkflow, "(?s)\\$firebaseJson = '([^']+)'\\s*\\r?\\n")
+          $match = [regex]::Match($sourceWorkflow, '(?s)\$firebaseJson\s*=\s*''([^'']+)''')
           if (-not $match.Success) { throw 'Production Firebase config source missing' }
           $firebaseJson = $match.Groups[1].Value
           [System.IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object System.Text.UTF8Encoding($false)))
