@@ -17,11 +17,11 @@ import java.time.ZonedDateTime;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Test-only news delivery fallback.
+ * News delivery fallback.
  *
- * Uses explicit 10:00 / 19:00 one-time work in addition to a 15-minute
- * catch-up periodic worker. This avoids anchoring digest delivery to the
- * arbitrary install/open time of PeriodicWorkRequest.
+ * FCM remains primary. This worker adds explicit 10:00 / 19:00 targets plus
+ * a 15-minute catch-up path. NotificationHelper de-duplicates server/local
+ * delivery by digest slot and Istanbul day.
  */
 final class NewsTestScheduler {
     static final String PREFS = "news_test_scheduler_v2";
@@ -45,6 +45,12 @@ final class NewsTestScheduler {
     private NewsTestScheduler() {}
 
     static boolean enabled() {
+        String appId = BuildConfig.APPLICATION_ID == null ? "" : BuildConfig.APPLICATION_ID;
+        return "com.innative.halkaarz".equals(appId)
+                || (BuildConfig.DEBUG && appId.endsWith(".graphtest"));
+    }
+
+    static boolean previewEnabled() {
         String appId = BuildConfig.APPLICATION_ID == null ? "" : BuildConfig.APPLICATION_ID;
         return BuildConfig.DEBUG && appId.endsWith(".graphtest");
     }
@@ -73,15 +79,16 @@ final class NewsTestScheduler {
                         .build()
         );
 
-        // Test-only visual regression preview. A version-specific unique name
-        // makes it fire once after each new graph-test APK is installed/updated.
-        manager.enqueueUniqueWork(
-                PREVIEW_WORK_PREFIX + BuildConfig.VERSION_CODE,
-                ExistingWorkPolicy.KEEP,
-                new OneTimeWorkRequest.Builder(NewsTestPreviewWorker.class)
-                        .setInitialDelay(8, TimeUnit.SECONDS)
-                        .build()
-        );
+        if (previewEnabled()) {
+            // Visual regression preview is strictly limited to the graph-test package.
+            manager.enqueueUniqueWork(
+                    PREVIEW_WORK_PREFIX + BuildConfig.VERSION_CODE,
+                    ExistingWorkPolicy.KEEP,
+                    new OneTimeWorkRequest.Builder(NewsTestPreviewWorker.class)
+                            .setInitialDelay(8, TimeUnit.SECONDS)
+                            .build()
+            );
+        }
 
         scheduleDailyTargets(app);
     }
