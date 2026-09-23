@@ -1,7 +1,6 @@
 package com.innative.halkaarz;
 
 import android.Manifest;
-import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -89,6 +88,7 @@ public class MainActivity extends ComponentActivity {
     private int safeRightCssPx;
     private int imeBottomCssPx;
     private long lastBackPressMs;
+    private boolean walletWidgetPromoPending;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,16 +134,22 @@ public class MainActivity extends ComponentActivity {
         SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (prefs.getBoolean(WALLET_WIDGET_PROMPTED_KEY, false)) return;
         prefs.edit().putBoolean(WALLET_WIDGET_PROMPTED_KEY, true).apply();
-
-        new AlertDialog.Builder(this)
-                .setTitle("Cüzdan ana ekranda")
-                .setMessage("Portföy toplamınızı ve günlük değişimi ana ekranda widget olarak görmek ister misiniz?")
-                .setNegativeButton("Şimdi değil", null)
-                .setPositiveButton("Widget ekle", (dialog, which) -> requestWalletWidgetPin())
-                .show();
+        walletWidgetPromoPending = true;
+        deliverWalletWidgetPromo();
     }
 
-    private void requestWalletWidgetPin() {
+    private void deliverWalletWidgetPromo() {
+        if (!walletWidgetPromoPending || webView == null) return;
+        webView.post(() -> {
+            if (webView == null) return;
+            String script = "Boolean(window.__showWalletWidgetPromo && (window.__showWalletWidgetPromo(), true))";
+            webView.evaluateJavascript(script, value -> {
+                if ("true".equalsIgnoreCase(String.valueOf(value))) walletWidgetPromoPending = false;
+            });
+        });
+    }
+
+    private void requestWalletWidgetPinNative() {
         if (Build.VERSION.SDK_INT < 26) return;
         try {
             AppWidgetManager manager = AppWidgetManager.getInstance(this);
@@ -223,6 +229,7 @@ public class MainActivity extends ComponentActivity {
                 super.onPageFinished(webView, url);
                 deliverSafeInsets();
                 deliverPendingPushRoute();
+                deliverWalletWidgetPromo();
             }
         });
     }
@@ -352,6 +359,11 @@ public class MainActivity extends ComponentActivity {
             if (isValidJsonObject(current)) editor.putString(BACKUP_KEY, current);
             editor.putString(PORTFOLIO_KEY, json);
             return editor.commit();
+        }
+
+        @JavascriptInterface
+        public void requestWalletWidgetPin() {
+            activity.runOnUiThread(activity::requestWalletWidgetPinNative);
         }
 
         @JavascriptInterface
