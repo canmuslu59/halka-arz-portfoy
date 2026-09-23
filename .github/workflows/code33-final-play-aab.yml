@@ -67,7 +67,7 @@ jobs:
           $crlf = [string]([char]13) + [char]10
           $lf = [string][char]10
           foreach ($path in $paths) {
-            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/$path?ref=main"
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
             $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
             $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
             $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
@@ -175,7 +175,7 @@ jobs:
           $crlf = [string]([char]13) + [char]10
           $lf = [string][char]10
           foreach ($path in $paths) {
-            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/$path?ref=main"
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
             $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
             $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
             $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
