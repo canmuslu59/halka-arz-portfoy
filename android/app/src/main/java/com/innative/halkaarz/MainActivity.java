@@ -24,7 +24,9 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
+import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.SystemBarStyle;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
@@ -90,6 +92,11 @@ public class MainActivity extends ComponentActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        EdgeToEdge.enable(
+                this,
+                SystemBarStyle.dark(Color.TRANSPARENT),
+                SystemBarStyle.dark(Color.TRANSPARENT)
+        );
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
         webView = new WebView(this);
@@ -154,14 +161,14 @@ public class MainActivity extends ComponentActivity {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
             float density = Math.max(1f, getResources().getDisplayMetrics().density);
-            // Android 15+ enforces edge-to-edge for targetSdk 35+. Older versions
-            // keep the decor fitted because we intentionally avoid deprecated
-            // status/navigation bar color APIs used by enableEdgeToEdge().
-            boolean forcedEdgeToEdge = Build.VERSION.SDK_INT >= 35;
-            safeTopCssPx = forcedEdgeToEdge ? Math.round(bars.top / density) : 0;
-            safeBottomCssPx = forcedEdgeToEdge ? Math.round(bars.bottom / density) : 0;
-            safeLeftCssPx = forcedEdgeToEdge ? Math.round(bars.left / density) : 0;
-            safeRightCssPx = forcedEdgeToEdge ? Math.round(bars.right / density) : 0;
+            // EdgeToEdge.enable() makes Android 14 and older follow the same
+            // layout model that Android 15+ enforces automatically. Always
+            // consume the real system-bar/cutout insets so tappable WebView UI
+            // never sits under status bars, navigation bars, or display cutouts.
+            safeTopCssPx = Math.round(bars.top / density);
+            safeBottomCssPx = Math.round(bars.bottom / density);
+            safeLeftCssPx = Math.round(bars.left / density);
+            safeRightCssPx = Math.round(bars.right / density);
             imeBottomCssPx = Math.round(ime.bottom / density);
             deliverSafeInsets();
             return insets;
