@@ -3,7 +3,7 @@ name: News Notification Polish Test APK
 on:
   push:
     branches:
-      - feature/news-notification-polish-20260921
+      - fix/news-local-fallback-20260923
     paths:
       - .github/workflows/news-notification-polish-test-apk.yml
 
@@ -42,7 +42,7 @@ jobs:
       - name: Run focused news and graph tests
         shell: powershell
         run: |
-          node --test --test-concurrency=1 test/news-notifications.test.js test/news-notification-source-metadata.test.js test/news-notification-integration.test.js test/popular-finance-news-overlay.test.js
+          node --test --test-concurrency=1 test/news-local-test-worker.test.js test/news-notifications.test.js test/news-notification-source-metadata.test.js test/news-notification-integration.test.js test/popular-finance-news-overlay.test.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run complete regression suite
@@ -132,8 +132,11 @@ jobs:
           foreach ($needle in @('marketReferenceProtocol','trustedMarketEnabled','/v1/installations','ensureSynced(context)')) {
             if (-not $pushSync.Contains($needle)) { throw "Live push registration behavior missing: $needle" }
           }
-          foreach ($needle in @('NotificationHelper.show(this, message.getData())','news_breaking','news_digest','endsWith(".graphtest")')) {
-            if (-not $pushMessaging.Contains($needle)) { throw "Test push isolation behavior missing: $needle" }
+          if (-not $pushMessaging.Contains('NotificationHelper.show(this, message.getData())')) {
+            throw 'FCM delivery path missing'
+          }
+          foreach ($forbidden in @('isolatedNewsTest','news_breaking".equals(kind)','news_digest".equals(kind)')) {
+            if ($pushMessaging.Contains($forbidden)) { throw "News FCM suppression still present: $forbidden" }
           }
           if (-not $styles.Contains('grid-template-columns:repeat(5')) { throw 'Fixed five-column dock missing' }
 
@@ -233,7 +236,7 @@ jobs:
           $src = 'android/app/build/outputs/apk/debug/app-debug.apk'
           if (-not (Test-Path $src)) { throw "APK not produced: $src" }
           New-Item -ItemType Directory -Force dist | Out-Null
-          $apk = 'dist/Hisse-Portfoyum-Haber-Grafik-Test.apk'
+          $apk = 'dist/Hisse-Portfoyum-Haber-Local-Fallback-FIX.apk'
           Copy-Item $src $apk -Force
 
           $buildTools = Join-Path $env:ANDROID_HOME 'build-tools\36.0.0'
@@ -246,14 +249,14 @@ jobs:
           $badging | Set-Content -Encoding utf8 'dist/APK-IDENTITY.txt'
 
           $sha = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$sha  Hisse-Portfoyum-Haber-Grafik-Test.apk" | Set-Content -Encoding ascii 'dist/SHA256SUMS.txt'
+          "$sha  Hisse-Portfoyum-Haber-Local-Fallback-FIX.apk" | Set-Content -Encoding ascii 'dist/SHA256SUMS.txt'
           @(
             "package=com.innative.halkaarz.graphtest",
             "versionCode=$env:TEST_VERSION_CODE",
             "pushBackend=$env:PUSH_BACKEND_URL",
             "graphLabels=Sermaye Girişi | Değer Değişimi",
             "marketPushBackend=production-live",
-            "newsWorker=isolated local test worker",
+            "newsWorker=FCM primary + resilient local fallback",
             "liveMainChanged=false"
           ) | Set-Content -Encoding utf8 'dist/BUILD-INFO.txt'
 
