@@ -40,6 +40,7 @@ final class NewsTestScheduler {
     private static final String PERIODIC_WORK = "news_test_periodic_v1";
     private static final String MORNING_WORK = "news_test_morning_1000_v2";
     private static final String EVENING_WORK = "news_test_evening_1900_v2";
+    private static final String PREVIEW_WORK_PREFIX = "news_test_preview_v1_";
 
     private NewsTestScheduler() {}
 
@@ -69,6 +70,16 @@ final class NewsTestScheduler {
                 ExistingPeriodicWorkPolicy.UPDATE,
                 new PeriodicWorkRequest.Builder(NewsTestWorker.class, 15, TimeUnit.MINUTES)
                         .setConstraints(constraints)
+                        .build()
+        );
+
+        // Test-only visual regression preview. A version-specific unique name
+        // makes it fire once after each new graph-test APK is installed/updated.
+        manager.enqueueUniqueWork(
+                PREVIEW_WORK_PREFIX + BuildConfig.VERSION_CODE,
+                ExistingWorkPolicy.KEEP,
+                new OneTimeWorkRequest.Builder(NewsTestPreviewWorker.class)
+                        .setInitialDelay(8, TimeUnit.SECONDS)
                         .build()
         );
 
