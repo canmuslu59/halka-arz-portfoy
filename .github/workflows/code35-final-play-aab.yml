@@ -1,0 +1,283 @@
+name: Code35 Final Play AAB
+
+on:
+  push:
+    branches:
+      - release/v2.5.2-code35
+    paths:
+      - .github/workflows/code35-final-play-aab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code35-final-play-aab
+  cancel-in-progress: true
+
+env:
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+
+jobs:
+  build-code35:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JS dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Lock live market notification core byte-for-byte
+        shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java',
+            'public/core/notification-rules.js',
+            'public/core/market-reference.js',
+            'public/core/market-calendar.js'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) {
+              throw "LIVE MARKET CORE CHANGED FROM MAIN BYTE SOURCE: $path"
+            }
+            Write-Host "LIVE_MATCH=$path"
+          }
+          Write-Host 'LIVE_MARKET_CORE_BYTE_LOCK=PASS'
+
+      - name: Sync Android assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply all approved test experience to production assets
+        shell: powershell
+        run: |
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify promoted UI, graph, news and production-only safety
+        shell: powershell
+        run: |
+          $gradle = Get-Content -Raw android/app/build.gradle
+          $activity = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          $scheduler = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java
+          $preview = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java
+          $manifest = Get-Content -Raw android/app/src/main/AndroidManifest.xml
+          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
+          $app = Get-Content -Raw android/app/src/main/assets/www/app.js
+          $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          $formatter = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsNotificationFormatter.java
+          $newsWorker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
+          $widgetInfo = Get-Content -Raw android/app/src/main/res/xml/wallet_widget_info.xml
+          $widgetLayout = Get-Content -Raw android/app/src/main/res/layout/wallet_widget.xml
+          $styles = Get-Content -Raw android/app/src/main/assets/www/styles.css
+          $cloudNews = Get-Content -Raw cloudflare/news-notifications.js
+
+          if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
+          if (-not $gradle.Contains('versionCode 35')) { throw 'versionCode 35 missing' }
+          if (-not $gradle.Contains("versionName '2.5.2'")) { throw 'versionName 2.5.1 missing' }
+          if (-not $index.Contains('v2.5.2 • Build 34')) { throw 'Release identity missing from UI' }
+
+          foreach ($needle in @(
+            'id="walletHomeTab"',
+            'id="weeklyMoversCard"',
+            'id="popularNewsRail"',
+            'id="latestNewsList"',
+            'historyFinite',
+            'renderDailyHistory',
+            'finance_news_cache_v3',
+            'updateWalletWidget'
+          )) {
+            if (-not ($app.Contains($needle) -or $index.Contains($needle))) { throw "Promoted behavior missing: $needle" }
+          }
+
+          if (-not $activity.Contains('EdgeToEdge.enable(')) { throw 'AndroidX Activity EdgeToEdge.enable missing' }
+          if (-not $activity.Contains('SystemBarStyle.dark(Color.TRANSPARENT)')) { throw 'Edge-to-edge system bar style missing' }
+          if ($activity.Contains('WindowCompat.enableEdgeToEdge')) { throw 'Old WindowCompat edge-to-edge helper must stay removed' }
+          if ($activity.Contains('setStatusBarColor')) { throw 'Deprecated setStatusBarColor call still present' }
+          if ($activity.Contains('setNavigationBarColor')) { throw 'Deprecated setNavigationBarColor call still present' }
+          if ($activity.Contains('Build.VERSION.SDK_INT >= 35')) { throw 'Insets must not be limited to Android 15+' }
+          foreach ($needle in @(
+            'safeTopCssPx = Math.round(bars.top / density)',
+            'safeBottomCssPx = Math.round(bars.bottom / density)',
+            'safeLeftCssPx = Math.round(bars.left / density)',
+            'safeRightCssPx = Math.round(bars.right / density)'
+          )) {
+            if (-not $activity.Contains($needle)) { throw "All-version inset handling missing: $needle" }
+          }
+
+          if (-not $manifest.Contains('WalletWidgetProvider')) { throw 'Wallet widget provider missing' }
+          if (-not $activity.Contains('requestPinAppWidget')) { throw 'Widget pin request missing' }
+          if (-not $activity.Contains('wallet_widget_prompted_v1')) { throw 'Widget first-open guard missing' }
+          if ($activity.Contains('AlertDialog')) { throw 'Native widget AlertDialog must stay removed' }
+          if (-not $activity.Contains('__showWalletWidgetPromo')) { throw 'Branded widget promo bridge missing' }
+          if (-not $index.Contains('id="walletWidgetPromo"')) { throw 'Branded widget promo UI missing' }
+          if (-not $widgetInfo.Contains('android:minHeight="55dp"')) { throw 'Compact widget min height missing' }
+          if (-not $widgetInfo.Contains('android:targetCellHeight="1"')) { throw 'Widget must target one home-screen row' }
+          if ($widgetLayout.Contains('widget_active')) { throw 'Old active-value widget metric still present' }
+          if (-not $widgetLayout.Contains('widget_daily_pct')) { throw 'Daily-percent widget metric missing' }
+          if (-not $styles.Contains('html[data-theme="light"] .hero-value{color:var(--text)!important}')) { throw 'Light-theme total portfolio contrast fix missing' }
+
+          if (-not $scheduler.Contains('"com.innative.halkaarz".equals(appId)')) { throw 'Production news fallback not enabled' }
+          if (-not $scheduler.Contains('BuildConfig.DEBUG && appId.endsWith(".graphtest")')) { throw 'Graph-test preview guard missing' }
+          if (-not $preview.Contains('NewsTestScheduler.previewEnabled()')) { throw 'Fake preview is not hard-gated' }
+          if (-not $newsWorker.Contains('ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L')) { throw 'Six-hour native news silence guard missing' }
+          if (-not $newsWorker.Contains('ministerStatement')) { throw 'Minister-statement breaking rule missing' }
+          if (-not $newsWorker.Contains('federal reserve')) { throw 'Global central-bank breaking rule missing' }
+          if (-not $newsWorker.Contains('financialContext && enforcementAction')) { throw 'Financial enforcement breaking rule missing' }
+          if (-not $cloudNews.Contains('ROUTINE_NEWS_INTERVAL_MS = 6 * 60 * 60_000')) { throw 'Six-hour cloud news silence guard missing' }
+          if (-not $cloudNews.Contains('ministerStatement')) { throw 'Cloud minister breaking rule missing' }
+          if (-not $cloudNews.Contains('Math.max(explicit, scored)')) { throw 'Feed importance can still downgrade critical news' }
+
+          foreach ($needle in @(
+            'if ("news_digest".equals(kind))',
+            'NewsNotificationFormatter.digestTitle',
+            'NewsNotificationFormatter.spacedDigestBody'
+          )) {
+            if (-not $helper.Contains($needle)) { throw "News presentation fix missing: $needle" }
+          }
+          if ($formatter.Contains('ceiling') -or $formatter.Contains('floor') -or $formatter.Contains('portfolio_fall')) {
+            throw 'News formatter leaked into market notification kinds'
+          }
+
+      - name: Recheck live market byte lock after transformations
+        shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $paths = @(
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
+          )
+          $headers = @{
+            Authorization = "Bearer $env:GH_READ_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $crlf = [string]([char]13) + [char]10
+          $lf = [string][char]10
+          foreach ($path in $paths) {
+            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
+            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
+            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
+            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
+            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
+            if ($releaseText -cne $mainText) {
+              throw "LIVE MARKET CORE MUTATED DURING BUILD: $path"
+            }
+          }
+          Write-Host 'LIVE_MARKET_CORE_POST_TRANSFORM_LOCK=PASS'
+
+      - name: Configure production Firebase client
+        shell: powershell
+        run: |
+          $firebaseJson = '{"project_info":{"project_number":"181104463772","project_id":"halka-arz-portfoyum-d86ff","storage_bucket":"halka-arz-portfoyum-d86ff.firebasestorage.app"},"client":[{"client_info":{"mobilesdk_app_id":"1:181104463772:android:0079989b9d3c4ef85fcb9d","android_client_info":{"package_name":"com.innative.halkaarz"}},"oauth_client":[],"api_key":[{"current_key":"AIzaSyByYlMz5g9cwzXUjfVFlLIM0A564z-fO88"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],"configuration_version":"1"}'
+          [System.IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object System.Text.UTF8Encoding($false)))
+          $config = Get-Content -Raw android/app/google-services.json
+          if (-not $config.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
+          if ($config.Contains('.graphtest') -or $config.Contains('.test"')) { throw 'Test Firebase identity leaked into production' }
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') {
+              $sdk = 'C:\actions-runner\android-sdk'
+            } elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) {
+              $sdk = $env:ANDROID_HOME
+            } else {
+              throw 'Android SDK root not found'
+            }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          if (-not (Test-Path $sdkmanager)) { throw "sdkmanager not found: $sdkmanager" }
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile production release
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build production AAB
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon bundleRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package guarded unsigned Code35 AAB
+        shell: powershell
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          New-Item -ItemType Directory -Force unsigned-dist | Out-Null
+          Copy-Item $unsigned 'unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab' -Force
+          $sha = (Get-FileHash 'unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab" | Set-Content -Encoding ascii 'unsigned-dist/SHA256SUMS-UNSIGNED.txt'
+
+      - name: Upload guarded unsigned Code35 AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: code35-guarded-unsigned-aab
+          path: |
+            unsigned-dist/Hisse-Portfoyum-v2.5.2-Code35-unsigned.aab
+            unsigned-dist/SHA256SUMS-UNSIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
