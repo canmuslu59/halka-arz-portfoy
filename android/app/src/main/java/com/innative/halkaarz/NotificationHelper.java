@@ -141,6 +141,10 @@ final class NotificationHelper {
         String digestDay = value(data, "digest_day", "");
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
+        if ("news_digest".equals(kind)) {
+            title = NewsNotificationFormatter.digestTitle(title, body);
+            body = NewsNotificationFormatter.digestBody(body);
+        }
         android.content.SharedPreferences delivered = context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE);
         String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();
         String eventKey;
@@ -179,11 +183,14 @@ final class NotificationHelper {
         PendingIntent pending = PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         int priority = "news_digest".equals(kind) ? NotificationCompat.PRIORITY_DEFAULT : NotificationCompat.PRIORITY_HIGH;
+        CharSequence expandedBody = "news_digest".equals(kind)
+                ? NewsNotificationFormatter.spacedDigestBody(body)
+                : body;
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channel)
                 .setSmallIcon(com.innative.halkaarz.R.drawable.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(body)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(expandedBody))
                 .setAutoCancel(true)
                 .setContentIntent(pending)
                 .setPriority(priority);
