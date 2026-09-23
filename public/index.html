@@ -234,6 +234,52 @@
     <span>+</span><b>Hisse ekle</b>
   </button>
 
+  <div id="walletWidgetPromo" class="widget-promo-backdrop" hidden>
+    <section class="widget-promo-card" role="dialog" aria-modal="true" aria-labelledby="walletWidgetPromoTitle">
+      <button id="walletWidgetPromoClose" class="widget-promo-close" type="button" aria-label="Kapat">×</button>
+      <div class="widget-promo-visual" aria-hidden="true">
+        <svg viewBox="0 0 320 176" role="img">
+          <defs>
+            <linearGradient id="widgetPhoneBg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#1b2540"/>
+              <stop offset="1" stop-color="#0a0f1d"/>
+            </linearGradient>
+            <linearGradient id="widgetCardBg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#253252"/>
+              <stop offset="1" stop-color="#11192e"/>
+            </linearGradient>
+          </defs>
+          <rect x="22" y="8" width="276" height="160" rx="28" fill="url(#widgetPhoneBg)" stroke="#36476d"/>
+          <circle cx="160" cy="19" r="3" fill="#64789f"/>
+          <rect x="40" y="39" width="240" height="83" rx="18" fill="url(#widgetCardBg)" stroke="#40557f"/>
+          <text x="56" y="57" fill="#95a5c5" font-size="10" font-weight="700">CÜZDAN</text>
+          <text x="56" y="84" fill="#ffffff" font-size="24" font-weight="800">₺128.450</text>
+          <text x="225" y="82" fill="#35d49a" font-size="12" font-weight="700">+₺1.280</text>
+          <text x="56" y="103" fill="#7f8daa" font-size="8">Yatırılan</text>
+          <text x="132" y="103" fill="#7f8daa" font-size="8">Günlük %</text>
+          <text x="208" y="103" fill="#7f8daa" font-size="8">Satış nakdi</text>
+          <text x="56" y="115" fill="#e8edf7" font-size="10" font-weight="700">₺92.000</text>
+          <text x="132" y="115" fill="#35d49a" font-size="10" font-weight="700">+%1,02</text>
+          <text x="208" y="115" fill="#e8edf7" font-size="10" font-weight="700">₺8.400</text>
+          <circle cx="82" cy="145" r="8" fill="#24314f"/>
+          <circle cx="116" cy="145" r="8" fill="#24314f"/>
+          <circle cx="150" cy="145" r="8" fill="#24314f"/>
+          <circle cx="184" cy="145" r="8" fill="#24314f"/>
+          <circle cx="218" cy="145" r="8" fill="#24314f"/>
+        </svg>
+      </div>
+      <div class="widget-promo-copy">
+        <span class="eyebrow">ANA EKRAN WIDGET’I</span>
+        <h2 id="walletWidgetPromoTitle">Cüzdanınız tek bakışta görünsün</h2>
+        <p>Toplam portföyünüzü, günlük değişimi, yatırılan tutarı ve satış nakdini uygulamayı açmadan ana ekranda takip edin.</p>
+      </div>
+      <div class="widget-promo-actions">
+        <button id="walletWidgetPromoLater" class="secondary-btn" type="button">Şimdi değil</button>
+        <button id="walletWidgetPromoAdd" class="primary-btn" type="button">Ana ekrana ekle</button>
+      </div>
+    </section>
+  </div>
+
   <div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
   <section id="addSheet" class="sheet" aria-modal="true" role="dialog" aria-labelledby="addTitle" hidden>
     <div class="sheet-handle"></div>
