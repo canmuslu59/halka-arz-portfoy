@@ -232,6 +232,26 @@ jobs:
           gradle -p android --no-daemon bundleRelease
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Package guarded unsigned Code33 AAB
+        shell: powershell
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          New-Item -ItemType Directory -Force unsigned-dist | Out-Null
+          Copy-Item $unsigned 'unsigned-dist/Hisse-Portfoyum-v2.5.0-Code33-unsigned.aab' -Force
+          $sha = (Get-FileHash 'unsigned-dist/Hisse-Portfoyum-v2.5.0-Code33-unsigned.aab' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-v2.5.0-Code33-unsigned.aab" | Set-Content -Encoding ascii 'unsigned-dist/SHA256SUMS-UNSIGNED.txt'
+
+      - name: Upload guarded unsigned Code33 AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: code33-guarded-unsigned-aab
+          path: |
+            unsigned-dist/Hisse-Portfoyum-v2.5.0-Code33-unsigned.aab
+            unsigned-dist/SHA256SUMS-UNSIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Require and verify Play upload signing key
         shell: powershell
         env:
