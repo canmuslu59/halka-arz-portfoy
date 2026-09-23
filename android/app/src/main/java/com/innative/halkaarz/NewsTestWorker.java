@@ -35,6 +35,7 @@ public final class NewsTestWorker extends Worker {
     private static final int MAX_ARTICLE_BYTES = 768 * 1024;
     private static final int MAX_ARTICLES_TO_VERIFY = 12;
     private static final long BREAKING_MAX_AGE_MINUTES = 90L;
+    private static final long ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L;
 
     private static final Pattern BLOOMBERG_ARTICLE_PATH = Pattern.compile("-\\d{6,}/?$");
     private static final Pattern META_TAG = Pattern.compile("(?is)<meta\\b[^>]*>");
@@ -62,6 +63,7 @@ public final class NewsTestWorker extends Worker {
                 ZonedDateTime now = ZonedDateTime.now(ISTANBUL);
                 sendBreakingIfNeeded(items, now);
                 sendDigestIfDue(items, now);
+                sendRoutineIfDue(items, now);
             }
 
             prefs.edit()
@@ -158,6 +160,40 @@ public final class NewsTestWorker extends Worker {
         prefs.edit()
                 .putBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, delivered)
                 .apply();
+    }
+
+    private void sendRoutineIfDue(List<NewsItem> items, ZonedDateTime now) {
+        long lastDeliveredAt = NotificationHelper.lastNewsDeliveredAt(getApplicationContext());
+        long nowMs = now.toInstant().toEpochMilli();
+        if (lastDeliveredAt > 0L && nowMs - lastDeliveredAt < ROUTINE_NEWS_INTERVAL_MS) return;
+
+        List<NewsItem> eligible = new ArrayList<>();
+        Instant nowInstant = now.toInstant();
+        for (NewsItem item : items) {
+            if (item.publishedAt == null || item.publishedAt.isAfter(nowInstant)) continue;
+            eligible.add(item);
+        }
+        if (eligible.isEmpty()) return;
+
+        eligible.sort((a, b) -> {
+            int importance = Integer.compare(b.importance, a.importance);
+            if (importance != 0) return importance;
+            return b.publishedAt.compareTo(a.publishedAt);
+        });
+
+        NewsItem selected = eligible.get(0);
+        int slotHour = (now.getHour() / 6) * 6;
+        String slot = String.format(Locale.ROOT, "routine-%02d", slotHour);
+        String body = "• " + shorten(selected.title, 72);
+
+        Map<String, String> data = new HashMap<>();
+        data.put("kind", "news_digest");
+        data.put("digest_slot", slot);
+        data.put("digest_day", now.toLocalDate().toString());
+        data.put("routine_interval_hours", "6");
+        data.put("title", NewsNotificationFormatter.digestTitle("📰 Finans Gündemi", body));
+        data.put("body", body);
+        NotificationHelper.show(getApplicationContext(), data);
     }
 
     private List<NewsItem> fetchVerifiedItems() throws Exception {
@@ -294,9 +330,42 @@ public final class NewsTestWorker extends Worker {
 
     private static int score(String value) {
         String title = lower(value);
-        boolean centralBank = containsAny(title, "tcmb", "para politikası kurulu", "ppk");
-        boolean rate = containsAny(title, "politika faiz", "faiz", "zorunlu karşılık", "likidite");
-        boolean decision = containsAny(title, "artırdı", "indirdi", "sabit tuttu", "kararını açıkladı", "olağanüstü");
+        boolean centralBank = containsAny(
+                title,
+                "tcmb",
+                "para politikası kurulu",
+                "ppk",
+                "merkez bankası",
+                "federal reserve",
+                " fed ",
+                "fomc",
+                "avrupa merkez bankası",
+                " amb ",
+                " ecb ",
+                "bank of england",
+                " boe ",
+                "bank of japan",
+                " boj ",
+                "people's bank of china",
+                "pbc",
+                "pboc",
+                "isviçre merkez bankası",
+                "snb",
+                "bank of canada",
+                "reserve bank"
+        );
+        boolean rate = containsAny(title, "politika faiz", "faiz karar", "faiz oran", "faizini", "faizi", "zorunlu karşılık", "likidite");
+        boolean decision = containsAny(
+                title,
+                "artırdı",
+                "indirdi",
+                "sabit tuttu",
+                "kararını açıkladı",
+                "değiştirdi",
+                "karar verdi",
+                "beklentilere paralel",
+                "olağanüstü"
+        );
         if (centralBank && rate && decision) return 5;
 
         boolean marketWide = containsAny(title, "borsa istanbul", "bist", "piyasa geneli", "pay piyasası");
@@ -307,14 +376,23 @@ public final class NewsTestWorker extends Worker {
         boolean restriction = containsAny(title, "açığa satış yasa", "işlem yasa", "olağanüstü tedbir", "stopaj", "vergi oran");
         if (regulator && restriction) return 5;
 
-        boolean capitalMarketInvestigation = containsAny(
+        boolean financialContext = containsAny(
                 title,
-                "fon soruştur",
-                "sermaye piyasası soruştur",
-                "piyasa dolandırıcılı",
-                "piyasa manipülasyon",
-                "manipülatif işlem",
-                "spk soruştur"
+                "finans",
+                "fon",
+                "borsa",
+                "hisse",
+                "yatırım",
+                "banka",
+                "bankacılık",
+                "piyasa",
+                "sermaye",
+                "spk",
+                "şirket",
+                "holding",
+                "portföy",
+                "kripto",
+                "döviz"
         );
         boolean enforcementAction = containsAny(
                 title,
@@ -326,7 +404,11 @@ public final class NewsTestWorker extends Worker {
                 "el koy",
                 "kayyum"
         );
-        if (capitalMarketInvestigation && enforcementAction) return 5;
+        if (financialContext && enforcementAction) return 5;
+
+        boolean ministerStatement = containsAny(title, "bakan ", "bakanlık", "bakan'dan", "bakan’dan")
+                && containsAny(title, "açıkl", "duyur", "bildir", "konuş", "değerlendir");
+        if (ministerStatement) return 5;
 
         if (centralBank || regulator || title.contains("borsa istanbul")) return 4;
         if (containsAny(title, "halka arz", "sermaye artır", "temettü", "bilanço", "kredi not", "enflasyon", "işsizlik", "büyüme", "döviz rezerv")) return 3;
