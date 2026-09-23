@@ -103,7 +103,7 @@ const featureImageNeedle = `<img class="news-feature-image" src="' + esc(item.im
 const featureImageReplacement = `<img class="news-feature-image" src="' + esc(item.imageUrl) + '" alt="" loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true" />`;
 app = replaceOnce(app, featureImageNeedle, featureImageReplacement, 'featured news eager image');
 
-const intervalNeedle = `setInterval(() => { if (!document.hidden && state.view === 'markets') loadPopularFinanceNews({ force:true }); }, 300_000);`;
+const intervalNeedle = `setInterval(() => { if (!document.hidden && state.view === 'markets') loadPopularFinanceNews({ force:true }); }, 120_000);`;
 const intervalReplacement = `restoreFinanceNewsCache();
 setTimeout(() => { loadPopularFinanceNews(); }, 0);
 setInterval(() => {
