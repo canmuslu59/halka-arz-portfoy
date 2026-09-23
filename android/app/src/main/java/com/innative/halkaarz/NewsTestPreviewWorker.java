@@ -21,7 +21,7 @@ public final class NewsTestPreviewWorker extends Worker {
     @NonNull
     @Override
     public Result doWork() {
-        if (!NewsTestScheduler.enabled()) return Result.success();
+        if (!NewsTestScheduler.previewEnabled()) return Result.success();
 
         Context app = getApplicationContext();
         SharedPreferences prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
