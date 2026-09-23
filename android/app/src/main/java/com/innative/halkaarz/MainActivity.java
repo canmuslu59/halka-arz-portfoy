@@ -1,6 +1,9 @@
 package com.innative.halkaarz;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -51,6 +54,7 @@ public class MainActivity extends ComponentActivity {
     private static final String PORTFOLIO_KEY = "portfolio_json_v1";
     private static final String BACKUP_KEY = "portfolio_json_v1_backup";
     private static final String NOTIFICATION_ASKED_KEY = "notification_permission_asked_v1";
+    private static final String WALLET_WIDGET_PROMPTED_KEY = "wallet_widget_prompted_v1";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
     private static final int MAX_REDIRECTS = 5;
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
@@ -63,6 +67,7 @@ public class MainActivity extends ComponentActivity {
             new ThreadPoolExecutor.AbortPolicy()
     );
     private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;
+    private final Runnable startupWidgetPrompt = this::maybePromptWalletWidget;
     private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             granted -> handleNotificationPermissionResult()
@@ -87,7 +92,6 @@ public class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
-        WindowCompat.enableEdgeToEdge(getWindow());
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(7, 11, 21));
         applyInsets(webView);
@@ -103,6 +107,7 @@ public class MainActivity extends ComponentActivity {
         PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
         webView.postDelayed(startupPermissionRequest, 700L);
+        webView.postDelayed(startupWidgetPrompt, 2200L);
     }
 
     private void requestStartupNotificationPermission() {
@@ -113,15 +118,50 @@ public class MainActivity extends ComponentActivity {
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
     }
 
+
+    private void maybePromptWalletWidget() {
+        if (!"com.innative.halkaarz".equals(getPackageName()) || Build.VERSION.SDK_INT < 26 || isFinishing()) return;
+        AppWidgetManager manager = AppWidgetManager.getInstance(this);
+        if (!manager.isRequestPinAppWidgetSupported()) return;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (prefs.getBoolean(WALLET_WIDGET_PROMPTED_KEY, false)) return;
+        prefs.edit().putBoolean(WALLET_WIDGET_PROMPTED_KEY, true).apply();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Cüzdan ana ekranda")
+                .setMessage("Portföy toplamınızı ve günlük değişimi ana ekranda widget olarak görmek ister misiniz?")
+                .setNegativeButton("Şimdi değil", null)
+                .setPositiveButton("Widget ekle", (dialog, which) -> requestWalletWidgetPin())
+                .show();
+    }
+
+    private void requestWalletWidgetPin() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        try {
+            AppWidgetManager manager = AppWidgetManager.getInstance(this);
+            ComponentName provider = new ComponentName(this, WalletWidgetProvider.class);
+            if (!manager.requestPinAppWidget(provider, null, null)) {
+                Toast.makeText(this, "Ana ekranınız doğrudan widget eklemeyi desteklemiyor.", Toast.LENGTH_LONG).show();
+            }
+        } catch (Exception ignored) {
+            Toast.makeText(this, "Widget ekleme ekranı açılamadı.", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void applyInsets(WebView view) {
         ViewCompat.setOnApplyWindowInsetsListener(view, (target, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
             float density = Math.max(1f, getResources().getDisplayMetrics().density);
-            safeTopCssPx = Math.round(bars.top / density);
-            safeBottomCssPx = Math.round(bars.bottom / density);
-            safeLeftCssPx = Math.round(bars.left / density);
-            safeRightCssPx = Math.round(bars.right / density);
+            // Android 15+ enforces edge-to-edge for targetSdk 35+. Older versions
+            // keep the decor fitted because we intentionally avoid deprecated
+            // status/navigation bar color APIs used by enableEdgeToEdge().
+            boolean forcedEdgeToEdge = Build.VERSION.SDK_INT >= 35;
+            safeTopCssPx = forcedEdgeToEdge ? Math.round(bars.top / density) : 0;
+            safeBottomCssPx = forcedEdgeToEdge ? Math.round(bars.bottom / density) : 0;
+            safeLeftCssPx = forcedEdgeToEdge ? Math.round(bars.left / density) : 0;
+            safeRightCssPx = forcedEdgeToEdge ? Math.round(bars.right / density) : 0;
             imeBottomCssPx = Math.round(ime.bottom / density);
             deliverSafeInsets();
             return insets;
@@ -199,6 +239,7 @@ public class MainActivity extends ComponentActivity {
         networkExecutor.shutdownNow();
         if (currentWebView != null) {
             currentWebView.removeCallbacks(startupPermissionRequest);
+            currentWebView.removeCallbacks(startupWidgetPrompt);
             currentWebView.removeJavascriptInterface("AndroidBridge");
             currentWebView.stopLoading();
             currentWebView.destroy();
@@ -304,6 +345,14 @@ public class MainActivity extends ComponentActivity {
             if (isValidJsonObject(current)) editor.putString(BACKUP_KEY, current);
             editor.putString(PORTFOLIO_KEY, json);
             return editor.commit();
+        }
+
+        @JavascriptInterface
+        public boolean updateWalletWidget(String json) {
+            if (!isValidJsonObject(json)) return false;
+            boolean saved = prefs.edit().putString(WalletWidgetProvider.SNAPSHOT_KEY, json).commit();
+            if (saved) WalletWidgetProvider.updateAll(activity);
+            return saved;
         }
 
         @JavascriptInterface
