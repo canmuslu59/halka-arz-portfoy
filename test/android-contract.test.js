@@ -107,9 +107,13 @@ test('native layer handles Android 15 edge-to-edge without deprecated system bar
   assert.doesNotMatch(java, /setNavigationBarColor/);
   assert.doesNotMatch(theme, /statusBarColor/);
   assert.doesNotMatch(theme, /navigationBarColor/);
+  assert.match(java, /EdgeToEdge\.enable\(/);
+  assert.match(java, /SystemBarStyle\.dark\(Color\.TRANSPARENT\)/);
   assert.doesNotMatch(java, /WindowCompat\.enableEdgeToEdge/);
-  assert.match(java, /Build\.VERSION\.SDK_INT >= 35/);
+  assert.doesNotMatch(java, /Build\.VERSION\.SDK_INT >= 35/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars/);
+  assert.match(java, /safeTopCssPx = Math\.round\(bars\.top \/ density\)/);
+  assert.match(java, /safeBottomCssPx = Math\.round\(bars\.bottom \/ density\)/);
   assert.match(java, /--android-safe-top/);
   assert.match(java, /--android-safe-bottom/);
   assert.match(java, /--android-safe-left/);
