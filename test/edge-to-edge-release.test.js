@@ -6,17 +6,23 @@ const gradle = fs.readFileSync(new URL('../android/app/build.gradle', import.met
 const main = fs.readFileSync(new URL('../android/app/src/main/java/com/innative/halkaarz/MainActivity.java', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../android/app/src/main/assets/www/styles.css', import.meta.url), 'utf8');
 
-test('release relies on Android 15 enforced edge-to-edge without deprecated AndroidX helper path', () => {
+test('release uses Activity EdgeToEdge API for backward-compatible edge-to-edge', () => {
   assert.match(gradle, /compileSdk\s+36/);
   assert.match(gradle, /targetSdk\s+36/);
-  assert.match(gradle, /androidx\.core:core:1\.17\.0/);
+  assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
+  assert.match(main, /EdgeToEdge\.enable\(/);
+  assert.match(main, /SystemBarStyle\.dark\(Color\.TRANSPARENT\)/);
   assert.doesNotMatch(main, /WindowCompat\.enableEdgeToEdge/);
   assert.doesNotMatch(main, /setStatusBarColor|setNavigationBarColor/);
-  assert.match(main, /Build\.VERSION\.SDK_INT >= 35/);
+  assert.doesNotMatch(main, /Build\.VERSION\.SDK_INT >= 35/);
 });
 
-test('system bars and cutouts are converted to CSS safe insets', () => {
+test('system bars and cutouts are converted to CSS safe insets on every Android version', () => {
   assert.match(main, /WindowInsetsCompat\.Type\.systemBars\(\)\s*\|\s*WindowInsetsCompat\.Type\.displayCutout\(\)/);
+  assert.match(main, /safeTopCssPx = Math\.round\(bars\.top \/ density\)/);
+  assert.match(main, /safeBottomCssPx = Math\.round\(bars\.bottom \/ density\)/);
+  assert.match(main, /safeLeftCssPx = Math\.round\(bars\.left \/ density\)/);
+  assert.match(main, /safeRightCssPx = Math\.round\(bars\.right \/ density\)/);
   for (const side of ['top','bottom','left','right']) assert.match(main, new RegExp(`--android-safe-${side}`));
 });
 
