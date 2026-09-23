@@ -27,6 +27,20 @@ test('only genuinely critical finance events reach importance 5 of 5', () => {
   assert.ok((news?.scoreNewsImportance?.(item('Şirket temettü tarihini açıkladı', '2026-09-17T11:00:00+03:00', { category:'sirketler' })) ?? 99) < 5);
 });
 
+test('capital-market investigation enforcement is breaking but unrelated police news is not', () => {
+  assert.equal(
+    news?.scoreNewsImportance?.(item('Fon soruşturması genişliyor: 14 kişi gözaltına alındı', '2026-09-22T09:59:00+03:00', { category:'borsa' })),
+    5
+  );
+  assert.equal(
+    news?.scoreNewsImportance?.(item('Sermaye piyasası soruşturmasında yeni operasyon: 14 kişi gözaltına alındı', '2026-09-22T10:23:00+03:00', { category:'borsa' })),
+    5
+  );
+  assert.ok(
+    (news?.scoreNewsImportance?.(item('Uyuşturucu soruşturmasında 14 kişi gözaltına alındı', '2026-09-22T10:23:00+03:00', { category:'ekonomi' })) ?? 99) < 5
+  );
+});
+
 test('morning digest covers previous 19:00 through current 10:00 Istanbul', () => {
   const now = new Date('2026-09-17T10:03:00+03:00');
   const entries = [
