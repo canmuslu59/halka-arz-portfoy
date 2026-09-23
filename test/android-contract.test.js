@@ -35,8 +35,8 @@ test('Android Gradle config uses requested app id and SDK levels', async () => {
   assert.match(gradle, /minSdk 26/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /compileSdk 36/);
-  assert.match(gradle, /versionCode 32/);
-  assert.match(gradle, /versionName ['"]2\.4\.9['"]/);
+  assert.match(gradle, /versionCode 33/);
+  assert.match(gradle, /versionName ['"]2\.5\.0['"]/);
 });
 
 test('Android app disables service worker on intercepted app.local origin', async () => {
@@ -100,14 +100,15 @@ test('Android 13+ notification permission and Firebase messaging service are dec
   assert.match(gradle, /firebase-messaging:24\.1\.1/);
 });
 
-test('native layer uses edge-to-edge insets and removes deprecated system bar colors', async () => {
+test('native layer handles Android 15 edge-to-edge without deprecated system bar color APIs', async () => {
   const java = await read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const theme = await read('android/app/src/main/res/values/themes.xml');
   assert.doesNotMatch(java, /setStatusBarColor/);
   assert.doesNotMatch(java, /setNavigationBarColor/);
   assert.doesNotMatch(theme, /statusBarColor/);
   assert.doesNotMatch(theme, /navigationBarColor/);
-  assert.match(java, /WindowCompat\.enableEdgeToEdge/);
+  assert.doesNotMatch(java, /WindowCompat\.enableEdgeToEdge/);
+  assert.match(java, /Build\.VERSION\.SDK_INT >= 35/);
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars/);
   assert.match(java, /--android-safe-top/);
   assert.match(java, /--android-safe-bottom/);
