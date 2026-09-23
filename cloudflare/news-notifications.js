@@ -147,6 +147,10 @@ export function scoreNewsImportance(item) {
   const systemicRestriction = /(açığa satış yasa|işlem yasa|olağanüstü tedbir|sermaye kontrol|vergi oran.*değiş|stopaj.*değiş)/.test(title);
   if (regulator && systemicRestriction) return 5;
 
+  const capitalMarketInvestigation = /(fon soruştur|sermaye piyasası.*soruştur|piyasa dolandırıcılı|piyasa manipülasyon|manipülatif işlem|spk.*soruştur)/.test(title);
+  const enforcementAction = /(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|el koy|kayyum)/.test(title);
+  if (capitalMarketInvestigation && enforcementAction) return 5;
+
   if (centralBank || regulator || /borsa istanbul/.test(title)) return 4;
   if (/(halka arz|sermaye artır|temettü|bilanço|kredi not|enflasyon|işsizlik|büyüme|döviz rezerv)/.test(title)) return 3;
   if (/(dolar|euro|altın|borsa|endeks|hisse)/.test(title)) return 2;
