@@ -49,20 +49,20 @@ public final class WalletWidgetProvider extends AppWidgetProvider {
         Double dailyProfit = finite(snapshot, "dailyProfit");
         Double dailyPct = finite(snapshot, "dailyPct");
         Double invested = finite(snapshot, "invested");
-        Double activeValue = finite(snapshot, "activeValue");
         Double salesProceeds = finite(snapshot, "salesProceeds");
 
         views.setTextViewText(R.id.widget_total_wealth, money(totalWealth));
         views.setTextViewText(R.id.widget_daily, signedMoney(dailyProfit) + "  " + signedPct(dailyPct));
         views.setTextViewText(R.id.widget_total_profit, signedMoney(totalProfit) + "  " + signedPct(totalProfitPct));
         views.setTextViewText(R.id.widget_invested, money(invested));
-        views.setTextViewText(R.id.widget_active, money(activeValue));
+        views.setTextViewText(R.id.widget_daily_pct, signedPct(dailyPct));
         views.setTextViewText(R.id.widget_cash, money(salesProceeds));
 
         int dailyColor = signColor(dailyProfit);
         int totalColor = signColor(totalProfit);
         views.setTextColor(R.id.widget_daily, dailyColor);
         views.setTextColor(R.id.widget_total_profit, totalColor);
+        views.setTextColor(R.id.widget_daily_pct, signColor(dailyPct));
 
         Intent open = new Intent(context, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
