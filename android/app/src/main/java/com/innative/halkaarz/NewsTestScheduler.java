@@ -130,7 +130,7 @@ final class NewsTestScheduler {
                 .setConstraints(constraints)
                 .setInitialDelay(Math.max(0L, delayMs), TimeUnit.MILLISECONDS)
                 .build();
-        manager.enqueueUniqueWork(name, ExistingWorkPolicy.REPLACE, request);
+        manager.enqueueUniqueWork(name, ExistingWorkPolicy.KEEP, request);
     }
 
     static long delayUntil(ZonedDateTime now, int hour, int minute) {

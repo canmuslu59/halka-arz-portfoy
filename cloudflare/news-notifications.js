@@ -149,7 +149,7 @@ export function scoreNewsImportance(item) {
   if (regulator && systemicRestriction) return 5;
 
   const financialContext = /(finans|fon\b|borsa|hisse|yatırım|yatirim|banka|bankacılık|bankacilik|piyasa|sermaye|spk|şirket|sirket|holding|portföy|portfoy|kripto|döviz|doviz)/.test(title);
-  const enforcementAction = /(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|el koy|kayyum)/.test(title);
+  const enforcementAction = /(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|(?:tutar|hesap|varlık|varlik|milyon|milyar).*dondur|el koy|kayyum)/.test(title);
   if (financialContext && enforcementAction) return 5;
 
   const ministerStatement = /(bakan\b|bakanl)/.test(title)
@@ -230,11 +230,13 @@ export function digestTitle(items) {
   return '📰 Finans Gündeminde Öne Çıkanlar';
 }
 
-export function digestMessage(_slot, items) {
+export function digestMessage(slot, items) {
   const visible = (Array.isArray(items) ? items : [])
     .filter(isNotificationNewsItem)
     .slice(0, 4);
-  const title = digestTitle(visible);
+  const title = slot === 'morning' ? '☀️ Sabah Finans Özeti'
+    : slot === 'evening' ? '🌙 Akşam Finans Özeti'
+    : digestTitle(visible);
   const body = visible
     .map((item) => `• ${shortHeadline(cleanNotificationHeadline(item?.title), 72)}`)
     .join('\n\n');
@@ -265,7 +267,8 @@ export function selectRoutineNewsItem(items, { now = new Date() } = {}) {
   if (!checkedAt) return null;
   const candidates = normalizeFeed(items)
     .map(item => ({ ...item, _published:parseDate(item.publishedAt) }))
-    .filter(item => item._published && item._published <= checkedAt)
+    .filter(item => item._published && item._published <= checkedAt
+      && checkedAt.getTime() - item._published.getTime() <= 24 * 60 * 60_000)
     .sort((a, b) => {
       const importance = Number(b.importance) - Number(a.importance);
       if (importance) return importance;
@@ -354,7 +357,10 @@ export function createNewsNotificationEngine({
 
         const slot = currentDigestSlot(checkedAt);
         if (!slot) continue;
-        const digestItems = selectDigestItems(feed, { slot, now: checkedAt });
+        const slotBoundary = boundary(istanbulParts(checkedAt).day, slot === 'morning' ? 10 : 19);
+        const selected = selectDigestItems(feed, { slot, now: checkedAt });
+        const fallback = selected.length ? null : selectRoutineNewsItem(feed, { now: slotBoundary });
+        const digestItems = selected.length ? selected : fallback ? [fallback] : [];
         if (digestItems.length < 1) continue;
 
         const day = istanbulParts(checkedAt)?.day;

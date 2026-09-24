@@ -104,12 +104,15 @@ public final class NewsTestWorker extends Worker {
         int minuteOfDay = now.getHour() * 60 + now.getMinute();
         String slot;
         ZonedDateTime start;
+        ZonedDateTime end;
         if (minuteOfDay >= 19 * 60) {
             slot = "evening";
             start = now.toLocalDate().atTime(10, 0).atZone(ISTANBUL);
+            end = now.toLocalDate().atTime(19, 0).atZone(ISTANBUL);
         } else if (minuteOfDay >= 10 * 60) {
             slot = "morning";
             start = now.toLocalDate().minusDays(1).atTime(19, 0).atZone(ISTANBUL);
+            end = now.toLocalDate().atTime(10, 0).atZone(ISTANBUL);
         } else {
             return;
         }
@@ -126,8 +129,16 @@ public final class NewsTestWorker extends Worker {
         List<NewsItem> eligible = new ArrayList<>();
         for (NewsItem item : items) {
             if (item.publishedAt == null) continue;
-            if (item.publishedAt.isBefore(startInstant) || item.publishedAt.isAfter(now.toInstant())) continue;
+            if (item.publishedAt.isBefore(startInstant) || !item.publishedAt.isBefore(end.toInstant())) continue;
             eligible.add(item);
+        }
+        if (eligible.isEmpty()) {
+            for (NewsItem item : items) {
+                if (item.publishedAt == null) continue;
+                if (!item.publishedAt.isAfter(end.toInstant().minus(Duration.ofHours(24)))
+                        || item.publishedAt.isAfter(end.toInstant())) continue;
+                eligible.add(item);
+            }
         }
         if (eligible.isEmpty()) return;
 
@@ -154,7 +165,7 @@ public final class NewsTestWorker extends Worker {
         data.put("digest_slot", slot);
         data.put("digest_day", now.toLocalDate().toString());
         String digestBody = body.toString();
-        data.put("title", NewsNotificationFormatter.digestTitle("📰 Ekonomi ve Finans Gündemi", digestBody));
+        data.put("title", "morning".equals(slot) ? "☀️ Sabah Finans Özeti" : "🌙 Akşam Finans Özeti");
         data.put("body", digestBody);
         boolean delivered = NotificationHelper.show(getApplicationContext(), data);
         prefs.edit()
@@ -401,9 +412,13 @@ public final class NewsTestWorker extends Worker {
                 "yakalama kararı",
                 "operasyon",
                 "malvarlığ",
+                "tutar dondur",
                 "el koy",
                 "kayyum"
         );
+        if (title.contains("dondur") && containsAny(title, "tutar", "hesap", "varlık", "milyon", "milyar")) {
+            enforcementAction = true;
+        }
         if (financialContext && enforcementAction) return 5;
 
         boolean ministerStatement = containsAny(title, "bakan ", "bakanl", "bakan'dan", "bakan’dan")

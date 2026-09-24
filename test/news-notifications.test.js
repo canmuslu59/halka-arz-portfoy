@@ -41,6 +41,71 @@ test('financial enforcement is breaking but unrelated police news is not', () =>
   );
 });
 
+test('a frozen financial investigation amount is breaking even with a low feed score', async () => {
+  const headline = 'Fon soruşturması kapsamında 750 milyon TL’lik tutar donduruldu';
+  const critical = item(headline, '2026-09-24T11:51:00+03:00', { importance:1, id:'frozen-funds' });
+  assert.equal(news.scoreNewsImportance(critical), 5);
+  assert.ok(news.scoreNewsImportance(item('Gıda soruşturmasında ürünler donduruldu', critical.publishedAt)) < 5);
+  const state = { installations:{ phone1:{ fcmToken:'token-1', newsEnabled:true } } };
+  const store = {
+    async read() { return structuredClone(state); },
+    async mutate(fn) { return fn(state); },
+  };
+  const sent = [];
+  const engine = news.createNewsNotificationEngine({
+    store, sender:{ async send(_token, message) { sent.push(message); } },
+    fetchNews:async () => [critical], now:() => new Date('2026-09-24T11:58:00+03:00'),
+  });
+  await engine.check();
+  await engine.check();
+  assert.equal(sent.filter(message => message.data.kind === 'news_breaking').length, 1);
+  assert.equal(sent[0].body, headline);
+});
+
+test('10:00 and 19:00 digests keep their routine titles regardless of article topics', () => {
+  const rate = item('TCMB politika faizini artırdı', '2026-09-24T09:30:00+03:00');
+  assert.equal(news.digestMessage('morning', [rate]).title, '☀️ Sabah Finans Özeti');
+  assert.equal(news.digestMessage('evening', [rate]).title, '🌙 Akşam Finans Özeti');
+  assert.equal(news.digestMessage('routine-12', [rate]).title, '🏦 Faiz ve Piyasa Gündemi');
+});
+
+test('scheduled summaries recover with a recent real article when the interval is empty', async () => {
+  const previous = item('Dün akşam ekonomi gündemi', '2026-09-23T18:00:00+03:00', { importance:3 });
+  const state = { installations:{ phone1:{ fcmToken:'token-1', newsEnabled:true } } };
+  const store = { async read() { return structuredClone(state); }, async mutate(fn) { return fn(state); } };
+  const sent = [];
+  const engine = news.createNewsNotificationEngine({
+    store, sender:{ async send(_token, message) { sent.push(message); } },
+    fetchNews:async () => [previous], now:() => new Date('2026-09-24T10:03:00+03:00'),
+  });
+  await engine.check();
+  await engine.check();
+  assert.equal(sent.filter(message => message.data.digest_slot === 'morning').length, 1);
+  assert.equal(sent[0].title, '☀️ Sabah Finans Özeti');
+  assert.match(sent[0].body, /Dün akşam ekonomi gündemi/);
+});
+
+test('a late morning check never uses news published after 10:00', async () => {
+  const later = item('Saat 10 sonrasında açıklanan haber', '2026-09-24T10:02:00+03:00', { importance:5 });
+  const earlier = item('Gece yayınlanan piyasa haberi', '2026-09-24T09:00:00+03:00', { importance:3 });
+  assert.deepEqual(news.selectDigestItems([earlier, later], {
+    slot:'morning', now:new Date('2026-09-24T10:05:00+03:00'),
+  }).map(x=>x.title), [earlier.title]);
+  assert.equal(news.selectRoutineNewsItem([later], { now:new Date('2026-09-24T10:00:00+03:00') }), null);
+  assert.equal(news.selectRoutineNewsItem([item('Eski haber', '2026-09-20T10:00:00+03:00')], {
+    now:new Date('2026-09-24T10:00:00+03:00'),
+  }), null);
+});
+
+test('the 19:00 summary excludes navigation pages even if the feed marks them important', () => {
+  const now = new Date('2026-09-24T19:00:00+03:00');
+  const entries = ['Borsa Kapanış', 'Çeyrek Altın', 'Cumhuriyet Altını'].map((title,index) =>
+    item(title, `2026-09-24T1${index + 5}:00:00+03:00`, { importance:5 }));
+  entries.push(item('TCMB rezervlerinde düşüş sürüyor', '2026-09-24T17:00:00+03:00', { importance:3 }));
+  const selected = news.selectDigestItems(entries, { slot:'evening', now });
+  assert.deepEqual(selected.map(x=>x.title), ['TCMB rezervlerinde düşüş sürüyor']);
+});
+
 test('minister statements and major global central-bank rate decisions are 5 of 5', () => {
   assert.equal(news?.scoreNewsImportance?.(item('Bakan Şimşek enflasyon programına ilişkin açıklama yaptı', '2026-09-22T11:00:00+03:00')), 5);
   assert.equal(news?.scoreNewsImportance?.(item('Ticaret Bakanlığından piyasalara ilişkin açıklama', '2026-09-22T11:00:00+03:00')), 5);
@@ -94,7 +159,7 @@ test('digest body uses short bullet headlines and does not exceed four items', (
     item('Beşinci haber gösterilmemeli', '2026-09-17T14:00:00+03:00', { importance:3 }),
   ];
   const message = news?.digestMessage?.('evening', selected);
-  assert.equal(message?.title, '🏦 Faiz ve Piyasa Gündemi');
+  assert.equal(message?.title, '🌙 Akşam Finans Özeti');
   assert.match(String(message?.body || ''), /\n\n/);
   const bullets = String(message?.body || '').split('\n\n').filter(line => line.startsWith('• '));
   assert.equal(bullets.length, 4);
@@ -152,7 +217,7 @@ test('digest slots are sent once per Istanbul day and can send the single best h
   await engine.check();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].message.data.kind, 'news_digest');
-  assert.equal(sent[0].message.title, '📊 Ekonomi Gündeminde Öne Çıkanlar');
+  assert.equal(sent[0].message.title, '☀️ Sabah Finans Özeti');
   assert.equal(state.installations.phone1.newsState?.morningDigestDay, '2026-09-17');
 });
 

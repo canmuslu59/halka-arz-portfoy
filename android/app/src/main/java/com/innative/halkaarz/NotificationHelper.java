@@ -143,8 +143,9 @@ final class NotificationHelper {
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
         if ("news_digest".equals(kind)) {
-            title = NewsNotificationFormatter.digestTitle(title, body);
+            title = NewsNotificationFormatter.digestTitle(title, body, digestSlot);
             body = NewsNotificationFormatter.digestBody(body);
+            if (body.isEmpty()) return false;
         }
         android.content.SharedPreferences delivered = context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE);
         String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();

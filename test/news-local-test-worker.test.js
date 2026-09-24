@@ -54,6 +54,15 @@ test('local breaking score covers financial enforcement ministers and global cen
   assert.match(worker, /bank of japan/);
   assert.match(worker, /if \(financialContext && enforcementAction\) return 5/);
   assert.match(worker, /if \(ministerStatement\) return 5/);
+  assert.match(worker, /dondur/);
+});
+
+test('daily news targets remain pending across periodic checks and summaries have fixed boundaries', () => {
+  assert.match(scheduler, /manager\.enqueueUniqueWork\(name, ExistingWorkPolicy\.KEEP, request\)/);
+  assert.match(worker, /now\.toLocalDate\(\)\.atTime\(10, 0\)\.atZone\(ISTANBUL\)/);
+  assert.match(worker, /now\.toLocalDate\(\)\.atTime\(19, 0\)\.atZone\(ISTANBUL\)/);
+  assert.match(worker, /Sabah Finans Özeti/);
+  assert.match(worker, /Akşam Finans Özeti/);
 });
 
 test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute age', () => {

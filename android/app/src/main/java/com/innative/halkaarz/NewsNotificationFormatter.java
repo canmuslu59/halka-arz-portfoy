@@ -20,6 +20,12 @@ final class NewsNotificationFormatter {
 
     private NewsNotificationFormatter() {}
 
+    static String digestTitle(String originalTitle, String rawBody, String slot) {
+        if ("morning".equals(slot)) return "☀️ Sabah Finans Özeti";
+        if ("evening".equals(slot)) return "🌙 Akşam Finans Özeti";
+        return digestTitle(originalTitle, rawBody);
+    }
+
     static String digestTitle(String originalTitle, String rawBody) {
         List<String> headlines = digestHeadlines(rawBody);
         if (headlines.isEmpty()) return nonEmpty(originalTitle, GENERIC_TITLE);
@@ -49,7 +55,7 @@ final class NewsNotificationFormatter {
 
     static String digestBody(String rawBody) {
         List<String> headlines = digestHeadlines(rawBody);
-        if (headlines.isEmpty()) return cleanText(rawBody);
+        if (headlines.isEmpty()) return "";
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < headlines.size(); i++) {
             if (i > 0) result.append("\n\n");
@@ -85,10 +91,21 @@ final class NewsNotificationFormatter {
             String text = cleanText(line).replaceFirst("^[•\\-]\\s*", "").trim();
             if (text.isEmpty()) continue;
             text = cleanHeadline(text);
-            if (!text.isEmpty()) result.add(shorten(text, 72));
+            if (isGenericHeadline(text)) continue;
+            result.add(shorten(text, 72));
             if (result.size() >= 4) break;
         }
         return result;
+    }
+
+    private static boolean isGenericHeadline(String headline) {
+        String value = headline.toLowerCase(Locale.forLanguageTag("tr-TR"));
+        return value.isEmpty() || value.equals("borsa kapanış")
+                || value.equals("çeyrek altın") || value.equals("cumhuriyet altını")
+                || value.equals("ziynet altını") || value.equals("hisse senetleri")
+                || value.equals("yatırım fonları") || value.equals("halka arz takvimi")
+                || value.equals("borsa haberleri") || value.equals("ekonomi haberleri")
+                || value.equals("altın fiyatları") || value.equals("gram altın fiyatı");
     }
 
     private static boolean containsAny(String value, String... needles) {
