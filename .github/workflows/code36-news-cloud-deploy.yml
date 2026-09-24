@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -32,23 +32,38 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Require explicit approval marker and unchanged market transport
-        shell: bash
+        shell: powershell
         run: |
-          set -euo pipefail
-          test "$(cat cloudflare/deploy-code36-approved.txt)" = 'APPROVE_CODE36_NEWS_DEPLOY'
-          test "$(git hash-object cloudflare/worker.js)" = 'a2bda1e178d7804626f98ce4e84667293113632d'
-          test "$(git hash-object cloudflare/durable-store.js)" = '308e9f23c32858ef992c34a0fa715e3323243f91'
-          test "$(git hash-object cloudflare/fcm-sender.js)" = 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6'
-          test -n "${CLOUDFLARE_API_TOKEN:-}"
-          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
-          echo 'News deploy approval and unchanged market transport verified'
+          $ErrorActionPreference = 'Stop'
+          $approval = (Get-Content cloudflare/deploy-code36-approved.txt -TotalCount 1).Trim()
+          if ($approval -cne 'APPROVE_CODE36_NEWS_DEPLOY') { throw 'News deployment approval marker missing' }
+          $market = @{
+            'cloudflare/worker.js' = 'a2bda1e178d7804626f98ce4e84667293113632d'
+            'cloudflare/durable-store.js' = '308e9f23c32858ef992c34a0fa715e3323243f91'
+            'cloudflare/fcm-sender.js' = 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6'
+          }
+          foreach ($path in $market.Keys) {
+            $actual = (& git rev-parse "HEAD:${path}").Trim()
+            if ($LASTEXITCODE -ne 0 -or $actual -cne $market[$path]) { throw "Market transport changed: $path" }
+          }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) { throw 'Cloudflare API token secret unavailable' }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) { throw 'Cloudflare account ID secret unavailable' }
+          Write-Host 'Approval, market transport and deployment credentials verified'
       - name: Run regression tests
+        shell: powershell
         run: |
           npm ci
-          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Deploy existing production worker with updated news rules
-        run: npx -y wrangler@4.131.1 deploy --config wrangler.jsonc
-      - name: Verify production health
+        shell: powershell
         run: |
-          curl --fail --silent --show-error https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health -o health.json
-          node -e "if(!require('./health.json').ok) process.exit(1)"
+          npx -y wrangler@4.131.1 deploy --config wrangler.jsonc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify production health
+        shell: powershell
+        run: |
+          $health = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
+          if ($health.ok -ne $true) { throw 'Production health endpoint did not confirm ok' }
+          Write-Host 'Production news worker is healthy'
