@@ -33,6 +33,8 @@ jobs:
           java-version: '17'
       - name: Require explicit approval marker and unchanged market transport
         shell: powershell
+        env:
+          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           $approval = (Get-Content cloudflare/deploy-code36-approved.txt -TotalCount 1).Trim()
@@ -42,9 +44,11 @@ jobs:
             'cloudflare/durable-store.js' = '308e9f23c32858ef992c34a0fa715e3323243f91'
             'cloudflare/fcm-sender.js' = 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6'
           }
+          $headers = @{ Authorization = "Bearer $env:GH_READ_TOKEN"; Accept = 'application/vnd.github+json' }
           foreach ($path in $market.Keys) {
-            $actual = (& git rev-parse "HEAD:${path}").Trim()
-            if ($LASTEXITCODE -ne 0 -or $actual -cne $market[$path]) { throw "Market transport changed: $path" }
+            $url = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/contents/${path}?ref=$env:GITHUB_SHA"
+            $actual = (Invoke-RestMethod -Uri $url -Headers $headers).sha
+            if ($actual -cne $market[$path]) { throw "Market transport changed: $path" }
           }
           if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) { throw 'Cloudflare API token secret unavailable' }
           if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) { throw 'Cloudflare account ID secret unavailable' }
