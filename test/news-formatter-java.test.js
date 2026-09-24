@@ -15,9 +15,9 @@ test('Android news display keeps scheduled titles and removes generic landing-pa
 class NewsFormatterHarness {
   public static void main(String[] args) {
     String body = "• TCMB rezervlerinde düşüş sürüyor\\n\\n• Borsa Kapanış\\n\\n• Çeyrek Altın\\n\\n• Cumhuriyet Altını";
-    System.out.println(NewsNotificationFormatter.digestTitle("📰 Akşama Düşenler", body, "evening"));
-    System.out.println(NewsNotificationFormatter.digestTitle("🏦 Faiz ve Piyasa Gündemi", body, "morning"));
-    System.out.println(NewsNotificationFormatter.digestBody(body));
+    System.out.println("evening=" + "🌙 Akşam Finans Özeti".equals(NewsNotificationFormatter.digestTitle("📰 Akşama Düşenler", body, "evening")));
+    System.out.println("morning=" + "☀️ Sabah Finans Özeti".equals(NewsNotificationFormatter.digestTitle("🏦 Faiz ve Piyasa Gündemi", body, "morning")));
+    System.out.println("bodyOk=" + "• TCMB rezervlerinde düşüş sürüyor".equals(NewsNotificationFormatter.digestBody(body)));
     System.out.println("onlyGenericEmpty=" + NewsNotificationFormatter.digestBody("• Borsa Kapanış\\n\\n• Çeyrek Altın").isEmpty());
   }
 }`);
@@ -27,9 +27,9 @@ class NewsFormatterHarness {
     const run = spawnSync('java', ['-cp', dir, 'com.innative.halkaarz.NewsFormatterHarness'], { encoding:'utf8' });
     assert.equal(run.status, 0, run.stderr);
     assert.deepEqual(run.stdout.trim().split(/\r?\n/), [
-      '🌙 Akşam Finans Özeti',
-      '☀️ Sabah Finans Özeti',
-      '• TCMB rezervlerinde düşüş sürüyor',
+      'evening=true',
+      'morning=true',
+      'bodyOk=true',
       'onlyGenericEmpty=true',
     ]);
   } finally {

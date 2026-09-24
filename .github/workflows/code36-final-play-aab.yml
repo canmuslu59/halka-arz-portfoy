@@ -6,6 +6,9 @@ on:
       - fix/code36-news-digests-20260924
     paths:
       - .github/workflows/code36-final-play-aab.yml
+      - test/*.test.js
+      - cloudflare/news-notifications.js
+      - android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
   workflow_dispatch:
 
 permissions:

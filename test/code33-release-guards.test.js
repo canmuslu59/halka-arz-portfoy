@@ -13,8 +13,8 @@ const preview = readFileSync('android/app/src/main/java/com/innative/halkaarz/Ne
 
 test('current production identity is correct', () => {
   assert.match(gradle, /applicationId 'com\.innative\.halkaarz'/);
-  assert.match(gradle, /versionCode 35/);
-  assert.match(gradle, /versionName '2\.5\.2'/);
+  assert.match(gradle, /versionCode 36/);
+  assert.match(gradle, /versionName '2\.5\.3'/);
 });
 
 test('edge-to-edge is backward compatible and avoids direct deprecated system-bar setters', () => {

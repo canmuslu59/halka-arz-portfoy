@@ -77,12 +77,12 @@ test('Android schedules network-constrained background market and IPO checks eve
   assert.match(worker, /background_alert_state_v1/);
 });
 
-test('Play milestone identity is versionCode 35 / versionName 2.5.2', async () => {
+test('Play milestone identity is versionCode 36 / versionName 2.5.3', async () => {
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
-  assert.match(gradle, /versionCode 35/);
-  assert.match(gradle, /versionName ['"]2\.5\.2['"]/);
-  assert.match(html, /v2\.5\.2\s*•\s*Build 35/);
+  assert.match(gradle, /versionCode 36/);
+  assert.match(gradle, /versionName ['"]2\.5\.3['"]/);
+  assert.match(html, /v2\.5\.3\s*•\s*Build 36/);
 });
 
 test('Android requests notification permission automatically on app startup when still missing', async () => {

@@ -6,15 +6,15 @@ async function read(path) {
   return fs.readFile(path, 'utf8');
 }
 
-test('milestone release is v2.5.2 / code35', async () => {
+test('milestone release is v2.5.3 / code36', async () => {
   const gradle = await read('android/app/build.gradle');
   const index = await read('public/index.html');
 
   assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
   assert.match(gradle, /targetSdk 36/);
-  assert.match(gradle, /versionCode 35/);
-  assert.match(gradle, /versionName ['"]2\.5\.2['"]/);
-  assert.match(index, /id="appVersion"[\s\S]*v2\.5\.2\s*•\s*Build 35/);
+  assert.match(gradle, /versionCode 36/);
+  assert.match(gradle, /versionName ['"]2\.5\.3['"]/);
+  assert.match(index, /id="appVersion"[\s\S]*v2\.5\.3\s*•\s*Build 36/);
 });
 
 test('milestone release source exposes no test notification button', async () => {
