@@ -1,1 +1,2 @@
 APPROVE_CODE36_NEWS_DEPLOY
+retry=windows-runner-20260924
