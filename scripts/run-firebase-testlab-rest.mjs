@@ -172,7 +172,8 @@ function chooseDevices(catalog) {
   const physical = uniqueById([...samsung, ...google, ...other].map(x => ({ ...x, id: x.model.id }))).slice(0, 5);
 
   let selected;
-  if (profile === 'smoke') selected = virtual.slice(0, 3);
+  if (profile === 'single') selected = virtual.slice(0, 1);
+  else if (profile === 'smoke') selected = virtual.slice(0, 3);
   else if (profile === 'physical') selected = physical;
   else if (profile === 'full') selected = [...physical, ...virtual].slice(0, 10);
   else throw new Error(`Unknown TEST_PROFILE: ${profile}`);
@@ -303,6 +304,33 @@ while (!terminal.has(matrix.state)) {
   }));
   console.log(`TEST_MATRIX_POLL state=${matrix.state} outcome=${matrix.outcomeSummary || ''} executions=${JSON.stringify(executions)}`);
 }
+
+const toolResultDetails = [];
+for (const execution of (matrix.testExecutions || [])) {
+  const ref = execution.toolResultsStep;
+  if (!ref?.projectId || !ref?.historyId || !ref?.executionId || !ref?.stepId) continue;
+
+  const stepUrl = `https://toolresults.googleapis.com/toolresults/v1beta3/projects/${encodeURIComponent(ref.projectId)}/histories/${encodeURIComponent(ref.historyId)}/executions/${encodeURIComponent(ref.executionId)}/steps/${encodeURIComponent(ref.stepId)}`;
+  try {
+    const step = await api(stepUrl);
+    const model = execution.environment?.androidDevice?.androidModelId || execution.id || 'unknown';
+    fs.writeFileSync(path.join(workDir, `toolresults-${model}.json`), JSON.stringify(step, null, 2));
+    toolResultDetails.push({
+      model,
+      summary: step.outcome?.summary || '',
+      failureDetail: step.outcome?.failureDetail || null,
+      inconclusiveDetail: step.outcome?.inconclusiveDetail || null,
+      testIssues: step.testExecutionStep?.testIssues || [],
+    });
+  } catch (error) {
+    toolResultDetails.push({
+      model: execution.environment?.androidDevice?.androidModelId || execution.id || 'unknown',
+      fetchError: String(error?.message || error),
+    });
+  }
+}
+fs.writeFileSync(path.join(workDir, 'toolresults-summary.json'), JSON.stringify(toolResultDetails, null, 2));
+console.log(`TOOL_RESULTS_DETAILS=${JSON.stringify(toolResultDetails)}`);
 
 fs.writeFileSync(path.join(workDir, 'test-run.json'), JSON.stringify(matrix, null, 2));
 fs.writeFileSync(
