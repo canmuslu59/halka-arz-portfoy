@@ -70,16 +70,6 @@
     "delayTime": 1500
   },
   {
-    "description": "Simulate critical memory pressure",
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "am send-trim-memory __%APP_PACKAGE_NAME%__ RUNNING_CRITICAL"
-  },
-  {
-    "description": "Wait after memory pressure",
-    "eventType": "WAIT",
-    "delayTime": 1000
-  },
-  {
     "description": "Kill background process normally",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am kill __%APP_PACKAGE_NAME%__"

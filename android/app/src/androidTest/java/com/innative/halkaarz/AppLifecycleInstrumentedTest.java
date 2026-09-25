@@ -8,6 +8,7 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.ComponentCallbacks2;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -79,6 +80,21 @@ public class AppLifecycleInstrumentedTest {
         }
     }
 
+
+
+    @Test
+    public void activityRemainsUsableAfterCriticalTrimMemoryCallback() {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            assertTrue(waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+
+            scenario.onActivity(activity ->
+                    activity.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL));
+            SystemClock.sleep(500L);
+
+            assertTrue("Web app did not remain usable after critical trim-memory callback",
+                    waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+        }
+    }
 
     @Test
     public void activitySurvivesLandscapeAndPortraitRotation() {
