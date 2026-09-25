@@ -70,4 +70,6 @@ jobs:
         run: |
           $health = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
           if ($health.ok -ne $true) { throw 'Production health endpoint did not confirm ok' }
-          Write-Host 'Production news worker is healthy'
+          if ($health.push.fcmConfigured -ne $true) { throw 'Production Firebase push sender is unavailable' }
+          if ($health.push.newsNotificationsEnabled -ne $true) { throw 'Production news notifications are disabled: check NEWS_FEED_URL and NEWS_NOTIFICATIONS_ENABLED bindings' }
+          Write-Host 'Production news and Firebase push are healthy'
