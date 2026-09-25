@@ -222,15 +222,24 @@ jobs:
 
           if (-not (Test-Path $gcloud)) { throw 'gcloud.cmd not found after extraction' }
 
-          $pythonCandidates = @(
-            (Join-Path $env:RUNNER_TOOL_CACHE 'Python\3.12.10\x64\python.exe'),
-            'C:\actions-runner\_work\_tool\Python\3.12.10\x64\python.exe'
-          )
-          $python = $pythonCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if ([string]::IsNullOrWhiteSpace($python)) {
-            throw 'Portable Python copied by setup-python was not found in runner tool cache'
+          $pythonVersion = '3.12.10'
+          $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE "python-embed-$pythonVersion"
+          $python = Join-Path $pythonRoot 'python.exe'
+
+          if (-not (Test-Path $python)) {
+            New-Item -ItemType Directory -Force $pythonRoot | Out-Null
+            $pythonZip = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
+            $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+
+            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 120 --output $pythonZip $pythonUrl
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & tar.exe -xf $pythonZip -C $pythonRoot
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Remove-Item $pythonZip -Force
           }
 
+          if (-not (Test-Path $python)) { throw 'Portable Python not found after extraction' }
           & $python --version
           if ($LASTEXITCODE -ne 0) { throw 'Portable Python exists but cannot execute' }
 
