@@ -1,0 +1,116 @@
+name: Restore Code36 background news bindings
+
+on:
+  push:
+    branches:
+      - fix/code36-news-digests-20260924
+    paths:
+      - .github/workflows/notification-background-restore.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-code36-background-news
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify prior production version and unchanged market transport
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $approval = (Get-Content cloudflare/deploy-code36-approved.txt -TotalCount 1).Trim()
+          if ($approval -cne 'APPROVE_CODE36_NEWS_DEPLOY') { throw 'News deployment not approved' }
+          $configuration = Get-Content wrangler.jsonc -Raw | ConvertFrom-Json
+          if ($configuration.keep_vars -ne $true) { throw 'Wrangler must preserve remote variables' }
+          $market = @{
+            'cloudflare/worker.js' = 'a2bda1e178d7804626f98ce4e84667293113632d'
+            'cloudflare/durable-store.js' = '308e9f23c32858ef992c34a0fa715e3323243f91'
+            'cloudflare/fcm-sender.js' = 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6'
+          }
+          $headers = @{ Authorization = "Bearer $env:GH_READ_TOKEN"; Accept = 'application/vnd.github+json' }
+          foreach ($path in $market.Keys) {
+            $url = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/contents/${path}?ref=$env:GITHUB_SHA"
+            $actual = (Invoke-RestMethod -Uri $url -Headers $headers).sha
+            if ($actual -cne $market[$path]) { throw "Market notification transport changed: $path" }
+          }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -or [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+            throw 'Cloudflare credentials missing'
+          }
+          $health = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
+          if (-not $health.ok -or -not $health.push.fcmConfigured -or $health.push.installationCount -le 0) { throw 'Production push service does not match expected state' }
+          if ($health.push.newsNotificationsEnabled) { throw 'News already enabled; refusing unnecessary restore' }
+          $apiHeaders = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          $account = $env:CLOUDFLARE_ACCOUNT_ID
+          $prefix = "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push"
+          $versions = Invoke-RestMethod -Uri "$prefix/versions?per_page=8" -Headers $apiHeaders -TimeoutSec 30
+          if (-not $versions.success -or $versions.result.items[0].id -cne '659493bb-d717-4d51-aea0-32b28042b616') {
+            throw 'Production version changed since diagnosis; review required'
+          }
+          $previous = Invoke-RestMethod -Uri "$prefix/versions/e3460aed-1fda-4132-9dea-df3ceace9bd5" -Headers $apiHeaders -TimeoutSec 30
+          if (-not $previous.success) { throw 'Prior known-good Worker version unavailable' }
+          $flag = @($previous.result.resources.bindings | Where-Object { $_.name -eq 'NEWS_NOTIFICATIONS_ENABLED' })[0]
+          $feed = @($previous.result.resources.bindings | Where-Object { $_.name -eq 'NEWS_FEED_URL' })[0]
+          $feedUri = [Uri]$feed.text
+          if ($flag.type -cne 'plain_text' -or $flag.text -cne 'true' -or $feed.type -cne 'plain_text' -or
+              $feedUri.Scheme -cne 'https' -or $feedUri.Host -cne 'halka-arz-portfoy-news-test.grass-airboat.workers.dev' -or
+              $feedUri.AbsolutePath -cne '/v1/news') { throw 'Prior news bindings are not the verified configuration' }
+          $feedStatus = (Invoke-WebRequest -Uri $feed.text -UseBasicParsing -TimeoutSec 30).StatusCode
+          if ($feedStatus -ne 200) { throw 'Previously configured news feed is unavailable' }
+          Write-Host 'Original news bindings, market transport, token configuration and source feed validated'
+      - name: Run regression tests
+        shell: powershell
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Deploy unchanged notification transport and restore protected news bindings
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $apiHeaders = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          $account = $env:CLOUDFLARE_ACCOUNT_ID
+          $prefix = "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push"
+          $previous = Invoke-RestMethod -Uri "$prefix/versions/e3460aed-1fda-4132-9dea-df3ceace9bd5" -Headers $apiHeaders -TimeoutSec 30
+          if (-not $previous.success) { throw 'Prior Worker bindings unavailable' }
+          $bindings = $previous.result.resources.bindings
+          $flag = @($bindings | Where-Object { $_.name -eq 'NEWS_NOTIFICATIONS_ENABLED' })[0].text
+          $feed = @($bindings | Where-Object { $_.name -eq 'NEWS_FEED_URL' })[0].text
+          if ($flag -cne 'true' -or ([Uri]$feed).Host -cne 'halka-arz-portfoy-news-test.grass-airboat.workers.dev') {
+            throw 'Refusing to deploy unverified news settings'
+          }
+          $tempSecretFile = Join-Path $env:RUNNER_TEMP 'code36-news-restore-secrets.json'
+          try {
+            $payload = @{ NEWS_NOTIFICATIONS_ENABLED = $flag; NEWS_FEED_URL = $feed } | ConvertTo-Json -Compress
+            [IO.File]::WriteAllText($tempSecretFile, $payload, (New-Object Text.UTF8Encoding($false)))
+            npx -y wrangler@4.131.1 deploy --config wrangler.jsonc --keep-vars --secrets-file $tempSecretFile
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            if (Test-Path $tempSecretFile) { Remove-Item -LiteralPath $tempSecretFile -Force }
+          }
+      - name: Verify background news and market readiness
+        shell: powershell
+        run: |
+          $health = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
+          if ($health.ok -ne $true -or $health.push.fcmConfigured -ne $true -or $health.push.newsNotificationsEnabled -ne $true) {
+            throw 'Production push or background news remains disabled'
+          }
+          if ($health.push.installationCount -lt 1) { throw 'Registered installations unexpectedly missing' }
+          Write-Host "Production push ready: FCM=true news=true installations=$($health.push.installationCount)"
