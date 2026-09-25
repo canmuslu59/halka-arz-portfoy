@@ -6,6 +6,7 @@ on:
       - ci/firebase-test-lab-20260925
     paths:
       - .github/workflows/firebase-test-lab.yml
+      - scripts/run-firebase-testlab-rest.mjs
       - testlab/*.json
       - android/app/build.gradle
       - android/app/src/androidTest/**
@@ -16,19 +17,30 @@ on:
         required: true
         default: smoke
         type: choice
-        options: [smoke, physical, full]
+        options:
+          - smoke
+          - physical
+          - full
       scenario:
         description: Test scenario
         required: true
         default: crawl
         type: choice
-        options: [crawl, resilience, permissions, instrumentation]
+        options:
+          - crawl
+          - resilience
+          - permissions
+          - instrumentation
       timeout:
         description: Test timeout per device
         required: true
         default: 2m
         type: choice
-        options: [1m, 2m, 3m, 5m]
+        options:
+          - 1m
+          - 2m
+          - 3m
+          - 5m
       locale:
         description: Android locale
         required: true
@@ -45,6 +57,7 @@ concurrency:
 
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
+  GCP_TESTLAB_RESULTS_BUCKET: gs://firebase-test-lab-managed
 
 jobs:
   testlab:
@@ -153,6 +166,7 @@ jobs:
         shell: powershell
         run: |
           node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
+          if (-not (Test-Path 'scripts/run-firebase-testlab-rest.mjs')) { throw 'REST runner missing' }
 
       - id: auth
         name: Authenticate to Google Cloud with OIDC
@@ -164,150 +178,16 @@ jobs:
           token_format: access_token
           access_token_lifetime: 3600s
 
-      - name: Set up portable Google Cloud CLI
-        shell: powershell
-        run: |
-          $version = '586.0.0'
-          $root = Join-Path $env:RUNNER_TOOL_CACHE "google-cloud-sdk-$version"
-          $sdkDir = Join-Path $root 'google-cloud-sdk'
-          $gcloud = Join-Path $sdkDir 'bin\gcloud.cmd'
-
-          if (-not (Test-Path $gcloud)) {
-            New-Item -ItemType Directory -Force $root | Out-Null
-            $zip = Join-Path $env:RUNNER_TEMP "google-cloud-sdk-$version.zip"
-            $url = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-$version-windows-x86_64.zip"
-            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 240 --output $zip $url
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            & tar.exe -xf $zip -C $root
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Remove-Item $zip -Force
-          }
-
-          if (-not (Test-Path $gcloud)) { throw 'gcloud.cmd not found' }
-
-          $pythonVersion = '3.12.10'
-          $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE "python-embed-$pythonVersion"
-          $python = Join-Path $pythonRoot 'python.exe'
-          if (-not (Test-Path $python)) {
-            New-Item -ItemType Directory -Force $pythonRoot | Out-Null
-            $pythonZip = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
-            $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
-            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 120 --output $pythonZip $pythonUrl
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            & tar.exe -xf $pythonZip -C $pythonRoot
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Remove-Item $pythonZip -Force
-          }
-
-          if (-not (Test-Path $python)) { throw 'Portable Python not found' }
-
-          $pth = Join-Path $pythonRoot 'python312._pth'
-          @(
-            'python312.zip',
-            '.',
-            (Join-Path $sdkDir 'lib'),
-            (Join-Path $sdkDir 'lib\third_party'),
-            'import site'
-          ) | Set-Content -Path $pth -Encoding ascii
-
-          $env:CLOUDSDK_PYTHON = $python
-          $env:CLOUDSDK_PYTHON_SITEPACKAGES = '1'
-          "CLOUDSDK_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "CLOUDSDK_PYTHON_SITEPACKAGES=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          (Join-Path $sdkDir 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-          & $python -c "import six, dateutil; print('PYTHON_DEPS=PASS')"
-          if ($LASTEXITCODE -ne 0) { throw 'Cloud SDK Python dependency check failed' }
-
-          & $gcloud --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Verify Test Lab catalog
-        shell: powershell
-        run: |
-          gcloud config set project $env:FIREBASE_PROJECT_ID
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID --limit 5
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Write-Host 'TESTLAB_CATALOG=PASS'
-
-      - name: Run Firebase Test Lab
+      - name: Run Firebase Test Lab via REST
         shell: powershell
         env:
-          PROFILE: ${{ steps.inputs.outputs.profile }}
-          SCENARIO: ${{ steps.inputs.outputs.scenario }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
+          TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
           TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
         run: |
-          New-Item -ItemType Directory -Force testlab-output | Out-Null
-
-          $appApk = (Resolve-Path 'android/app/build/outputs/apk/debug/app-debug.apk').Path
-          $testApk = (Get-ChildItem 'android/app/build/outputs/apk/androidTest' -Recurse -Filter '*androidTest.apk' | Select-Object -First 1).FullName
-
-          $args = @(
-            'firebase','test','android','run',
-            '--project', $env:FIREBASE_PROJECT_ID,
-            '--app', $appApk,
-            '--timeout', $env:TEST_TIMEOUT,
-            '--results-history-name', 'Hisse Portfoyum CI',
-            '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:SCENARIO-$env:GITHUB_RUN_NUMBER",
-            '--quiet'
-          )
-
-          if ($env:PROFILE -eq 'smoke') {
-            foreach ($model in @('MediumPhone_ps16k.arm','MediumPhone.arm','MediumPhone_ps16k_backcompat.arm')) {
-              $args += '--device'
-              $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
-            }
-          } else {
-            $physical = @(
-              gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID --filter='form=PHYSICAL' --format='value(id)' |
-                ForEach-Object { $_.Trim() } |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-                Select-Object -First 5
-            )
-            if ($physical.Count -lt 1) { throw 'No physical Test Lab models resolved' }
-            foreach ($model in $physical) {
-              $args += '--device'
-              $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
-            }
-            if ($env:PROFILE -eq 'full') {
-              foreach ($model in @('MediumPhone_ps16k.arm','MediumPhone.arm','MediumPhone_ps16k_backcompat.arm')) {
-                $args += '--device'
-                $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
-              }
-            } elseif ($env:PROFILE -ne 'physical') {
-              throw "Unknown profile: $env:PROFILE"
-            }
-          }
-
-          switch ($env:SCENARIO) {
-            'crawl' {
-              $args += '--type'
-              $args += 'robo'
-            }
-            'resilience' {
-              $args += '--type'
-              $args += 'robo'
-              $args += '--robo-script'
-              $args += (Resolve-Path 'testlab/robo-resilience.json').Path
-            }
-            'permissions' {
-              $args += '--type'
-              $args += 'robo'
-              $args += '--robo-script'
-              $args += (Resolve-Path 'testlab/robo-permissions.json').Path
-            }
-            'instrumentation' {
-              $args += '--type'
-              $args += 'instrumentation'
-              $args += '--test'
-              $args += $testApk
-            }
-            default { throw "Unknown scenario: $env:SCENARIO" }
-          }
-
-          & gcloud @args 2>&1 | Tee-Object -FilePath testlab-output/test-run.txt
+          node scripts/run-firebase-testlab-rest.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Test Lab run metadata
@@ -316,7 +196,13 @@ jobs:
         with:
           name: firebase-test-lab-${{ steps.inputs.outputs.profile }}-${{ steps.inputs.outputs.scenario }}-${{ github.run_number }}
           path: |
-            testlab-output/test-run.txt
+            testlab/device-catalog.json
+            testlab/selected-devices.json
+            testlab/selected-devices.txt
+            testlab/matrix-request.json
+            testlab/matrix-created.json
+            testlab/test-run.json
+            testlab/test-run.txt
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/androidTest/**/*.apk
           if-no-files-found: warn
