@@ -1,123 +1,118 @@
 [
   {
+    "description": "Initial app settle",
     "eventType": "WAIT",
     "delayTime": 3000
   },
   {
+    "description": "Launch app",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Wait after launch",
     "eventType": "WAIT",
     "delayTime": 3000
   },
   {
+    "description": "Background app",
     "eventType": "GO_HOME"
   },
   {
+    "description": "Wait in background",
     "eventType": "WAIT",
     "delayTime": 2000
   },
   {
+    "description": "Resume from background",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Wait after resume",
     "eventType": "WAIT",
     "delayTime": 2500
   },
   {
+    "description": "Screen off",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "input keyevent 26"
   },
   {
+    "description": "Wait with screen off",
     "eventType": "WAIT",
     "delayTime": 4000
   },
   {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "input keyevent 26"
-  },
-  {
+    "description": "Screen on and unlock",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "input keyevent 82"
   },
   {
+    "description": "Wait after screen on",
     "eventType": "WAIT",
     "delayTime": 2500
   },
   {
+    "description": "Background before memory pressure",
     "eventType": "GO_HOME"
   },
   {
+    "description": "Wait before memory pressure",
     "eventType": "WAIT",
     "delayTime": 1500
   },
   {
+    "description": "Simulate critical memory pressure",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am send-trim-memory __%APP_PACKAGE_NAME%__ RUNNING_CRITICAL"
   },
   {
+    "description": "Wait after memory pressure",
     "eventType": "WAIT",
     "delayTime": 1000
   },
   {
+    "description": "Kill background process normally",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am kill __%APP_PACKAGE_NAME%__"
   },
   {
+    "description": "Wait after process kill",
     "eventType": "WAIT",
     "delayTime": 1500
   },
   {
+    "description": "Relaunch after process kill",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Wait after killed-process recovery",
     "eventType": "WAIT",
     "delayTime": 3000
   },
   {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "settings put system accelerometer_rotation 0"
-  },
-  {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "settings put system user_rotation 1"
-  },
-  {
-    "eventType": "WAIT",
-    "delayTime": 2500
-  },
-  {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "settings put system user_rotation 0"
-  },
-  {
-    "eventType": "WAIT",
-    "delayTime": 2500
-  },
-  {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "settings put system accelerometer_rotation 1"
-  },
-  {
+    "description": "Force-stop app",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am force-stop __%APP_PACKAGE_NAME%__"
   },
   {
+    "description": "Wait after force-stop",
     "eventType": "WAIT",
     "delayTime": 2000
   },
   {
+    "description": "Manual relaunch after force-stop",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Final recovery settle",
     "eventType": "WAIT",
     "delayTime": 4000
   }

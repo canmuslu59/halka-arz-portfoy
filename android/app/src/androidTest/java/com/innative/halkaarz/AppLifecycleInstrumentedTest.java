@@ -8,6 +8,8 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -74,6 +76,29 @@ public class AppLifecycleInstrumentedTest {
 
             scenario.recreate();
             assertTrue(waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+        }
+    }
+
+
+    @Test
+    public void activitySurvivesLandscapeAndPortraitRotation() {
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            assertTrue(waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+
+            scenario.onActivity(activity ->
+                    activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
+            assertTrue("Activity did not rotate to landscape",
+                    waitForOrientation(scenario, Configuration.ORIENTATION_LANDSCAPE, 10_000L));
+            assertTrue(waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+
+            scenario.onActivity(activity ->
+                    activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
+            assertTrue("Activity did not rotate back to portrait",
+                    waitForOrientation(scenario, Configuration.ORIENTATION_PORTRAIT, 10_000L));
+            assertTrue(waitForLocalWebUrl(scenario, 10_000L).startsWith(LOCAL_URL_PREFIX));
+
+            scenario.onActivity(activity ->
+                    activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED));
         }
     }
 
@@ -164,6 +189,25 @@ public class AppLifecycleInstrumentedTest {
         }
 
         manager.cancelAll();
+    }
+
+
+    private static boolean waitForOrientation(
+            ActivityScenario<MainActivity> scenario,
+            int expectedOrientation,
+            long timeoutMs) {
+        long deadline = SystemClock.uptimeMillis() + timeoutMs;
+        AtomicReference<Integer> currentOrientation = new AtomicReference<>();
+
+        while (SystemClock.uptimeMillis() < deadline) {
+            scenario.onActivity(activity ->
+                    currentOrientation.set(activity.getResources().getConfiguration().orientation));
+
+            Integer value = currentOrientation.get();
+            if (value != null && value == expectedOrientation) return true;
+            SystemClock.sleep(250L);
+        }
+        return false;
     }
 
     private static String waitForLocalWebUrl(ActivityScenario<MainActivity> scenario, long timeoutMs) {
