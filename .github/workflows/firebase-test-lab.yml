@@ -175,7 +175,6 @@ jobs:
 
       - id: auth
         name: Authenticate to Google Cloud with OIDC
-        if: steps.gcp-config.outputs.configured == 'true'
         uses: google-github-actions/auth@v3
         with:
           project_id: halka-arz-portfoyum
@@ -185,7 +184,6 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/cloud-platform
 
       - name: Run Firebase Test Lab via REST
-        if: steps.gcp-config.outputs.configured == 'true'
         shell: powershell
         env:
           TESTLAB_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
@@ -206,8 +204,10 @@ jobs:
             testlab/device-catalog.json
             testlab/selected-devices.json
             testlab/selected-devices.txt
+            testlab/matrix-request.json
             testlab/matrix-created.json
             testlab/matrix-final.json
+            testlab/test-run.json
             testlab/test-run.txt
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/androidTest/**/*.apk
