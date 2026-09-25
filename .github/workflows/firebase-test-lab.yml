@@ -19,6 +19,7 @@ on:
         type: choice
         options:
           - smoke
+          - physical-single
           - physical
           - full
       scenario:
@@ -145,7 +146,7 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'single'
+          $profile = 'physical-single'
           $scenario = 'permissions'
           $timeout = '2m'
           $locale = 'tr'
