@@ -1,0 +1,67 @@
+name: Test Lab Diagnostic Fetch
+
+on:
+  push:
+    branches:
+      - ci/firebase-test-lab-20260925
+    paths:
+      - .github/workflows/testlab-diagnostic-fetch.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  fetch:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: halka-arz-portfoyum
+          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 1800s
+
+      - name: Fetch existing resilience diagnostics
+        shell: powershell
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force testlab-diagnostic | Out-Null
+
+          $bucket = 'test-lab-89qf6bn70y7fq-nyx2qc6p82w70'
+          $prefix = 'results/github/37-single-resilience-1790353916800/MediumPhone_ps16k.arm-37-tr-portrait'
+          $headers = @{ Authorization = "Bearer $env:ACCESS_TOKEN" }
+
+          $objects = @('actions.json','crawlscript.json','logcat')
+          foreach ($name in $objects) {
+            $objectName = "$prefix/$name"
+            $encoded = [Uri]::EscapeDataString($objectName)
+            $uri = "https://storage.googleapis.com/storage/v1/b/$bucket/o/$encoded?alt=media"
+            $out = Join-Path 'testlab-diagnostic' $name
+            Invoke-WebRequest -Uri $uri -Headers $headers -OutFile $out
+            Write-Host "FETCHED=$name bytes=$((Get-Item $out).Length)"
+          }
+
+          Write-Host '--- ACTIONS JSON ---'
+          Get-Content 'testlab-diagnostic/actions.json' -Raw
+          Write-Host '--- CRAWLSCRIPT JSON ---'
+          Get-Content 'testlab-diagnostic/crawlscript.json' -Raw
+          Write-Host '--- LOGCAT RELEVANT ---'
+          Get-Content 'testlab-diagnostic/logcat' |
+            Select-String -Pattern 'FATAL EXCEPTION|AndroidRuntime|force-stop|am_kill|trim|Robo|roboscript|MainActivity|halkaarz' |
+            Select-Object -Last 250 |
+            ForEach-Object { Write-Host $_.Line }
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testlab-resilience-existing-diagnostics
+          path: testlab-diagnostic/
+          if-no-files-found: warn
+          retention-days: 3
