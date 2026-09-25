@@ -146,7 +146,7 @@ jobs:
         shell: powershell
         run: |
           $profile = 'single'
-          $scenario = 'instrumentation'
+          $scenario = 'permissions'
           $timeout = '2m'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
