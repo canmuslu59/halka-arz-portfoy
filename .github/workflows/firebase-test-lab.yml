@@ -76,10 +76,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
       - name: Install dependencies
         shell: powershell
         run: npm ci
@@ -226,8 +222,17 @@ jobs:
 
           if (-not (Test-Path $gcloud)) { throw 'gcloud.cmd not found after extraction' }
 
-          $python = (Get-Command python.exe -ErrorAction Stop).Source
-          if (-not (Test-Path $python)) { throw 'Python 3.12 not found after setup-python' }
+          $pythonCandidates = @(
+            (Join-Path $env:RUNNER_TOOL_CACHE 'Python\3.12.10\x64\python.exe'),
+            'C:\actions-runner\_work\_tool\Python\3.12.10\x64\python.exe'
+          )
+          $python = $pythonCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($python)) {
+            throw 'Portable Python copied by setup-python was not found in runner tool cache'
+          }
+
+          & $python --version
+          if ($LASTEXITCODE -ne 0) { throw 'Portable Python exists but cannot execute' }
 
           $env:CLOUDSDK_PYTHON = $python
           "CLOUDSDK_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
