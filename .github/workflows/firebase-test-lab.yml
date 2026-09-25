@@ -1,23 +1,15 @@
 name: Firebase Test Lab Matrix
 
 on:
-  push:
-    branches:
-      - ci/firebase-test-lab-20260925
-    paths:
-      - .github/workflows/firebase-test-lab.yml
-      - scripts/run-firebase-testlab-rest.mjs
-      - testlab/*.json
-      - android/app/build.gradle
-      - android/app/src/androidTest/**
   workflow_dispatch:
     inputs:
       profile:
         description: Test matrix profile
         required: true
-        default: smoke
+        default: single
         type: choice
         options:
+          - single
           - smoke
           - physical-single
           - physical
