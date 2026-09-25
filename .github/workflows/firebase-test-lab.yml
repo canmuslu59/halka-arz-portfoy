@@ -1,0 +1,266 @@
+name: Firebase Test Lab Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Test matrix profile
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - physical
+          - full
+      timeout:
+        description: Robo test timeout per device
+        required: true
+        default: 2m
+        type: choice
+        options:
+          - 1m
+          - 2m
+          - 3m
+          - 5m
+      locale:
+        description: Android locale
+        required: true
+        default: tr
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-test-lab-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FIREBASE_PROJECT_ID: halka-arz-portfoyum-d86ff
+  GCP_TESTLAB_CREDENTIALS: ${{ secrets.GCP_TESTLAB_CREDENTIALS }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_TESTLAB_SERVICE_ACCOUNT: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
+
+jobs:
+  robo-matrix:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Prepare safe test APK
+        shell: powershell
+        run: |
+          Remove-Item 'android/app/google-services.json' -Force -ErrorAction SilentlyContinue
+
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') { $sdk = 'C:\actions-runner\android-sdk' }
+            elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Build isolated debug APK
+        shell: powershell
+        env:
+          PUSH_BACKEND_URL: ''
+        run: |
+          gradle -p android --no-daemon assembleDebug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          if (-not (Test-Path $apk)) { throw 'Debug APK not produced' }
+          if ((Get-Item $apk).Length -lt 100000) { throw 'Debug APK unexpectedly small' }
+
+          $aapt = Join-Path $env:ANDROID_SDK_ROOT 'build-tools\36.0.0\aapt.exe'
+          $badging = (& $aapt dump badging $apk | Out-String)
+          if (-not $badging.Contains("package: name='com.innative.halkaarz.test'")) {
+            throw 'Test Lab APK must use isolated com.innative.halkaarz.test package'
+          }
+          if (-not $badging.Contains("application-label:'Hisse Portföyüm Test'")) {
+            Write-Host 'Warning: localized app label differs from expected base label'
+          }
+          Write-Host 'ISOLATED_TEST_APK=PASS'
+
+      - name: Verify Google Cloud auth configuration
+        shell: powershell
+        run: |
+          $hasWif = -not [string]::IsNullOrWhiteSpace($env:GCP_WORKLOAD_IDENTITY_PROVIDER) -and
+                    -not [string]::IsNullOrWhiteSpace($env:GCP_TESTLAB_SERVICE_ACCOUNT)
+          $hasJson = -not [string]::IsNullOrWhiteSpace($env:GCP_TESTLAB_CREDENTIALS)
+
+          if (-not $hasWif -and -not $hasJson) {
+            throw @'
+Firebase Test Lab authentication is not configured yet.
+Preferred: repository variables GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_TESTLAB_SERVICE_ACCOUNT.
+Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
+'@
+          }
+
+      - id: auth-wif
+        name: Authenticate to Google Cloud with Workload Identity
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_TESTLAB_SERVICE_ACCOUNT != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_TESTLAB_SERVICE_ACCOUNT }}
+
+      - id: auth-json
+        name: Authenticate to Google Cloud with service account key fallback
+        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_TESTLAB_CREDENTIALS != '' }}
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.FIREBASE_PROJECT_ID }}
+          credentials_json: ${{ env.GCP_TESTLAB_CREDENTIALS }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: '>= 516.0.0'
+          project_id: ${{ env.FIREBASE_PROJECT_ID }}
+
+      - name: Verify Test Lab APIs and catalog
+        shell: powershell
+        run: |
+          gcloud config set project $env:FIREBASE_PROJECT_ID
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $enabled = @(gcloud services list --enabled --project $env:FIREBASE_PROJECT_ID --format='value(config.name)')
+          foreach ($api in @('testing.googleapis.com','toolresults.googleapis.com')) {
+            if ($enabled -notcontains $api) {
+              throw "Required Google Cloud API is not enabled: $api"
+            }
+          }
+
+          New-Item -ItemType Directory -Force testlab | Out-Null
+          gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID | Tee-Object -FilePath testlab/device-catalog.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Select current device matrix
+        id: devices
+        shell: powershell
+        env:
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          function Get-Models([string]$filter, [int]$limit) {
+            $items = @(
+              gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID --filter=$filter --format='value(id)' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+            return @($items | Select-Object -Unique | Select-Object -First $limit)
+          }
+
+          $virtual = @('NexusLowRes')
+          $virtual += @(Get-Models 'virtual' 10)
+          $virtual = @($virtual | Select-Object -Unique | Select-Object -First 5)
+
+          $samsungPhysical = @(Get-Models 'Samsung AND physical' 3)
+          $googlePhysical = @(Get-Models 'Google AND physical' 5)
+          $physical = @($samsungPhysical + $googlePhysical | Select-Object -Unique | Select-Object -First 5)
+
+          switch ($env:PROFILE) {
+            'smoke' {
+              $selected = @($virtual | Select-Object -First 3)
+            }
+            'physical' {
+              if ($physical.Count -lt 1) { throw 'No physical device was resolved from the current Test Lab catalog' }
+              $selected = @($physical)
+            }
+            'full' {
+              if ($physical.Count -lt 1) { throw 'No physical device was resolved from the current Test Lab catalog' }
+              $selected = @($physical + $virtual | Select-Object -Unique | Select-Object -First 10)
+            }
+            default {
+              throw "Unknown profile: $env:PROFILE"
+            }
+          }
+
+          if ($selected.Count -lt 1) { throw 'No Test Lab devices selected' }
+
+          $selected | Set-Content -Encoding utf8 testlab/selected-devices.txt
+          Write-Host "Selected profile=$env:PROFILE devices=$($selected -join ',')"
+          "device_count=$($selected.Count)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run Firebase Robo matrix
+        shell: powershell
+        env:
+          TEST_TIMEOUT: ${{ inputs.timeout }}
+          TEST_LOCALE: ${{ inputs.locale }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          $models = @(Get-Content testlab/selected-devices.txt | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+          $args = @(
+            'firebase','test','android','run',
+            '--project', $env:FIREBASE_PROJECT_ID,
+            '--type','robo',
+            '--app', $apk,
+            '--timeout', $env:TEST_TIMEOUT,
+            '--results-history-name','Hisse Portfoyum CI',
+            '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:GITHUB_RUN_NUMBER"
+          )
+
+          foreach ($model in $models) {
+            $args += '--device'
+            $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
+          }
+
+          & gcloud @args 2>&1 | Tee-Object -FilePath testlab/test-run.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Test Lab run metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-test-lab-${{ inputs.profile }}-${{ github.run_number }}
+          path: |
+            testlab/device-catalog.txt
+            testlab/selected-devices.txt
+            testlab/test-run.txt
+            android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
+          retention-days: 14
