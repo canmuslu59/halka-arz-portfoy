@@ -74,3 +74,20 @@ jobs:
               }
             }
           }
+          $cutoff = [DateTimeOffset]::Parse('2026-09-25T07:40:05Z')
+          $verified = $false
+          for ($attempt = 0; $attempt -lt 18; $attempt++) {
+            $latest = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
+            $runtime = $latest.push.runtime
+            $started = [DateTimeOffset]::Parse([string]$runtime.startedAt)
+            if ($started -gt $cutoff) {
+              Write-Host "PostRestoreAlarmAt=$($runtime.startedAt) status=$($runtime.status) newsStatus=$($runtime.result.news.status) marketChecked=$($runtime.result.checkedTickers)"
+              if ($latest.push.fcmConfigured -ne $true -or $latest.push.newsNotificationsEnabled -ne $true -or $runtime.result.news.status -ne 'checked') {
+                throw 'Background news evaluation did not resume after deployment'
+              }
+              $verified = $true
+              break
+            }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $verified) { throw 'No new Durable Object background run was observed after restore' }
