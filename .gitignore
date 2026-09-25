@@ -15,3 +15,6 @@ android/app/google-services.json
 # Signing material must stay local/private
 *.keystore
 *.jks
+
+# Temporary Google Cloud credentials created by google-github-actions/auth
+gha-creds-*.json
