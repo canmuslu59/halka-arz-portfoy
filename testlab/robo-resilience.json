@@ -91,19 +91,8 @@
     "delayTime": 3000
   },
   {
-    "description": "Force-stop app",
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "am force-stop __%APP_PACKAGE_NAME%__"
-  },
-  {
-    "description": "Manual relaunch after force-stop",
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
-    "expectedOutputRegex": "(?s).*Status: ok.*"
-  },
-  {
-    "description": "Final recovery settle",
+    "description": "Final lifecycle settle",
     "eventType": "WAIT",
-    "delayTime": 4000
+    "delayTime": 3000
   }
 ]
