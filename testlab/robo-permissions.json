@@ -1,0 +1,48 @@
+[
+  {
+    "eventType": "WAIT",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "pm revoke __%APP_PACKAGE_NAME%__ android.permission.POST_NOTIFICATIONS"
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am force-stop __%APP_PACKAGE_NAME%__"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
+    "expectedOutputRegex": "(?s).*Status: ok.*"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 4000
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "pm grant __%APP_PACKAGE_NAME%__ android.permission.POST_NOTIFICATIONS"
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am force-stop __%APP_PACKAGE_NAME%__"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
+    "expectedOutputRegex": "(?s).*Status: ok.*"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 4000
+  }
+]
