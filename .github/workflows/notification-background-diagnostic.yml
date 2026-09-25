@@ -40,6 +40,8 @@ jobs:
             runtimeNewsStatus = $runtime.result.news.status
             runtimeNewsBreakingSent = $runtime.result.news.breakingSent
             runtimeNewsDigestSent = $runtime.result.news.digestSent
+            runtimeNewsRoutineSent = $runtime.result.news.routineSent
+            runtimeNewsFeedCount = $runtime.result.news.feedCount
             runtimeError = $runtime.result.error
           } | ConvertTo-Json -Compress | Write-Host
           if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -or [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
