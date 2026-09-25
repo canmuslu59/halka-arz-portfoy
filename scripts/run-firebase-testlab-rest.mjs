@@ -39,6 +39,50 @@ async function api(url, options = {}) {
   return body;
 }
 
+async function ensureResultsBucket() {
+  const getUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}`;
+  let response = await fetch(getUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (response.ok) {
+    const existing = await response.json();
+    console.log(`TESTLAB_BUCKET=EXISTS name=${existing.name} location=${existing.location || ''}`);
+    return existing;
+  }
+
+  if (response.status !== 404) {
+    const text = await response.text();
+    throw new Error(`Bucket lookup failed ${response.status}: ${text}`);
+  }
+
+  console.log(`TESTLAB_BUCKET=CREATE name=${bucket}`);
+  const createUrl = `https://storage.googleapis.com/storage/v1/b?project=${encodeURIComponent(projectId)}`;
+  response = await fetch(createUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: bucket,
+      location: 'EU',
+      iamConfiguration: {
+        uniformBucketLevelAccess: { enabled: true },
+      },
+    }),
+  });
+
+  const text = await response.text();
+  let body;
+  try { body = text ? JSON.parse(text) : {}; }
+  catch { body = { raw: text }; }
+
+  if (!response.ok) {
+    throw new Error(`Bucket creation failed ${response.status}: ${JSON.stringify(body)}`);
+  }
+
+  console.log(`TESTLAB_BUCKET=CREATED name=${body.name} location=${body.location || ''}`);
+  return body;
+}
+
 async function uploadFile(localPath, objectName, contentType) {
   if (!fs.existsSync(localPath)) throw new Error(`Upload source missing: ${localPath}`);
   const bytes = fs.readFileSync(localPath);
@@ -172,6 +216,8 @@ function chooseDevices(catalog) {
 
   return selected.map(x => x.device);
 }
+
+await ensureResultsBucket();
 
 const catalogResponse = await api(`https://testing.googleapis.com/v1/testEnvironmentCatalog/ANDROID?projectId=${encodeURIComponent(projectId)}`);
 const catalog = catalogResponse.androidDeviceCatalog;
