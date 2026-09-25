@@ -46,3 +46,12 @@ jobs:
           if (-not $schedules.success) { throw 'Cloudflare schedules query failed' }
           $crons = @($schedules.result.schedules | ForEach-Object { $_.cron })
           Write-Host "cronCount=$($crons.Count) cronExpressions=$($crons -join ',')"
+          $versions = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push/versions?per_page=12" -Headers $headers -TimeoutSec 30
+          if (-not $versions.success) { throw 'Version inspection failed' }
+          foreach ($version in @($versions.result) | Select-Object -First 12) {
+            $id = $version.id
+            $detail = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push/versions/$id" -Headers $headers -TimeoutSec 30
+            if (-not $detail.success) { throw 'Version detail inspection failed' }
+            $names = @($detail.result.resources.bindings | ForEach-Object { $_.name })
+            Write-Host "version=$($version.number) id=$id created=$($version.metadata.created_on) newsFlag=$($names -contains 'NEWS_NOTIFICATIONS_ENABLED') newsFeed=$($names -contains 'NEWS_FEED_URL') firebase=$($names -contains 'FIREBASE_SERVICE_ACCOUNT_JSON')"
+          }
