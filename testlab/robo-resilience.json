@@ -1,0 +1,68 @@
+[
+  {
+    "eventType": "WAIT",
+    "delayTime": 3000
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
+    "expectedOutputRegex": "(?s).*Status: ok.*"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 3000
+  },
+  {
+    "eventType": "GO_HOME"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
+    "expectedOutputRegex": "(?s).*Status: ok.*"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "input keyevent 26"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 4000
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "input keyevent 26"
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "input keyevent 82"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am force-stop __%APP_PACKAGE_NAME%__"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
+    "expectedOutputRegex": "(?s).*Status: ok.*"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 4000
+  }
+]
