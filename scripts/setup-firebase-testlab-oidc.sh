@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ID="halka-arz-portfoyum-d86ff"
-PROJECT_NUMBER="181104463772"
+PROJECT_ID="halka-arz-portfoyum"
+PROJECT_NUMBER="968125285231"
 REPOSITORY="canmuslu59/halka-arz-portfoy"
 POOL_ID="github-actions"
 PROVIDER_ID="github"
