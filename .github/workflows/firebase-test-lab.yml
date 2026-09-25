@@ -197,7 +197,8 @@ jobs:
             New-Item -ItemType Directory -Force $root | Out-Null
             $zip = Join-Path $env:RUNNER_TEMP "google-cloud-sdk-$version-windows-x86_64-bundled-python.zip"
             $url = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-$version-windows-x86_64-bundled-python.zip"
-            Invoke-WebRequest -Uri $url -OutFile $zip
+            & curl.exe -L --fail --retry 3 --retry-delay 2 --output $zip $url
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
             $expected = '5fecb9af0f178331b2333c167e57a2676ac286029fb16e328aef911f9d2df2a8'
             $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
