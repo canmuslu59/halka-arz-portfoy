@@ -139,7 +139,7 @@ jobs:
         shell: powershell
         run: |
           $profile = 'physical-single'
-          $scenario = 'crawl'
+          $scenario = 'instrumentation'
           $timeout = '2m'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
