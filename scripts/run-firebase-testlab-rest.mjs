@@ -13,9 +13,7 @@ const runNumber = process.env.GITHUB_RUN_NUMBER || 'local';
 
 if (!token) throw new Error('TESTLAB_ACCESS_TOKEN is missing');
 if (!projectId) throw new Error('FIREBASE_PROJECT_ID is missing');
-if (!bucketUri?.startsWith('gs://')) throw new Error('GCP_TESTLAB_RESULTS_BUCKET must start with gs://');
-
-let bucket = bucketUri.slice(5).replace(/\/$/, '');
+let bucket = bucketUri?.startsWith('gs://') ? bucketUri.slice(5).replace(/\/$/, '') : '';
 const workDir = path.resolve('testlab');
 fs.mkdirSync(workDir, { recursive: true });
 
