@@ -27,6 +27,7 @@ on:
           - crawl
           - resilience
           - permissions
+          - instrumentation
       timeout:
         description: Robo test timeout per device
         required: true
@@ -118,7 +119,7 @@ jobs:
         env:
           PUSH_BACKEND_URL: ''
         run: |
-          gradle -p android --no-daemon assembleDebug
+          gradle -p android --no-daemon assembleDebug assembleDebugAndroidTest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
@@ -133,7 +134,11 @@ jobs:
           if (-not $badging.Contains("application-label:'Hisse Portföyüm Test'")) {
             Write-Host 'Warning: localized app label differs from expected base label'
           }
-          Write-Host 'ISOLATED_TEST_APK=PASS'
+          $testApk = Get-ChildItem 'android/app/build/outputs/apk/androidTest' -Recurse -Filter '*androidTest.apk' |
+            Select-Object -First 1
+          if ($null -eq $testApk) { throw 'Instrumentation test APK not produced' }
+          "ANDROID_TEST_APK=$($testApk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "ISOLATED_TEST_APK=PASS testApk=$($testApk.FullName)"
 
       - name: Resolve test profile
         id: profile
@@ -274,26 +279,41 @@ jobs:
           $args = @(
             'firebase','test','android','run',
             '--project', $env:FIREBASE_PROJECT_ID,
-            '--type','robo',
             '--app', $apk,
             '--timeout', $env:TEST_TIMEOUT,
             '--results-history-name','Hisse Portfoyum CI',
-            '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:GITHUB_RUN_NUMBER"
+            '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:SCENARIO-$env:GITHUB_RUN_NUMBER"
           )
 
           switch ($env:SCENARIO) {
             'crawl' {
-              Write-Host 'ROBO_SCENARIO=CRAWL'
+              $args += '--type'
+              $args += 'robo'
+              Write-Host 'TEST_SCENARIO=CRAWL'
             }
             'resilience' {
+              $args += '--type'
+              $args += 'robo'
               $args += '--robo-script'
               $args += 'testlab/robo-resilience.json'
-              Write-Host 'ROBO_SCENARIO=RESILIENCE'
+              Write-Host 'TEST_SCENARIO=RESILIENCE'
             }
             'permissions' {
+              $args += '--type'
+              $args += 'robo'
               $args += '--robo-script'
               $args += 'testlab/robo-permissions.json'
-              Write-Host 'ROBO_SCENARIO=PERMISSIONS'
+              Write-Host 'TEST_SCENARIO=PERMISSIONS'
+            }
+            'instrumentation' {
+              if ([string]::IsNullOrWhiteSpace($env:ANDROID_TEST_APK) -or -not (Test-Path $env:ANDROID_TEST_APK)) {
+                throw 'Instrumentation APK path missing'
+              }
+              $args += '--type'
+              $args += 'instrumentation'
+              $args += '--test'
+              $args += $env:ANDROID_TEST_APK
+              Write-Host 'TEST_SCENARIO=INSTRUMENTATION'
             }
             default {
               throw "Unknown scenario: $env:SCENARIO"
@@ -318,5 +338,6 @@ jobs:
             testlab/selected-devices.txt
             testlab/test-run.txt
             android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/androidTest/**/*.apk
           if-no-files-found: warn
           retention-days: 14
