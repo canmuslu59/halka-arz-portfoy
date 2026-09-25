@@ -73,6 +73,17 @@ jobs:
                 $feed = @($detail.result.resources.bindings | Where-Object { $_.name -eq 'NEWS_FEED_URL' })[0]
                 $feedUri = [Uri]$feed.text
                 Write-Host "priorNewsFlag=$($newsFlag.text) priorFeedType=$($feed.type) priorFeedScheme=$($feedUri.Scheme) priorFeedHost=$($feedUri.Host) priorFeedPath=$($feedUri.AbsolutePath) priorFeedHasQuery=$(-not [string]::IsNullOrEmpty($feedUri.Query))"
+                $feedResponse = Invoke-RestMethod -Uri $feed.text -TimeoutSec 30
+                $articles = if ($feedResponse -is [array]) { @($feedResponse) } else { @($feedResponse.items) }
+                $dates = @($articles | ForEach-Object {
+                  try { [DateTimeOffset]::Parse([string]$_.publishedAt) } catch { }
+                })
+                $nowUtc = [DateTimeOffset]::UtcNow
+                $recent = @($dates | Where-Object { $_ -le $nowUtc -and $_ -ge $nowUtc.AddHours(-24) }).Count
+                $priorToTen = @($dates | Where-Object { $_ -le [DateTimeOffset]::Parse('2026-09-25T10:00:00+03:00') -and $_ -ge [DateTimeOffset]::Parse('2026-09-24T10:00:00+03:00') }).Count
+                $latest = @($dates | Sort-Object -Descending | Select-Object -First 1)[0]
+                Write-Host "feedRaw=$($articles.Count) dated=$($dates.Count) recent24h=$recent beforeTodayTen=$priorToTen latest=$($latest.ToString('u'))"
+
               }
             }
           }
