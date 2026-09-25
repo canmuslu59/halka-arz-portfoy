@@ -58,4 +58,14 @@ jobs:
             if (-not $detail.success) { throw 'Version detail inspection failed' }
             $names = @($detail.result.resources.bindings | ForEach-Object { $_.name })
             Write-Host "version=$($version.number) id=$id created=$($version.metadata.created_on) newsFlag=$($names -contains 'NEWS_NOTIFICATIONS_ENABLED') newsFeed=$($names -contains 'NEWS_FEED_URL') firebase=$($names -contains 'FIREBASE_SERVICE_ACCOUNT_JSON')"
+            if ($version.number -eq 6 -or $version.number -eq 7) {
+              $bindings = @($detail.result.resources.bindings | ForEach-Object { "$($_.name):$($_.type)" })
+              Write-Host "bindingNamesForVersion$($version.number)=$($bindings -join ',')"
+              if ($version.number -eq 6) {
+                $newsFlag = @($detail.result.resources.bindings | Where-Object { $_.name -eq 'NEWS_NOTIFICATIONS_ENABLED' })[0]
+                $feed = @($detail.result.resources.bindings | Where-Object { $_.name -eq 'NEWS_FEED_URL' })[0]
+                $feedUri = [Uri]$feed.text
+                Write-Host "priorNewsFlag=$($newsFlag.text) priorFeedType=$($feed.type) priorFeedScheme=$($feedUri.Scheme) priorFeedHost=$($feedUri.Host) priorFeedPath=$($feedUri.AbsolutePath) priorFeedHasQuery=$(-not [string]::IsNullOrEmpty($feedUri.Query))"
+              }
+            }
           }
