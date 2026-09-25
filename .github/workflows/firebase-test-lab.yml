@@ -222,9 +222,196 @@ jobs:
 
           if (-not (Test-Path $gcloud)) { throw 'gcloud.cmd not found after extraction' }
 
-          $pythonVersion = '3.12.10'
-          $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE "python-embed-$pythonVersion"
-          $python = Join-Path $pythonRoot 'python.exe'
+          $sdkPython = Get-ChildItem $sdkDir -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^python(3)?\.exe
+            New-Item -ItemType Directory -Force $pythonRoot | Out-Null
+            $pythonZip = Join-Path $env:RUNNER_TEMP "python-$pythonVersion-embed-amd64.zip"
+            $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+
+            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 120 --output $pythonZip $pythonUrl
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            & tar.exe -xf $pythonZip -C $pythonRoot
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Remove-Item $pythonZip -Force
+          }
+
+          if (-not (Test-Path $python)) { throw 'Python not found after SDK/portable resolution' }
+
+          $six = Join-Path $pythonRoot 'six.py'
+          if (-not (Test-Path $six)) {
+            $sixUrl = 'https://raw.githubusercontent.com/benjaminp/six/1.17.0/six.py'
+            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 60 --output $six $sixUrl
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+          & $python --version
+          if ($LASTEXITCODE -ne 0) { throw 'Portable Python exists but cannot execute' }
+          & $python -c "import six; print('SIX_VERSION=' + six.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable Python cannot import six' }
+
+          $env:CLOUDSDK_PYTHON = $python
+          "CLOUDSDK_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Join-Path $sdkDir 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          & $gcloud --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Test Lab APIs and catalog
+        if: steps.gcp-config.outputs.configured == 'true'
+        shell: powershell
+        run: |
+          gcloud config set project $env:FIREBASE_PROJECT_ID
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $enabled = @(gcloud services list --enabled --project $env:FIREBASE_PROJECT_ID --format='value(config.name)')
+          foreach ($api in @('testing.googleapis.com','toolresults.googleapis.com')) {
+            if ($enabled -notcontains $api) {
+              throw "Required Google Cloud API is not enabled: $api"
+            }
+          }
+
+          New-Item -ItemType Directory -Force testlab | Out-Null
+          gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID | Tee-Object -FilePath testlab/device-catalog.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Select current device matrix
+        if: steps.gcp-config.outputs.configured == 'true'
+        id: devices
+        shell: powershell
+        env:
+          PROFILE: ${{ steps.profile.outputs.profile }}
+        run: |
+          function Get-Models([string]$filter, [int]$limit) {
+            $items = @(
+              gcloud firebase test android models list --project $env:FIREBASE_PROJECT_ID --filter=$filter --format='value(id)' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+            return @($items | Select-Object -Unique | Select-Object -First $limit)
+          }
+
+          $virtual = @('NexusLowRes')
+          $virtual += @(Get-Models 'virtual' 10)
+          $virtual = @($virtual | Select-Object -Unique | Select-Object -First 5)
+
+          $samsungPhysical = @(Get-Models 'Samsung AND physical' 3)
+          $googlePhysical = @(Get-Models 'Google AND physical' 5)
+          $physical = @($samsungPhysical + $googlePhysical | Select-Object -Unique | Select-Object -First 5)
+
+          switch ($env:PROFILE) {
+            'smoke' {
+              $selected = @($virtual | Select-Object -First 3)
+            }
+            'physical' {
+              if ($physical.Count -lt 1) { throw 'No physical device was resolved from the current Test Lab catalog' }
+              $selected = @($physical)
+            }
+            'full' {
+              if ($physical.Count -lt 1) { throw 'No physical device was resolved from the current Test Lab catalog' }
+              $selected = @($physical + $virtual | Select-Object -Unique | Select-Object -First 10)
+            }
+            default {
+              throw "Unknown profile: $env:PROFILE"
+            }
+          }
+
+          if ($selected.Count -lt 1) { throw 'No Test Lab devices selected' }
+
+          $selected | Set-Content -Encoding utf8 testlab/selected-devices.txt
+          Write-Host "Selected profile=$env:PROFILE devices=$($selected -join ',')"
+          "device_count=$($selected.Count)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run Firebase Robo matrix
+        if: steps.gcp-config.outputs.configured == 'true'
+        shell: powershell
+        env:
+          TEST_TIMEOUT: ${{ steps.profile.outputs.timeout }}
+          TEST_LOCALE: ${{ steps.profile.outputs.locale }}
+          PROFILE: ${{ steps.profile.outputs.profile }}
+          SCENARIO: ${{ steps.profile.outputs.scenario }}
+        run: |
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          $models = @(Get-Content testlab/selected-devices.txt | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+          $args = @(
+            'firebase','test','android','run',
+            '--project', $env:FIREBASE_PROJECT_ID,
+            '--app', $apk,
+            '--timeout', $env:TEST_TIMEOUT,
+            '--results-history-name','Hisse Portfoyum CI',
+            '--results-bucket', $env:GCP_TESTLAB_RESULTS_BUCKET,
+            '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:SCENARIO-$env:GITHUB_RUN_NUMBER"
+          )
+
+          switch ($env:SCENARIO) {
+            'crawl' {
+              $args += '--type'
+              $args += 'robo'
+              Write-Host 'TEST_SCENARIO=CRAWL'
+            }
+            'resilience' {
+              $args += '--type'
+              $args += 'robo'
+              $args += '--robo-script'
+              $args += 'testlab/robo-resilience.json'
+              Write-Host 'TEST_SCENARIO=RESILIENCE'
+            }
+            'permissions' {
+              $args += '--type'
+              $args += 'robo'
+              $args += '--robo-script'
+              $args += 'testlab/robo-permissions.json'
+              Write-Host 'TEST_SCENARIO=PERMISSIONS'
+            }
+            'instrumentation' {
+              if ([string]::IsNullOrWhiteSpace($env:ANDROID_TEST_APK) -or -not (Test-Path $env:ANDROID_TEST_APK)) {
+                throw 'Instrumentation APK path missing'
+              }
+              $args += '--type'
+              $args += 'instrumentation'
+              $args += '--test'
+              $args += $env:ANDROID_TEST_APK
+              Write-Host 'TEST_SCENARIO=INSTRUMENTATION'
+            }
+            default {
+              throw "Unknown scenario: $env:SCENARIO"
+            }
+          }
+
+          foreach ($model in $models) {
+            $args += '--device'
+            $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
+          }
+
+          & gcloud @args 2>&1 | Tee-Object -FilePath testlab/test-run.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Test Lab run metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-test-lab-${{ steps.profile.outputs.profile }}-${{ steps.profile.outputs.scenario }}-${{ github.run_number }}
+          path: |
+            testlab/device-catalog.txt
+            testlab/selected-devices.txt
+            testlab/test-run.txt
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/androidTest/**/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+ } |
+            Select-Object -First 1
+
+          if ($null -ne $sdkPython) {
+            $pythonRoot = $sdkPython.Directory.FullName
+            $python = $sdkPython.FullName
+            Write-Host "Using Python bundled inside gcloud SDK: $python"
+          } else {
+            $pythonVersion = '3.12.10'
+            $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE "python-embed-$pythonVersion"
+            $python = Join-Path $pythonRoot 'python.exe'
+          }
 
           if (-not (Test-Path $python)) {
             New-Item -ItemType Directory -Force $pythonRoot | Out-Null
