@@ -46,7 +46,12 @@
     "delayTime": 4000
   },
   {
-    "description": "Screen on and unlock",
+    "description": "Screen on",
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "input keyevent 26"
+  },
+  {
+    "description": "Unlock screen",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "input keyevent 82"
   },
