@@ -48,8 +48,12 @@ jobs:
           Write-Host "cronCount=$($crons.Count) cronExpressions=$($crons -join ',')"
           $versions = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push/versions?per_page=12" -Headers $headers -TimeoutSec 30
           if (-not $versions.success) { throw 'Version inspection failed' }
-          foreach ($version in @($versions.result) | Select-Object -First 12) {
+          $versionsList = @($versions.result.items)
+          if ($versionsList.Count -eq 0) { $versionsList = @($versions.result.versions) }
+          Write-Host "versionResultFields=$($versions.result.PSObject.Properties.Name -join ',') count=$($versionsList.Count)"
+          foreach ($version in $versionsList | Select-Object -First 12) {
             $id = $version.id
+            if ([string]::IsNullOrWhiteSpace($id)) { throw 'Missing version ID' }
             $detail = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push/versions/$id" -Headers $headers -TimeoutSec 30
             if (-not $detail.success) { throw 'Version detail inspection failed' }
             $names = @($detail.result.resources.bindings | ForEach-Object { $_.name })
