@@ -61,6 +61,17 @@ jobs:
       - name: Lock known-good market notification core offline
         shell: powershell
         run: |
+          function Get-GitBlobSha([string]$path) {
+            $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+            $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
+            $all = New-Object byte[] ($header.Length + $bytes.Length)
+            [Array]::Copy($header, 0, $all, 0, $header.Length)
+            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
+            $sha = [Security.Cryptography.SHA1]::Create()
+            try { return ([BitConverter]::ToString($sha.ComputeHash($all))).Replace('-', '').ToLowerInvariant() }
+            finally { $sha.Dispose() }
+          }
           $expected = @{
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
@@ -70,8 +81,8 @@ jobs:
             'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
           }
           foreach ($entry in $expected.GetEnumerator()) {
-            $actual = (& git rev-parse "HEAD:$($entry.Key)").Trim()
-            if ($LASTEXITCODE -ne 0 -or $actual -cne $entry.Value) {
+            $actual = Get-GitBlobSha $entry.Key
+            if ($actual -cne $entry.Value) {
               throw "KNOWN-GOOD MARKET CORE CHANGED: $($entry.Key) expected=$($entry.Value) actual=$actual"
             }
           }
@@ -143,13 +154,26 @@ jobs:
       - name: Recheck market core after overlays
         shell: powershell
         run: |
-          $paths = @(
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
-            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
-          )
-          & git diff --exit-code -- @paths
-          if ($LASTEXITCODE -ne 0) { throw 'LIVE MARKET CORE MUTATED DURING BUILD' }
+          function Get-GitBlobSha([string]$path) {
+            $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+            $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
+            $all = New-Object byte[] ($header.Length + $bytes.Length)
+            [Array]::Copy($header, 0, $all, 0, $header.Length)
+            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
+            $sha = [Security.Cryptography.SHA1]::Create()
+            try { return ([BitConverter]::ToString($sha.ComputeHash($all))).Replace('-', '').ToLowerInvariant() }
+            finally { $sha.Dispose() }
+          }
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = Get-GitBlobSha $entry.Key
+            if ($actual -cne $entry.Value) { throw "LIVE MARKET CORE MUTATED: $($entry.Key)" }
+          }
           Write-Host 'LIVE_MARKET_CORE_POST_OVERLAY_LOCK=PASS'
 
       - name: Restore production Firebase config privately
@@ -296,7 +320,7 @@ jobs:
             'package=com.innative.halkaarz',
             'appName=Hisse Portföyüm',
             'versionName=2.5.4',
-            'versionCode=36',
+            'versionCode=37',
             "sourceCommit=$env:GITHUB_SHA",
             "backend=$env:PUSH_BACKEND_URL",
             'firebase=production',
