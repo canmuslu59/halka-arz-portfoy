@@ -1,0 +1,48 @@
+name: Notification Background Diagnostic
+
+on:
+  push:
+    branches:
+      - fix/code36-news-digests-20260924
+    paths:
+      - .github/workflows/notification-background-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read production health and cron schedules without modifying state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $health = Invoke-RestMethod -Uri 'https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health' -TimeoutSec 30
+          $runtime = $health.push.runtime
+          [ordered]@{
+            ok = $health.ok
+            now = $health.now
+            fcmConfigured = $health.push.fcmConfigured
+            newsNotificationsEnabled = $health.push.newsNotificationsEnabled
+            installationCount = $health.push.installationCount
+            runtimeStatus = $runtime.status
+            runtimeStartedAt = $runtime.startedAt
+            runtimeNewsStatus = $runtime.result.news.status
+            runtimeNewsBreakingSent = $runtime.result.news.breakingSent
+            runtimeNewsDigestSent = $runtime.result.news.digestSent
+            runtimeError = $runtime.result.error
+          } | ConvertTo-Json -Compress | Write-Host
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -or [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+            throw 'Cloudflare diagnostic credentials unavailable'
+          }
+          $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          $account = $env:CLOUDFLARE_ACCOUNT_ID
+          $schedules = Invoke-RestMethod -Uri "https://api.cloudflare.com/client/v4/accounts/$account/workers/scripts/halka-arz-portfoy-push/schedules" -Headers $headers -TimeoutSec 30
+          if (-not $schedules.success) { throw 'Cloudflare schedules query failed' }
+          $crons = @($schedules.result.schedules | ForEach-Object { $_.cron })
+          Write-Host "cronCount=$($crons.Count) cronExpressions=$($crons -join ',')"
