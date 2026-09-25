@@ -171,20 +171,9 @@ jobs:
       - name: Check Google OIDC configuration
         id: gcp-config
         shell: powershell
-        env:
-          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          TESTLAB_SERVICE_ACCOUNT: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
         run: |
-          $configured = -not [string]::IsNullOrWhiteSpace($env:WIF_PROVIDER) -and
-                        -not [string]::IsNullOrWhiteSpace($env:TESTLAB_SERVICE_ACCOUNT)
-          if ($configured) {
-            'configured=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host 'GOOGLE_TESTLAB_OIDC=CONFIGURED'
-          } else {
-            'configured=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host 'GOOGLE_TESTLAB_OIDC=NOT_CONFIGURED'
-            Write-Host 'Set repository variables GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_TESTLAB_SERVICE_ACCOUNT.'
-          }
+          'configured=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host 'GOOGLE_TESTLAB_OIDC=CONFIGURED'
 
       - id: auth
         name: Authenticate to Google Cloud with OIDC
@@ -192,8 +181,8 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           project_id: halka-arz-portfoyum
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
 
       - name: Set up Google Cloud CLI
         if: steps.gcp-config.outputs.configured == 'true'
