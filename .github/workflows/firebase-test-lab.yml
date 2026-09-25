@@ -76,6 +76,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         shell: powershell
         run: npm ci
@@ -222,11 +226,11 @@ jobs:
 
           if (-not (Test-Path $gcloud)) { throw 'gcloud.cmd not found after extraction' }
 
-          $bundledPython = Join-Path $sdkDir 'platform\bundledpython\python.exe'
-          if (-not (Test-Path $bundledPython)) { throw 'Bundled Google Cloud Python not found' }
+          $python = (Get-Command python.exe -ErrorAction Stop).Source
+          if (-not (Test-Path $python)) { throw 'Python 3.12 not found after setup-python' }
 
-          $env:CLOUDSDK_PYTHON = $bundledPython
-          "CLOUDSDK_PYTHON=$bundledPython" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $env:CLOUDSDK_PYTHON = $python
+          "CLOUDSDK_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           (Join-Path $sdkDir 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
           & $gcloud --version
