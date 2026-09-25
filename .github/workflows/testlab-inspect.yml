@@ -1,0 +1,62 @@
+name: Inspect Test Lab Resilience Failure
+
+on:
+  push:
+    branches:
+      - ci/firebase-test-lab-next-20260926
+    paths:
+      - .github/workflows/testlab-inspect.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 10
+    steps:
+      - id: auth
+        name: Authenticate to Google Cloud with OIDC
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: halka-arz-portfoyum
+          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 1800s
+
+      - name: Download resilience diagnostics
+        shell: powershell
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bucket = 'test-lab-89qf6bn70y7fq-nyx2qc6p82w70'
+          $prefix = 'results/github/37-single-resilience-1790353916800/MediumPhone_ps16k.arm-37-tr-portrait'
+          New-Item -ItemType Directory -Force testlab-inspect | Out-Null
+          $headers = @{ Authorization = "Bearer $env:ACCESS_TOKEN" }
+
+          foreach ($name in @('actions.json','crawlscript.json','logcat')) {
+            $object = "$prefix/$name"
+            $encoded = [Uri]::EscapeDataString($object)
+            $uri = "https://storage.googleapis.com/storage/v1/b/$bucket/o/$encoded" + '?alt=media'
+            $out = Join-Path 'testlab-inspect' $name
+            Invoke-WebRequest -Uri $uri -Headers $headers -OutFile $out
+            Write-Host "DOWNLOADED=$name bytes=$((Get-Item $out).Length)"
+          }
+
+      - name: Summarize Robo actions
+        shell: powershell
+        run: |
+          node -e "const fs=require('fs'); for(const f of ['actions.json','crawlscript.json']){const p='testlab-inspect/'+f; const t=fs.readFileSync(p,'utf8'); console.log('--- '+f+' ---'); console.log(t.slice(0,12000));}"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testlab-resilience-diagnostics
+          path: testlab-inspect/
+          if-no-files-found: error
+          retention-days: 14
