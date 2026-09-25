@@ -11,6 +11,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
+import android.service.notification.StatusBarNotification;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
@@ -25,7 +26,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
@@ -101,6 +104,66 @@ public class AppLifecycleInstrumentedTest {
             assertTrue("Notification channel disabled: " + id,
                     channel.getImportance() != NotificationManager.IMPORTANCE_NONE);
         }
+    }
+
+
+    @Test
+    public void criticalNotificationKindsPostToExpectedChannels() {
+        Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        NotificationManager manager = target.getSystemService(NotificationManager.class);
+        assertNotNull(manager);
+        NotificationHelper.ensureChannels(target);
+
+        String[][] cases = new String[][] {
+                {"market", "market_moves_v2"},
+                {"portfolio", "market_rise_v1"},
+                {"portfolio_fall", "portfolio_fall_v1"},
+                {"ceiling", "market_ceiling_coin_v1"},
+                {"floor", "market_floor_v1"},
+                {"ipo", "new_ipos"},
+                {"news_breaking", "news_breaking_v1"},
+                {"news_digest", "news_digest_v1"}
+        };
+
+        for (String[] testCase : cases) {
+            manager.cancelAll();
+            target.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .commit();
+
+            String kind = testCase[0];
+            String expectedChannel = testCase[1];
+            String unique = String.valueOf(System.nanoTime());
+
+            Map<String, String> data = new HashMap<>();
+            data.put("kind", kind);
+            data.put("ticker", "TEST");
+            data.put("title", "CI " + kind);
+            data.put("body", "news_digest".equals(kind)
+                    ? "Faiz kararı açıklandı\nEnflasyon verileri yayımlandı"
+                    : "CI notification " + kind + " " + unique);
+            data.put("news_id", "ci-" + unique);
+            data.put("digest_slot", "morning");
+            data.put("digest_day", "2099-01-01");
+
+            assertTrue("NotificationHelper.show returned false for " + kind,
+                    NotificationHelper.show(target, data));
+
+            SystemClock.sleep(150L);
+            StatusBarNotification[] active = manager.getActiveNotifications();
+            boolean found = false;
+            for (StatusBarNotification item : active) {
+                String channelId = item.getNotification().getChannelId();
+                if (expectedChannel.equals(channelId)) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("Expected active notification on channel " + expectedChannel + " for " + kind, found);
+        }
+
+        manager.cancelAll();
     }
 
     private static String waitForLocalWebUrl(ActivityScenario<MainActivity> scenario, long timeoutMs) {
