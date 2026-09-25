@@ -6,6 +6,7 @@ on:
       - ci/firebase-test-lab-20260925
     paths:
       - .github/workflows/firebase-test-lab.yml
+      - scripts/run-firebase-testlab-rest.mjs
       - testlab/*.json
       - android/app/build.gradle
       - android/app/src/androidTest/**
@@ -16,30 +17,19 @@ on:
         required: true
         default: smoke
         type: choice
-        options:
-          - smoke
-          - physical
-          - full
+        options: [smoke, physical, full]
       scenario:
         description: Test scenario
         required: true
         default: crawl
         type: choice
-        options:
-          - crawl
-          - resilience
-          - permissions
-          - instrumentation
+        options: [crawl, resilience, permissions, instrumentation]
       timeout:
         description: Test timeout per device
         required: true
         default: 2m
         type: choice
-        options:
-          - 1m
-          - 2m
-          - 3m
-          - 5m
+        options: [1m, 2m, 3m, 5m]
       locale:
         description: Android locale
         required: true
@@ -56,12 +46,13 @@ concurrency:
 
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
+  GCP_TESTLAB_RESULTS_BUCKET: gs://firebase-test-lab-managed
 
 jobs:
-  build-test-apks:
-    name: Build isolated test APKs
+  testlab:
+    name: Build and run Firebase Test Lab
     runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +75,6 @@ jobs:
         shell: powershell
         run: |
           Remove-Item 'android/app/google-services.json' -Force -ErrorAction SilentlyContinue
-
           npm run android:sync
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -105,7 +95,6 @@ jobs:
             elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
             else { throw 'Android SDK root not found' }
           }
-
           "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -140,33 +129,33 @@ jobs:
             throw 'Test Lab APK must use isolated com.innative.halkaarz.test package'
           }
 
-          Write-Host "APP_APK=$apk"
-          Write-Host "TEST_APK=$($testApk.FullName)"
           Write-Host 'ISOLATED_TEST_BUILD=PASS'
 
-      - name: Upload Test Lab build
-        uses: actions/upload-artifact@v4
-        with:
-          name: testlab-build-${{ github.run_id }}
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/apk/androidTest/**/*.apk
-            testlab/robo-resilience.json
-            testlab/robo-permissions.json
-          if-no-files-found: error
-          retention-days: 3
+      - name: Resolve test inputs
+        id: inputs
+        shell: powershell
+        run: |
+          $profile = 'smoke'
+          $scenario = 'crawl'
+          $timeout = '2m'
+          $locale = 'tr'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.scenario }}')) { $scenario = '${{ inputs.scenario }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.timeout }}')) { $timeout = '${{ inputs.timeout }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.locale }}')) { $locale = '${{ inputs.locale }}' }
+          }
+          "profile=$profile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "scenario=$scenario" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "timeout=$timeout" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "locale=$locale" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "profile=$profile scenario=$scenario timeout=$timeout locale=$locale"
 
-  run-testlab:
-    name: Run Firebase Test Lab
-    needs: build-test-apks
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: testlab-build-${{ github.run_id }}
-          path: testlab-build
+      - name: Validate test assets
+        shell: powershell
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
+          if (-not (Test-Path 'scripts/run-firebase-testlab-rest.mjs')) { throw 'REST runner missing' }
 
       - id: auth
         name: Authenticate to Google Cloud with OIDC
@@ -175,136 +164,35 @@ jobs:
           project_id: halka-arz-portfoyum
           workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
           service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 3600s
 
-      - name: Set up Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v3
-        with:
-          version: '>= 516.0.0'
-          project_id: halka-arz-portfoyum
-
-      - name: Resolve test inputs
-        id: inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          profile="${{ inputs.profile }}"
-          scenario="${{ inputs.scenario }}"
-          timeout="${{ inputs.timeout }}"
-          locale="${{ inputs.locale }}"
-
-          [[ -n "$profile" ]] || profile="smoke"
-          [[ -n "$scenario" ]] || scenario="crawl"
-          [[ -n "$timeout" ]] || timeout="2m"
-          [[ -n "$locale" ]] || locale="tr"
-
-          echo "profile=$profile" >> "$GITHUB_OUTPUT"
-          echo "scenario=$scenario" >> "$GITHUB_OUTPUT"
-          echo "timeout=$timeout" >> "$GITHUB_OUTPUT"
-          echo "locale=$locale" >> "$GITHUB_OUTPUT"
-
-          echo "profile=$profile scenario=$scenario timeout=$timeout locale=$locale"
-
-      - name: Verify Test Lab access
-        shell: bash
-        run: |
-          set -euo pipefail
-          gcloud config set project "$FIREBASE_PROJECT_ID"
-          gcloud firebase test android models list --project "$FIREBASE_PROJECT_ID" --limit=5
-          echo "TESTLAB_CATALOG=PASS"
-
-      - name: Run test matrix
-        shell: bash
+      - name: Run Firebase Test Lab via REST
+        shell: powershell
         env:
-          PROFILE: ${{ steps.inputs.outputs.profile }}
-          SCENARIO: ${{ steps.inputs.outputs.scenario }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
+          TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
           TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
         run: |
-          set -euo pipefail
-          mkdir -p testlab-output
+          node scripts/run-firebase-testlab-rest.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          APP_APK="$(find testlab-build -type f -name 'app-debug.apk' | head -n1)"
-          TEST_APK="$(find testlab-build -type f -name '*androidTest.apk' | head -n1)"
-          RESILIENCE="$(find testlab-build -type f -name 'robo-resilience.json' | head -n1)"
-          PERMISSIONS="$(find testlab-build -type f -name 'robo-permissions.json' | head -n1)"
-
-          [[ -f "$APP_APK" ]] || { echo "App APK missing"; exit 20; }
-          [[ -f "$TEST_APK" ]] || { echo "Instrumentation APK missing"; exit 21; }
-
-          DEVICE_ARGS=()
-
-          if [[ "$PROFILE" == "smoke" ]]; then
-            DEVICE_ARGS+=("--device=model=MediumPhone_ps16k.arm,locale=$TEST_LOCALE,orientation=portrait")
-            DEVICE_ARGS+=("--device=model=MediumPhone.arm,locale=$TEST_LOCALE,orientation=portrait")
-            DEVICE_ARGS+=("--device=model=MediumPhone_ps16k_backcompat.arm,locale=$TEST_LOCALE,orientation=portrait")
-          else
-            mapfile -t PHYSICAL_MODELS < <(
-              gcloud firebase test android models list \
-                --project "$FIREBASE_PROJECT_ID" \
-                --filter="form=PHYSICAL" \
-                --format="value(id)" | head -n5
-            )
-
-            if [[ ${#PHYSICAL_MODELS[@]} -eq 0 ]]; then
-              echo "No physical Test Lab models resolved"
-              exit 22
-            fi
-
-            if [[ "$PROFILE" == "physical" ]]; then
-              for model in "${PHYSICAL_MODELS[@]}"; do
-                DEVICE_ARGS+=("--device=model=$model,locale=$TEST_LOCALE,orientation=portrait")
-              done
-            elif [[ "$PROFILE" == "full" ]]; then
-              for model in "${PHYSICAL_MODELS[@]:0:5}"; do
-                DEVICE_ARGS+=("--device=model=$model,locale=$TEST_LOCALE,orientation=portrait")
-              done
-              DEVICE_ARGS+=("--device=model=MediumPhone_ps16k.arm,locale=$TEST_LOCALE,orientation=portrait")
-              DEVICE_ARGS+=("--device=model=MediumPhone.arm,locale=$TEST_LOCALE,orientation=portrait")
-              DEVICE_ARGS+=("--device=model=MediumPhone_ps16k_backcompat.arm,locale=$TEST_LOCALE,orientation=portrait")
-            else
-              echo "Unknown profile: $PROFILE"
-              exit 23
-            fi
-          fi
-
-          COMMON_ARGS=(
-            firebase test android run
-            --project "$FIREBASE_PROJECT_ID"
-            --app "$APP_APK"
-            --timeout "$TEST_TIMEOUT"
-            --results-history-name "Hisse Portfoyum CI"
-            --client-details "matrixLabel=Hisse-Portfoyum-$PROFILE-$SCENARIO-${GITHUB_RUN_NUMBER}"
-            --quiet
-          )
-
-          echo "TEST_PROFILE=$PROFILE TEST_SCENARIO=$SCENARIO DEVICES=${#DEVICE_ARGS[@]}"
-
-          case "$SCENARIO" in
-            crawl)
-              gcloud "${COMMON_ARGS[@]}" --type robo "${DEVICE_ARGS[@]}" 2>&1 | tee testlab-output/test-run.txt
-              ;;
-            resilience)
-              [[ -f "$RESILIENCE" ]] || { echo "Resilience Robo script missing"; exit 24; }
-              gcloud "${COMMON_ARGS[@]}" --type robo --robo-script "$RESILIENCE" "${DEVICE_ARGS[@]}" 2>&1 | tee testlab-output/test-run.txt
-              ;;
-            permissions)
-              [[ -f "$PERMISSIONS" ]] || { echo "Permissions Robo script missing"; exit 25; }
-              gcloud "${COMMON_ARGS[@]}" --type robo --robo-script "$PERMISSIONS" "${DEVICE_ARGS[@]}" 2>&1 | tee testlab-output/test-run.txt
-              ;;
-            instrumentation)
-              gcloud "${COMMON_ARGS[@]}" --type instrumentation --test "$TEST_APK" "${DEVICE_ARGS[@]}" 2>&1 | tee testlab-output/test-run.txt
-              ;;
-            *)
-              echo "Unknown scenario: $SCENARIO"
-              exit 26
-              ;;
-          esac
-
-      - name: Upload Test Lab summary
+      - name: Upload Test Lab run metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: testlab-results-${{ github.run_id }}
-          path: testlab-output/
+          name: firebase-test-lab-${{ steps.inputs.outputs.profile }}-${{ steps.inputs.outputs.scenario }}-${{ github.run_number }}
+          path: |
+            testlab/device-catalog.json
+            testlab/selected-devices.json
+            testlab/selected-devices.txt
+            testlab/matrix-request.json
+            testlab/matrix-created.json
+            testlab/test-run.json
+            testlab/test-run.txt
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/androidTest/**/*.apk
           if-no-files-found: warn
           retention-days: 14
