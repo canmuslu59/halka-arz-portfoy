@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/firebase-test-lab.yml
       - testlab/*.json
+      - android/app/build.gradle
+      - android/app/src/androidTest/**
   workflow_dispatch:
     inputs:
       profile:
@@ -49,8 +51,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: firebase-test-lab-${{ github.ref }}
-  cancel-in-progress: false
+  group: firebase-test-lab-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum-d86ff
