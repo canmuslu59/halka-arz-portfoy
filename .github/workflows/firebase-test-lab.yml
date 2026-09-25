@@ -10,6 +10,7 @@ on:
       - testlab/*.json
       - android/app/build.gradle
       - android/app/src/androidTest/**
+      - scripts/run-firebase-testlab-rest.mjs
   workflow_dispatch:
     inputs:
       profile:
@@ -174,33 +175,27 @@ jobs:
 
       - id: auth
         name: Authenticate to Google Cloud with OIDC
+        if: steps.gcp-config.outputs.configured == 'true'
         uses: google-github-actions/auth@v3
         with:
           project_id: halka-arz-portfoyum
           workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
           service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
           token_format: access_token
-          access_token_lifetime: 3600s
+          access_token_scopes: https://www.googleapis.com/auth/cloud-platform
 
-      - name: Run Firebase Test Lab via REST API
+      - name: Run Firebase Test Lab via REST
+        if: steps.gcp-config.outputs.configured == 'true'
         shell: powershell
         env:
-          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          PROFILE: ${{ steps.profile.outputs.profile }}
-          SCENARIO: ${{ steps.profile.outputs.scenario }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TEST_PROFILE: ${{ steps.profile.outputs.profile }}
+          TEST_SCENARIO: ${{ steps.profile.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.profile.outputs.timeout }}
           TEST_LOCALE: ${{ steps.profile.outputs.locale }}
         run: |
-          & .\scripts\run-firebase-testlab-rest.ps1 \
-            -ProjectId $env:FIREBASE_PROJECT_ID \
-            -AccessToken $env:GOOGLE_OAUTH_ACCESS_TOKEN \
-            -ResultsBucket $env:GCP_TESTLAB_RESULTS_BUCKET \
-            -Profile $env:PROFILE \
-            -Scenario $env:SCENARIO \
-            -Timeout $env:TEST_TIMEOUT \
-            -Locale $env:TEST_LOCALE \
-            -AppApk 'android/app/build/outputs/apk/debug/app-debug.apk' \
-            -TestApk $env:ANDROID_TEST_APK
+          node scripts/run-firebase-testlab-rest.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Test Lab run metadata
         if: always()
