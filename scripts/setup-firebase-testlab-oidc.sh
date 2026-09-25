@@ -37,7 +37,7 @@ if ! gcloud storage buckets describe "${RESULTS_BUCKET}" --project "${PROJECT_ID
     --uniform-bucket-level-access
 fi
 
-for ROLE in roles/cloudtestservice.testAdmin roles/firebase.analyticsViewer; do
+for ROLE in roles/cloudtestservice.testAdmin roles/firebase.analyticsViewer roles/serviceusage.serviceUsageConsumer roles/serviceusage.serviceUsageViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role "${ROLE}" \
