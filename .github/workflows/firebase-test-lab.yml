@@ -6,7 +6,7 @@ on:
       profile:
         description: Test matrix profile
         required: true
-        default: single
+        default: smoke
         type: choice
         options:
           - single
@@ -139,7 +139,7 @@ jobs:
         shell: powershell
         run: |
           $profile = 'physical-single'
-          $scenario = 'permissions'
+          $scenario = 'crawl'
           $timeout = '2m'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
