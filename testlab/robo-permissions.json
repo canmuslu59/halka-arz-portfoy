@@ -1,48 +1,43 @@
 [
   {
+    "description": "Initial settle",
     "eventType": "WAIT",
     "delayTime": 2500
   },
   {
+    "description": "Background before permission revoke",
+    "eventType": "GO_HOME"
+  },
+  {
+    "description": "Revoke notification permission",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "pm revoke __%APP_PACKAGE_NAME%__ android.permission.POST_NOTIFICATIONS"
   },
   {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "am force-stop __%APP_PACKAGE_NAME%__"
-  },
-  {
-    "eventType": "WAIT",
-    "delayTime": 1500
-  },
-  {
+    "description": "Relaunch with notifications denied",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Wait with notifications denied",
     "eventType": "WAIT",
-    "delayTime": 4000
+    "delayTime": 3500
   },
   {
+    "description": "Grant notification permission",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "pm grant __%APP_PACKAGE_NAME%__ android.permission.POST_NOTIFICATIONS"
   },
   {
-    "eventType": "ADB_SHELL_COMMAND",
-    "command": "am force-stop __%APP_PACKAGE_NAME%__"
-  },
-  {
-    "eventType": "WAIT",
-    "delayTime": 1500
-  },
-  {
+    "description": "Resume after permission grant",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am start -W -n __%APP_PACKAGE_NAME%__/com.innative.halkaarz.MainActivity",
     "expectedOutputRegex": "(?s).*Status: ok.*"
   },
   {
+    "description": "Final permission settle",
     "eventType": "WAIT",
-    "delayTime": 4000
+    "delayTime": 3500
   }
 ]
