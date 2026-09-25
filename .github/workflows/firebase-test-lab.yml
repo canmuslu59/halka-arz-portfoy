@@ -1,6 +1,11 @@
 name: Firebase Test Lab Matrix
 
 on:
+  push:
+    branches:
+      - ci/firebase-test-lab-20260925
+    paths:
+      - .github/workflows/firebase-test-lab.yml
   workflow_dispatch:
     inputs:
       profile:
@@ -182,7 +187,7 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
         id: devices
         shell: powershell
         env:
-          PROFILE: ${{ inputs.profile }}
+          PROFILE: ${{ inputs.profile || 'smoke' }}
         run: |
           function Get-Models([string]$filter, [int]$limit) {
             $items = @(
@@ -227,9 +232,9 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
       - name: Run Firebase Robo matrix
         shell: powershell
         env:
-          TEST_TIMEOUT: ${{ inputs.timeout }}
-          TEST_LOCALE: ${{ inputs.locale }}
-          PROFILE: ${{ inputs.profile }}
+          TEST_TIMEOUT: ${{ inputs.timeout || '2m' }}
+          TEST_LOCALE: ${{ inputs.locale || 'tr' }}
+          PROFILE: ${{ inputs.profile || 'smoke' }}
         run: |
           $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
           $models = @(Get-Content testlab/selected-devices.txt | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -256,7 +261,7 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: firebase-test-lab-${{ inputs.profile }}-${{ github.run_number }}
+          name: firebase-test-lab-${{ inputs.profile || 'smoke' }}-${{ github.run_number }}
           path: |
             testlab/device-catalog.txt
             testlab/selected-devices.txt
