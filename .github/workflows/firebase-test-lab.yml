@@ -1,6 +1,11 @@
 name: Firebase Test Lab Matrix
 
 on:
+  push:
+    branches:
+      - ci/firebase-test-lab-20260925
+    paths:
+      - .github/workflows/firebase-test-lab.yml
   workflow_dispatch:
     inputs:
       profile:
