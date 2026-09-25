@@ -11,6 +11,7 @@ on:
         options:
           - single
           - smoke
+          - compat-virtual
           - physical-single
           - physical
           - full
@@ -34,6 +35,11 @@ on:
           - 2m
           - 3m
           - 5m
+      android_versions:
+        description: API levels for compat-virtual, comma separated (example 26,27,28,29)
+        required: false
+        default: ''
+        type: string
       locale:
         description: Android locale
         required: true
@@ -141,18 +147,21 @@ jobs:
           $profile = 'smoke'
           $scenario = 'crawl'
           $timeout = '2m'
+          $versions = ''
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.scenario }}')) { $scenario = '${{ inputs.scenario }}' }
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.timeout }}')) { $timeout = '${{ inputs.timeout }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.android_versions }}')) { $versions = '${{ inputs.android_versions }}' }
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.locale }}')) { $locale = '${{ inputs.locale }}' }
           }
           "profile=$profile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "scenario=$scenario" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "timeout=$timeout" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "versions=$versions" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "locale=$locale" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "profile=$profile scenario=$scenario timeout=$timeout locale=$locale"
+          Write-Host "profile=$profile scenario=$scenario timeout=$timeout versions=$versions locale=$locale"
 
       - name: Validate test assets
         shell: powershell
@@ -177,6 +186,7 @@ jobs:
           TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
           TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
+          TEST_ANDROID_VERSIONS: ${{ steps.inputs.outputs.versions }}
           TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
         run: |
           node scripts/run-firebase-testlab-rest.mjs

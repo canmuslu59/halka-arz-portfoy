@@ -9,6 +9,10 @@ const profile = process.env.TEST_PROFILE || 'smoke';
 const scenario = process.env.TEST_SCENARIO || 'crawl';
 const localeRequested = process.env.TEST_LOCALE || 'tr';
 const timeoutRequested = process.env.TEST_TIMEOUT || '2m';
+const requestedAndroidVersions = String(process.env.TEST_ANDROID_VERSIONS || '')
+  .split(',')
+  .map(x => x.trim())
+  .filter(Boolean);
 const runNumber = process.env.GITHUB_RUN_NUMBER || 'local';
 
 if (!token) throw new Error('TESTLAB_ACCESS_TOKEN is missing');
@@ -126,6 +130,59 @@ function uniqueById(items) {
   });
 }
 
+function chooseCompatibilityDevices(catalog) {
+  if (!requestedAndroidVersions.length) {
+    throw new Error('compat-virtual requires TEST_ANDROID_VERSIONS, for example 26,27,28,29');
+  }
+
+  const models = (catalog.models || [])
+    .filter(m => !isDeprecated(m) && m.form === 'VIRTUAL' && m.formFactor === 'PHONE');
+  const versions = (catalog.versions || []).filter(v => !isDeprecated(v));
+  const locale = pickLocale(catalog);
+
+  const chosen = [];
+  for (const requested of requestedAndroidVersions) {
+    const version = versions
+      .filter(v => String(v.apiLevel) === requested || String(v.id) === requested)
+      .sort((a, b) => {
+        const ap = (a.tags || []).includes('preview') ? 1 : 0;
+        const bp = (b.tags || []).includes('preview') ? 1 : 0;
+        return ap - bp;
+      })[0];
+
+    if (!version) throw new Error(`No Test Lab Android version found for API ${requested}`);
+
+    const candidates = models
+      .filter(m => (m.supportedVersionIds || []).includes(version.id))
+      .sort((a, b) => {
+        const score = m => {
+          const text = `${m.id || ''} ${m.name || ''} ${m.manufacturer || ''}`.toLowerCase();
+          if (text.includes('mediumphone')) return 0;
+          if (text.includes('pixel')) return 1;
+          if (text.includes('google')) return 2;
+          return 3;
+        };
+        return score(a) - score(b);
+      });
+
+    const model = candidates[0];
+    if (!model) throw new Error(`No virtual phone supports Android API ${requested} (versionId=${version.id})`);
+
+    chosen.push({
+      model,
+      apiLevel: version.apiLevel || Number(requested) || 0,
+      device: {
+        androidModelId: model.id,
+        androidVersionId: version.id,
+        locale,
+        orientation: 'portrait',
+      },
+    });
+  }
+
+  return chosen;
+}
+
 function chooseDevices(catalog) {
   const models = (catalog.models || []).filter(m => !isDeprecated(m));
   const versions = catalog.versions || [];
@@ -172,7 +229,8 @@ function chooseDevices(catalog) {
   const physical = uniqueById([...samsung, ...google, ...other].map(x => ({ ...x, id: x.model.id }))).slice(0, 5);
 
   let selected;
-  if (profile === 'single') selected = virtual.slice(0, 1);
+  if (profile === 'compat-virtual') selected = chooseCompatibilityDevices(catalog);
+  else if (profile === 'single') selected = virtual.slice(0, 1);
   else if (profile === 'physical-single') selected = physical.slice(0, 1);
   else if (profile === 'smoke') selected = virtual.slice(0, 3);
   else if (profile === 'physical') selected = physical;
