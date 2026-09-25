@@ -240,8 +240,18 @@ jobs:
           }
 
           if (-not (Test-Path $python)) { throw 'Portable Python not found after extraction' }
+
+          $six = Join-Path $pythonRoot 'six.py'
+          if (-not (Test-Path $six)) {
+            $sixUrl = 'https://raw.githubusercontent.com/benjaminp/six/1.17.0/six.py'
+            & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 60 --output $six $sixUrl
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
           & $python --version
           if ($LASTEXITCODE -ne 0) { throw 'Portable Python exists but cannot execute' }
+          & $python -c "import six; print('SIX_VERSION=' + six.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable Python cannot import six' }
 
           $env:CLOUDSDK_PYTHON = $python
           "CLOUDSDK_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
