@@ -43,9 +43,6 @@ concurrency:
 
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum-d86ff
-  GCP_TESTLAB_CREDENTIALS: ${{ secrets.GCP_TESTLAB_CREDENTIALS }}
-  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-  GCP_TESTLAB_SERVICE_ACCOUNT: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
 
 jobs:
   robo-matrix:
@@ -128,45 +125,59 @@ jobs:
           }
           Write-Host 'ISOLATED_TEST_APK=PASS'
 
-      - name: Verify Google Cloud auth configuration
+      - name: Resolve test profile
+        id: profile
         shell: powershell
         run: |
-          $hasWif = -not [string]::IsNullOrWhiteSpace($env:GCP_WORKLOAD_IDENTITY_PROVIDER) -and
-                    -not [string]::IsNullOrWhiteSpace($env:GCP_TESTLAB_SERVICE_ACCOUNT)
-          $hasJson = -not [string]::IsNullOrWhiteSpace($env:GCP_TESTLAB_CREDENTIALS)
+          $profile = 'smoke'
+          $timeout = '2m'
+          $locale = 'tr'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.timeout }}')) { $timeout = '${{ inputs.timeout }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.locale }}')) { $locale = '${{ inputs.locale }}' }
+          }
+          "profile=$profile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "timeout=$timeout" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "locale=$locale" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "profile=$profile timeout=$timeout locale=$locale"
 
-          if (-not $hasWif -and -not $hasJson) {
-            throw @'
-Firebase Test Lab authentication is not configured yet.
-Preferred: repository variables GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_TESTLAB_SERVICE_ACCOUNT.
-Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
-'@
+      - name: Check Google OIDC configuration
+        id: gcp-config
+        shell: powershell
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          TESTLAB_SERVICE_ACCOUNT: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
+        run: |
+          $configured = -not [string]::IsNullOrWhiteSpace($env:WIF_PROVIDER) -and
+                        -not [string]::IsNullOrWhiteSpace($env:TESTLAB_SERVICE_ACCOUNT)
+          if ($configured) {
+            'configured=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host 'GOOGLE_TESTLAB_OIDC=CONFIGURED'
+          } else {
+            'configured=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host 'GOOGLE_TESTLAB_OIDC=NOT_CONFIGURED'
+            Write-Host 'Set repository variables GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_TESTLAB_SERVICE_ACCOUNT.'
           }
 
-      - id: auth-wif
-        name: Authenticate to Google Cloud with Workload Identity
-        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && env.GCP_TESTLAB_SERVICE_ACCOUNT != '' }}
+      - id: auth
+        name: Authenticate to Google Cloud with OIDC
+        if: steps.gcp-config.outputs.configured == 'true'
         uses: google-github-actions/auth@v3
         with:
-          project_id: ${{ env.FIREBASE_PROJECT_ID }}
-          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_TESTLAB_SERVICE_ACCOUNT }}
-
-      - id: auth-json
-        name: Authenticate to Google Cloud with service account key fallback
-        if: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER == '' && env.GCP_TESTLAB_CREDENTIALS != '' }}
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: ${{ env.FIREBASE_PROJECT_ID }}
-          credentials_json: ${{ env.GCP_TESTLAB_CREDENTIALS }}
+          project_id: halka-arz-portfoyum-d86ff
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud CLI
+        if: steps.gcp-config.outputs.configured == 'true'
         uses: google-github-actions/setup-gcloud@v3
         with:
           version: '>= 516.0.0'
-          project_id: ${{ env.FIREBASE_PROJECT_ID }}
+          project_id: halka-arz-portfoyum-d86ff
 
       - name: Verify Test Lab APIs and catalog
+        if: steps.gcp-config.outputs.configured == 'true'
         shell: powershell
         run: |
           gcloud config set project $env:FIREBASE_PROJECT_ID
@@ -184,10 +195,11 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Select current device matrix
+        if: steps.gcp-config.outputs.configured == 'true'
         id: devices
         shell: powershell
         env:
-          PROFILE: ${{ inputs.profile || 'smoke' }}
+          PROFILE: smoke
         run: |
           function Get-Models([string]$filter, [int]$limit) {
             $items = @(
@@ -230,11 +242,12 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
           "device_count=$($selected.Count)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Run Firebase Robo matrix
+        if: steps.gcp-config.outputs.configured == 'true'
         shell: powershell
         env:
-          TEST_TIMEOUT: ${{ inputs.timeout || '2m' }}
-          TEST_LOCALE: ${{ inputs.locale || 'tr' }}
-          PROFILE: ${{ inputs.profile || 'smoke' }}
+          TEST_TIMEOUT: 2m
+          TEST_LOCALE: tr
+          PROFILE: smoke
         run: |
           $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
           $models = @(Get-Content testlab/selected-devices.txt | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -261,7 +274,7 @@ Fallback: repository secret GCP_TESTLAB_CREDENTIALS.
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: firebase-test-lab-${{ inputs.profile || 'smoke' }}-${{ github.run_number }}
+          name: firebase-test-lab-smoke-${{ github.run_number }}
           path: |
             testlab/device-catalog.txt
             testlab/selected-devices.txt
