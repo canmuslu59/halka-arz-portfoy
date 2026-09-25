@@ -32,6 +32,11 @@ jobs:
             installationCount = $health.push.installationCount
             runtimeStatus = $runtime.status
             runtimeStartedAt = $runtime.startedAt
+            runtimeMarketSent = $runtime.result.sent
+            runtimeMarketFailed = $runtime.result.failed
+            runtimeMarketTotalTickers = $runtime.result.totalTickers
+            runtimeMarketCheckedTickers = $runtime.result.checkedTickers
+            runtimeIpoSent = $runtime.result.ipo.sent
             runtimeNewsStatus = $runtime.result.news.status
             runtimeNewsBreakingSent = $runtime.result.news.breakingSent
             runtimeNewsDigestSent = $runtime.result.news.digestSent
