@@ -74,6 +74,30 @@
   },
   {
     "eventType": "ADB_SHELL_COMMAND",
+    "command": "settings put system accelerometer_rotation 0"
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "settings put system user_rotation 1"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "settings put system user_rotation 0"
+  },
+  {
+    "eventType": "WAIT",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
+    "command": "settings put system accelerometer_rotation 1"
+  },
+  {
+    "eventType": "ADB_SHELL_COMMAND",
     "command": "am force-stop __%APP_PACKAGE_NAME%__"
   },
   {
