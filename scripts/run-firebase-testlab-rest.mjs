@@ -15,7 +15,7 @@ if (!token) throw new Error('TESTLAB_ACCESS_TOKEN is missing');
 if (!projectId) throw new Error('FIREBASE_PROJECT_ID is missing');
 if (!bucketUri?.startsWith('gs://')) throw new Error('GCP_TESTLAB_RESULTS_BUCKET must start with gs://');
 
-const bucket = bucketUri.slice(5).replace(/\/$/, '');
+let bucket = bucketUri.slice(5).replace(/\/$/, '');
 const workDir = path.resolve('testlab');
 fs.mkdirSync(workDir, { recursive: true });
 
@@ -40,34 +40,11 @@ async function api(url, options = {}) {
 }
 
 async function ensureResultsBucket() {
-  const getUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}`;
-  let response = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (response.ok) {
-    const existing = await response.json();
-    console.log(`TESTLAB_BUCKET=EXISTS name=${existing.name} location=${existing.location || ''}`);
-    return existing;
-  }
-
-  if (response.status !== 404) {
-    const text = await response.text();
-    throw new Error(`Bucket lookup failed ${response.status}: ${text}`);
-  }
-
-  console.log(`TESTLAB_BUCKET=CREATE name=${bucket}`);
-  const createUrl = `https://storage.googleapis.com/storage/v1/b?project=${encodeURIComponent(projectId)}`;
-  response = await fetch(createUrl, {
+  const initUrl = `https://toolresults.googleapis.com/toolresults/v1beta3/projects/${encodeURIComponent(projectId)}:initializeSettings`;
+  const response = await fetch(initUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      name: bucket,
-      location: 'EU',
-      iamConfiguration: {
-        uniformBucketLevelAccess: { enabled: true },
-      },
-    }),
+    body: '{}',
   });
 
   const text = await response.text();
@@ -76,10 +53,16 @@ async function ensureResultsBucket() {
   catch { body = { raw: text }; }
 
   if (!response.ok) {
-    throw new Error(`Bucket creation failed ${response.status}: ${JSON.stringify(body)}`);
+    throw new Error(`Tool Results default bucket initialization failed ${response.status}: ${JSON.stringify(body)}`);
   }
 
-  console.log(`TESTLAB_BUCKET=CREATED name=${body.name} location=${body.location || ''}`);
+  const defaultBucket = String(body.defaultBucket || '').replace(/^gs:\/\//, '').replace(/\/$/, '');
+  if (!defaultBucket) {
+    throw new Error(`Tool Results did not return defaultBucket: ${JSON.stringify(body)}`);
+  }
+
+  bucket = defaultBucket;
+  console.log(`TESTLAB_BUCKET=FTL_DEFAULT name=${bucket}`);
   return body;
 }
 
