@@ -8,6 +8,7 @@ POOL_ID="github-actions"
 PROVIDER_ID="github"
 SERVICE_ACCOUNT_NAME="github-testlab"
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+RESULTS_BUCKET="gs://halka-arz-testlab-results-${PROJECT_NUMBER}"
 
 echo "Using project: ${PROJECT_ID}"
 gcloud config set project "${PROJECT_ID}"
@@ -27,12 +28,25 @@ if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" --project "
     --display-name "GitHub Firebase Test Lab"
 fi
 
-# Firebase Test Lab's default results bucket requires Editor for gcloud CLI executions.
-# Access to this service account is limited below to OIDC tokens from this GitHub repository.
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+# Use a dedicated results bucket so the CI principal does not need the broad Editor role.
+if ! gcloud storage buckets describe "${RESULTS_BUCKET}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+  echo "Creating dedicated Test Lab results bucket: ${RESULTS_BUCKET}"
+  gcloud storage buckets create "${RESULTS_BUCKET}" \
+    --project "${PROJECT_ID}" \
+    --location "europe-west1" \
+    --uniform-bucket-level-access
+fi
+
+for ROLE in roles/cloudtestservice.testAdmin roles/firebase.analyticsViewer; do
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member "serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role "${ROLE}" \
+    --condition=None >/dev/null
+done
+
+gcloud storage buckets add-iam-policy-binding "${RESULTS_BUCKET}" \
   --member "serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role "roles/editor" \
-  --condition=None >/dev/null
+  --role "roles/storage.objectAdmin" >/dev/null
 
 if ! gcloud iam workload-identity-pools describe "${POOL_ID}" \
   --project "${PROJECT_ID}" --location global >/dev/null 2>&1; then
@@ -76,5 +90,6 @@ echo "SETUP_COMPLETE"
 echo "Create these two GitHub repository variables:"
 echo "GCP_WORKLOAD_IDENTITY_PROVIDER=${PROVIDER_NAME}"
 echo "GCP_TESTLAB_SERVICE_ACCOUNT=${SERVICE_ACCOUNT_EMAIL}"
+echo "GCP_TESTLAB_RESULTS_BUCKET=${RESULTS_BUCKET}"
 echo
-echo "No JSON private key was created."
+echo "No JSON private key was created and no project Editor role was granted."
