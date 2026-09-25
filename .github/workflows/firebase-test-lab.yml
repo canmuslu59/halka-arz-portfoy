@@ -145,7 +145,7 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'smoke'
+          $profile = 'single'
           $scenario = 'resilience'
           $timeout = '2m'
           $locale = 'tr'
@@ -202,6 +202,8 @@ jobs:
             testlab/matrix-created.json
             testlab/test-run.json
             testlab/test-run.txt
+            testlab/toolresults-summary.json
+            testlab/toolresults-*.json
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/androidTest/**/*.apk
           if-no-files-found: warn
