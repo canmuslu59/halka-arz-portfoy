@@ -6,6 +6,7 @@ on:
       - ci/firebase-test-lab-20260925
     paths:
       - .github/workflows/firebase-test-lab.yml
+      - testlab/*.json
   workflow_dispatch:
     inputs:
       profile:
@@ -17,6 +18,15 @@ on:
           - smoke
           - physical
           - full
+      scenario:
+        description: Test scenario
+        required: true
+        default: crawl
+        type: choice
+        options:
+          - crawl
+          - resilience
+          - permissions
       timeout:
         description: Robo test timeout per device
         required: true
@@ -130,17 +140,25 @@ jobs:
         shell: powershell
         run: |
           $profile = 'smoke'
+          $scenario = 'crawl'
           $timeout = '2m'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.scenario }}')) { $scenario = '${{ inputs.scenario }}' }
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.timeout }}')) { $timeout = '${{ inputs.timeout }}' }
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.locale }}')) { $locale = '${{ inputs.locale }}' }
           }
           "profile=$profile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "scenario=$scenario" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "timeout=$timeout" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "locale=$locale" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "profile=$profile timeout=$timeout locale=$locale"
+          Write-Host "profile=$profile scenario=$scenario timeout=$timeout locale=$locale"
+
+      - name: Validate Robo scripts
+        shell: powershell
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
 
       - name: Check Google OIDC configuration
         id: gcp-config
@@ -199,7 +217,7 @@ jobs:
         id: devices
         shell: powershell
         env:
-          PROFILE: smoke
+          PROFILE: ${{ steps.profile.outputs.profile }}
         run: |
           function Get-Models([string]$filter, [int]$limit) {
             $items = @(
@@ -245,9 +263,10 @@ jobs:
         if: steps.gcp-config.outputs.configured == 'true'
         shell: powershell
         env:
-          TEST_TIMEOUT: 2m
-          TEST_LOCALE: tr
-          PROFILE: smoke
+          TEST_TIMEOUT: ${{ steps.profile.outputs.timeout }}
+          TEST_LOCALE: ${{ steps.profile.outputs.locale }}
+          PROFILE: ${{ steps.profile.outputs.profile }}
+          SCENARIO: ${{ steps.profile.outputs.scenario }}
         run: |
           $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
           $models = @(Get-Content testlab/selected-devices.txt | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -262,6 +281,25 @@ jobs:
             '--client-details', "matrixLabel=Hisse-Portfoyum-$env:PROFILE-$env:GITHUB_RUN_NUMBER"
           )
 
+          switch ($env:SCENARIO) {
+            'crawl' {
+              Write-Host 'ROBO_SCENARIO=CRAWL'
+            }
+            'resilience' {
+              $args += '--robo-script'
+              $args += 'testlab/robo-resilience.json'
+              Write-Host 'ROBO_SCENARIO=RESILIENCE'
+            }
+            'permissions' {
+              $args += '--robo-script'
+              $args += 'testlab/robo-permissions.json'
+              Write-Host 'ROBO_SCENARIO=PERMISSIONS'
+            }
+            default {
+              throw "Unknown scenario: $env:SCENARIO"
+            }
+          }
+
           foreach ($model in $models) {
             $args += '--device'
             $args += "model=$model,locale=$env:TEST_LOCALE,orientation=portrait"
@@ -274,7 +312,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: firebase-test-lab-smoke-${{ github.run_number }}
+          name: firebase-test-lab-${{ steps.profile.outputs.profile }}-${{ steps.profile.outputs.scenario }}-${{ github.run_number }}
           path: |
             testlab/device-catalog.txt
             testlab/selected-devices.txt
