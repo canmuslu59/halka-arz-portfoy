@@ -55,8 +55,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
-  FIREBASE_PROJECT_ID: halka-arz-portfoyum-d86ff
-  GCP_TESTLAB_RESULTS_BUCKET: gs://halka-arz-testlab-results-181104463772
+  FIREBASE_PROJECT_ID: halka-arz-portfoyum
+  GCP_TESTLAB_RESULTS_BUCKET: gs://halka-arz-testlab-results-968125285231
 
 jobs:
   robo-matrix:
@@ -191,7 +191,7 @@ jobs:
         if: steps.gcp-config.outputs.configured == 'true'
         uses: google-github-actions/auth@v3
         with:
-          project_id: halka-arz-portfoyum-d86ff
+          project_id: halka-arz-portfoyum
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_TESTLAB_SERVICE_ACCOUNT }}
 
@@ -200,7 +200,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v3
         with:
           version: '>= 516.0.0'
-          project_id: halka-arz-portfoyum-d86ff
+          project_id: halka-arz-portfoyum
 
       - name: Verify Test Lab APIs and catalog
         if: steps.gcp-config.outputs.configured == 'true'
