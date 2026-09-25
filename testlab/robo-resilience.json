@@ -61,11 +61,11 @@
     "delayTime": 2500
   },
   {
-    "description": "Background before memory pressure",
+    "description": "Background before process kill",
     "eventType": "GO_HOME"
   },
   {
-    "description": "Wait before memory pressure",
+    "description": "Wait before process kill",
     "eventType": "WAIT",
     "delayTime": 1500
   },
@@ -94,11 +94,6 @@
     "description": "Force-stop app",
     "eventType": "ADB_SHELL_COMMAND",
     "command": "am force-stop __%APP_PACKAGE_NAME%__"
-  },
-  {
-    "description": "Wait after force-stop",
-    "eventType": "WAIT",
-    "delayTime": 2000
   },
   {
     "description": "Manual relaunch after force-stop",
