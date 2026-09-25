@@ -3,7 +3,7 @@ name: Code37 Final Play AAB
 on:
   push:
     branches:
-      - fix/code37-news-digests-20260924
+      - fix/code37-background-push-20260925
     paths:
       - .github/workflows/code37-final-play-aab.yml
       - test/*.test.js
