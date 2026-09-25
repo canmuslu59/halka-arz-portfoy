@@ -15,6 +15,7 @@ gcloud config set project "${PROJECT_ID}"
 
 echo "Enabling required APIs..."
 gcloud services enable \
+  iam.googleapis.com \
   iamcredentials.googleapis.com \
   sts.googleapis.com \
   testing.googleapis.com \
