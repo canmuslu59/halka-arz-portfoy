@@ -197,16 +197,26 @@ jobs:
             New-Item -ItemType Directory -Force $root | Out-Null
             $zip = Join-Path $env:RUNNER_TEMP "google-cloud-sdk-$version-windows-x86_64-bundled-python.zip"
             $url = "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-$version-windows-x86_64-bundled-python.zip"
-            & curl.exe -L --fail --retry 3 --retry-delay 2 --output $zip $url
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
             $expected = '5fecb9af0f178331b2333c167e57a2676ac286029fb16e328aef911f9d2df2a8'
+            $validZip = $false
+            if (Test-Path $zip) {
+              $existing = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+              $validZip = $existing -ceq $expected
+              if (-not $validZip) { Remove-Item $zip -Force }
+            }
+
+            if (-not $validZip) {
+              & curl.exe -L --fail --retry 3 --retry-delay 2 --max-time 240 --output $zip $url
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+
             $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
             if ($actual -cne $expected) {
               throw "Google Cloud CLI SHA256 mismatch expected=$expected actual=$actual"
             }
 
-            Expand-Archive -LiteralPath $zip -DestinationPath $root -Force
+            & tar.exe -xf $zip -C $root
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             Remove-Item $zip -Force
           }
 
