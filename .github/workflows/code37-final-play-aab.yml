@@ -58,35 +58,24 @@ jobs:
           node --test --test-concurrency=1 test/*.test.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Lock live market notification core against main
+      - name: Lock known-good market notification core offline
         shell: powershell
-        env:
-          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $paths = @(
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
-            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
-            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java',
-            'public/core/notification-rules.js',
-            'public/core/market-reference.js',
-            'public/core/market-calendar.js'
-          )
-          $headers = @{
-            Authorization = "Bearer $env:GH_READ_TOKEN"
-            Accept = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+            'public/core/notification-rules.js' = 'e953ca7205b133af2724b39a0d4ff4c6739fa013'
+            'public/core/market-reference.js' = '81fef009d1eec65d65b0f4f5ec89e4ae4569bd85'
+            'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
           }
-          $crlf = [string]([char]13) + [char]10
-          $lf = [string][char]10
-          foreach ($path in $paths) {
-            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
-            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
-            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
-            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
-            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
-            if ($releaseText -cne $mainText) { throw "LIVE MARKET CORE CHANGED: $path" }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = (& git rev-parse "HEAD:$($entry.Key)").Trim()
+            if ($LASTEXITCODE -ne 0 -or $actual -cne $entry.Value) {
+              throw "KNOWN-GOOD MARKET CORE CHANGED: $($entry.Key) expected=$($entry.Value) actual=$actual"
+            }
           }
-          Write-Host 'LIVE_MARKET_CORE_BYTE_LOCK=PASS'
+          Write-Host 'KNOWN_GOOD_MARKET_CORE_BLOB_LOCK=PASS'
 
       - name: Sync Android assets
         shell: powershell
@@ -153,29 +142,14 @@ jobs:
 
       - name: Recheck market core after overlays
         shell: powershell
-        env:
-          GH_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $paths = @(
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java',
             'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java',
             'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java'
           )
-          $headers = @{
-            Authorization = "Bearer $env:GH_READ_TOKEN"
-            Accept = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
-          }
-          $crlf = [string]([char]13) + [char]10
-          $lf = [string][char]10
-          foreach ($path in $paths) {
-            $url = "https://api.github.com/repos/canmuslu59/halka-arz-portfoy/contents/${path}?ref=main"
-            $mainFile = Invoke-RestMethod -Uri $url -Headers $headers
-            $mainBytes = [Convert]::FromBase64String(($mainFile.content -replace '\s',''))
-            $mainText = [Text.Encoding]::UTF8.GetString($mainBytes).Replace($crlf,$lf)
-            $releaseText = [IO.File]::ReadAllText($path).Replace($crlf,$lf)
-            if ($releaseText -cne $mainText) { throw "LIVE MARKET CORE MUTATED: $path" }
-          }
+          & git diff --exit-code -- @paths
+          if ($LASTEXITCODE -ne 0) { throw 'LIVE MARKET CORE MUTATED DURING BUILD' }
           Write-Host 'LIVE_MARKET_CORE_POST_OVERLAY_LOCK=PASS'
 
       - name: Restore production Firebase config privately
