@@ -1,6 +1,11 @@
 name: Firebase Test Lab Matrix
 
 on:
+  push:
+    branches:
+      - ci/firebase-test-lab-20260925
+    paths:
+      - .github/workflows/firebase-test-lab.yml
   workflow_dispatch:
     inputs:
       profile:
@@ -144,10 +149,10 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'smoke'
+          $profile = 'compat-virtual'
           $scenario = 'crawl'
           $timeout = '2m'
-          $versions = ''
+          $versions = '26,27,28,29'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
