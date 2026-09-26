@@ -150,7 +150,7 @@ jobs:
         shell: powershell
         run: |
           $profile = 'compat-virtual'
-          $scenario = 'crawl'
+          $scenario = 'instrumentation'
           $timeout = '2m'
           $versions = '26,27,28,29'
           $locale = 'tr'
