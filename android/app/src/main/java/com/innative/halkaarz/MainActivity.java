@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
+import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -140,12 +141,9 @@ public class MainActivity extends ComponentActivity {
 
     private void deliverWalletWidgetPromo() {
         if (!walletWidgetPromoPending || webView == null) return;
-        webView.post(() -> {
-            if (webView == null) return;
-            String script = "Boolean(window.__showWalletWidgetPromo && (window.__showWalletWidgetPromo(), true))";
-            webView.evaluateJavascript(script, value -> {
-                if ("true".equalsIgnoreCase(String.valueOf(value))) walletWidgetPromoPending = false;
-            });
+        String script = "Boolean(window.__showWalletWidgetPromo && (window.__showWalletWidgetPromo(), true))";
+        evaluateJavascriptIfAlive(script, value -> {
+            if ("true".equalsIgnoreCase(String.valueOf(value))) walletWidgetPromoPending = false;
         });
     }
 
@@ -189,7 +187,20 @@ public class MainActivity extends ComponentActivity {
                 + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-ime-bottom','" + imeBottomCssPx + "px');";
-        webView.post(() -> webView.evaluateJavascript(script, null));
+        evaluateJavascriptIfAlive(script);
+    }
+
+    private void evaluateJavascriptIfAlive(String script, ValueCallback<String> callback) {
+        WebView current = webView;
+        if (current == null) return;
+        current.post(() -> {
+            if (webView != current || isFinishing() || isDestroyed()) return;
+            current.evaluateJavascript(script, callback);
+        });
+    }
+
+    private void evaluateJavascriptIfAlive(String script) {
+        evaluateJavascriptIfAlive(script, null);
     }
 
     private void setSystemBarIcons(boolean lightTheme) {
@@ -242,7 +253,7 @@ public class MainActivity extends ComponentActivity {
         BackgroundAlertScheduler.ensure(this);
         NewsTestScheduler.ensure(this);
         if (webView != null) {
-            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+            evaluateJavascriptIfAlive("window.__notificationPermissionChanged && window.__notificationPermissionChanged();");
         }
     }
 
@@ -283,7 +294,7 @@ public class MainActivity extends ComponentActivity {
         if (webView == null || pendingPushRoute == null) return;
         JSONObject route = pendingPushRoute;
         pendingPushRoute = null;
-        webView.post(() -> webView.evaluateJavascript("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");", null));
+        evaluateJavascriptIfAlive("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");");
     }
 
     private void handleNativeBackPress() {
@@ -318,7 +329,7 @@ public class MainActivity extends ComponentActivity {
     private void handleNotificationPermissionResult() {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
         if (webView != null) {
-            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+            evaluateJavascriptIfAlive("window.__notificationPermissionChanged && window.__notificationPermissionChanged();");
         }
         BackgroundAlertScheduler.ensure(this);
         NewsTestScheduler.ensure(this);
@@ -443,14 +454,14 @@ public class MainActivity extends ComponentActivity {
                     if (webView == null) return;
                     String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
                             + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(envelope) + ");";
-                    webView.post(() -> webView.evaluateJavascript(callback, null));
+                    evaluateJavascriptIfAlive(callback);
                 });
             } catch (Exception error) {
                 if (webView == null) return;
                 String message = error.getMessage() == null ? "Ağ isteği başlatılamadı." : error.getMessage();
                 String callback = "window.__nativeHttpReject && window.__nativeHttpReject("
                         + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(message) + ");";
-                webView.post(() -> webView.evaluateJavascript(callback, null));
+                evaluateJavascriptIfAlive(callback);
             }
         }
 
