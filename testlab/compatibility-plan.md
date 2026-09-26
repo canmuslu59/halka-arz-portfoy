@@ -26,7 +26,15 @@ We intentionally cap planned virtual usage at 8/day to leave 2 virtual runs for 
 Each API level is tested in four modes:
 `crawl`, `instrumentation`, `resilience`, and `permissions`.
 
-- [ ] Batch 1 — APIs 26,27,28,29 — crawl + instrumentation — 8 virtual runs
+- [ ] Batch 1 — APIs 26,27,28,29 — crawl + instrumentation
+  - [x] Crawl APIs 26,27,28,29 — PASS — matrix `matrix-17cq7zr550a33`
+  - [x] Instrumentation initial matrix APIs 26,27,28,29 — correctly exposed a WebView lifecycle crash
+  - [x] Fix: lifecycle-safe WebView callbacks — commit `cb28293342edf9f00a576baaf3e515a3bfdf6e2e`
+  - [x] Instrumentation retry API 26 — PASS
+  - [ ] Instrumentation retry API 27 — pending next daily quota
+  - [ ] Instrumentation retry API 28 — pending next daily quota
+  - [x] Instrumentation retry API 29 — PASS
+  - Retry matrix for API 26 + 29: `matrix-3p7zmu9r8sqte`
 - [ ] Batch 2 — APIs 30,31,32,33 — crawl + instrumentation — 8 virtual runs
 - [ ] Batch 3 — APIs 34,35,36,37 — crawl + instrumentation — 8 virtual runs
 - [ ] Batch 4 — APIs 26,27,28,29 — resilience + permissions — 8 virtual runs
@@ -34,6 +42,15 @@ Each API level is tested in four modes:
 - [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
 
 If an API level is not present in the current Firebase Test Lab catalog, record it as unavailable rather than substituting a different API level.
+
+
+## Next action
+
+At the next virtual quota reset:
+1. Run `compat-virtual + instrumentation` for APIs `27,28` only (2 virtual runs).
+2. If both pass, mark Batch 1 complete.
+3. With the remaining daily budget, run Batch 2 crawl for APIs `30,31,32,33` (4 virtual runs).
+4. Stop at 6 planned virtual runs that day, leaving 4 available for diagnosis/retry rather than consuming the full quota.
 
 ## Physical-device follow-up
 
