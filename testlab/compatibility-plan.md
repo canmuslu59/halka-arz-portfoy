@@ -38,7 +38,11 @@ Each API level is tested in four modes:
   - Retry matrix for API 27 + 28: `matrix-3gzml2ue28iqu`
 - [ ] Batch 2 — APIs 30,31,32,33 — crawl + instrumentation — 8 virtual runs
   - [x] Crawl APIs 30,31,32,33 — PASS — matrix `matrix-v66at7wtdj0da`
-  - [ ] Instrumentation APIs 30,31,32,33 — pending next daily quota
+  - [x] Instrumentation API 30 — PASS
+  - [x] Instrumentation API 31 — PASS
+  - [ ] Instrumentation API 32 — pending next daily quota
+  - [ ] Instrumentation API 33 — pending next daily quota
+  - Instrumentation matrix for API 30 + 31: `matrix-1fgumotj1ofwk`
 - [ ] Batch 3 — APIs 34,35,36,37 — crawl + instrumentation — 8 virtual runs
 - [ ] Batch 4 — APIs 26,27,28,29 — resilience + permissions — 8 virtual runs
 - [ ] Batch 5 — APIs 30,31,32,33 — resilience + permissions — 8 virtual runs
@@ -51,8 +55,9 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 
 1. Batch 1 is complete.
 2. Batch 2 crawl APIs `30,31,32,33` is complete — PASS — matrix `matrix-v66at7wtdj0da`.
-3. At the next virtual quota reset, run Batch 2 instrumentation for APIs `30,31,32,33` (4 virtual runs).
-4. Keep planned daily virtual usage at or below 8 and reserve at least 2 virtual runs for diagnosis/retry.
+3. Batch 2 instrumentation APIs `30,31` are complete — PASS — matrix `matrix-1fgumotj1ofwk`.
+4. At the next virtual quota reset, run Batch 2 instrumentation for APIs `32,33` (2 virtual runs).
+5. Then continue with the next incomplete batch while keeping planned daily virtual usage at or below 8 and reserving at least 2 virtual runs for diagnosis/retry.
 
 ## Physical-device follow-up
 
