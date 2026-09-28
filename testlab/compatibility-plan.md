@@ -45,6 +45,8 @@ Each API level is tested in four modes:
   - Instrumentation matrix for API 30 + 31: `matrix-1fgumotj1ofwk`
   - Instrumentation matrix for API 32 + 33: `matrix-28kh60sayl0sb`
 - [ ] Batch 3 — APIs 34,35,36,37 — crawl + instrumentation — 8 virtual runs
+  - [x] Crawl APIs 34,35,36,37 — PASS — matrix `matrix-2n95l0oxvh4dz`
+  - [ ] Instrumentation APIs 34,35,36,37 — pending
 - [ ] Batch 4 — APIs 26,27,28,29 — resilience + permissions — 8 virtual runs
 - [ ] Batch 5 — APIs 30,31,32,33 — resilience + permissions — 8 virtual runs
 - [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
