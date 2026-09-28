@@ -36,13 +36,14 @@ Each API level is tested in four modes:
   - [x] Instrumentation retry API 29 — PASS
   - Retry matrix for API 26 + 29: `matrix-3p7zmu9r8sqte`
   - Retry matrix for API 27 + 28: `matrix-3gzml2ue28iqu`
-- [ ] Batch 2 — APIs 30,31,32,33 — crawl + instrumentation — 8 virtual runs
+- [x] Batch 2 — APIs 30,31,32,33 — crawl + instrumentation — 8 virtual runs
   - [x] Crawl APIs 30,31,32,33 — PASS — matrix `matrix-v66at7wtdj0da`
   - [x] Instrumentation API 30 — PASS
   - [x] Instrumentation API 31 — PASS
-  - [ ] Instrumentation API 32 — pending next daily quota
-  - [ ] Instrumentation API 33 — pending next daily quota
+  - [x] Instrumentation API 32 — PASS
+  - [x] Instrumentation API 33 — PASS
   - Instrumentation matrix for API 30 + 31: `matrix-1fgumotj1ofwk`
+  - Instrumentation matrix for API 32 + 33: `matrix-28kh60sayl0sb`
 - [ ] Batch 3 — APIs 34,35,36,37 — crawl + instrumentation — 8 virtual runs
 - [ ] Batch 4 — APIs 26,27,28,29 — resilience + permissions — 8 virtual runs
 - [ ] Batch 5 — APIs 30,31,32,33 — resilience + permissions — 8 virtual runs
