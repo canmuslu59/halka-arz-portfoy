@@ -112,9 +112,15 @@ jobs:
           "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
-          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $platform36 = Join-Path $sdk 'platforms\android-36'
+          $buildTools36 = Join-Path $sdk 'build-tools\36.0.0'
+          if ((Test-Path $platform36) -and (Test-Path $buildTools36)) {
+            Write-Host 'ANDROID_SDK_36_ALREADY_INSTALLED=PASS'
+          } else {
+            $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+            & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - uses: gradle/actions/setup-gradle@v6.3.0
         with:
