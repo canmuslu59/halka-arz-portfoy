@@ -63,6 +63,7 @@ concurrency:
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
   NODE_OPTIONS: --tls-max-v1.2
+  RECOVER_MATRIX_ID: matrix-1k26cgkrc4onr
 
 jobs:
   testlab:
