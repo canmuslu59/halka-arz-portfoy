@@ -1,4 +1,5 @@
 name: Firebase Test Lab Matrix
+# REST network retry enabled
 
 on:
   push:
