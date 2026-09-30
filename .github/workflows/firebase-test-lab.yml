@@ -6,7 +6,7 @@ on:
     branches:
       - ci/firebase-test-lab-20260925
     paths:
-      - .github/workflows/firebase-test-lab.yml
+      - testlab/firebase-testlab-trigger.txt
   workflow_dispatch:
     inputs:
       profile:
@@ -63,6 +63,7 @@ concurrency:
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
   NODE_OPTIONS: --tls-max-v1.2
+  RECOVER_MATRIX_ID: matrix-j75mmpcljhdba
 
 jobs:
   testlab:
@@ -245,8 +246,68 @@ jobs:
           TEST_ANDROID_VERSIONS: ${{ steps.inputs.outputs.versions }}
           TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
         run: |
-          node scripts/run-firebase-testlab-rest.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not [string]::IsNullOrWhiteSpace($env:RECOVER_MATRIX_ID)) {
+            $headers = @{ Authorization = "Bearer $env:TESTLAB_ACCESS_TOKEN" }
+            $url = "https://testing.googleapis.com/v1/projects/$env:FIREBASE_PROJECT_ID/testMatrices/$env:RECOVER_MATRIX_ID"
+            $deadline = (Get-Date).AddMinutes(20)
+
+            while ($true) {
+              $matrix = $null
+              for ($attempt = 1; $attempt -le 10; $attempt++) {
+                try {
+                  $matrix = Invoke-RestMethod -Uri $url -Headers $headers -Method Get -TimeoutSec 30
+                  break
+                } catch {
+                  Write-Host "MATRIX_RECOVERY_RETRY attempt=$attempt/10 error=$($_.Exception.Message)"
+                  if ($attempt -eq 10) { throw }
+                  Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 10))
+                }
+              }
+
+              if ($null -eq $matrix) { throw 'Matrix recovery returned no response' }
+
+              $executionSummary = @()
+              foreach ($execution in @($matrix.testExecutions)) {
+                $device = $execution.environment.androidDevice
+                $executionSummary += [PSCustomObject]@{
+                  id = $execution.id
+                  state = $execution.state
+                  model = $device.androidModelId
+                  version = $device.androidVersionId
+                  error = $execution.testDetails.errorMessage
+                }
+              }
+              Write-Host ("RECOVER_MATRIX_POLL state={0} outcome={1} executions={2}" -f $matrix.state, $matrix.outcomeSummary, ($executionSummary | ConvertTo-Json -Compress))
+
+              if (@('FINISHED','ERROR','INVALID','CANCELLED') -contains $matrix.state) { break }
+              if ((Get-Date) -gt $deadline) { throw "Timed out recovering matrix $env:RECOVER_MATRIX_ID" }
+              Start-Sleep -Seconds 15
+            }
+
+            New-Item -ItemType Directory -Path 'testlab' -Force | Out-Null
+            $matrix | ConvertTo-Json -Depth 50 | Out-File 'testlab/test-run.json' -Encoding utf8
+            @(
+              "matrixId=$($matrix.testMatrixId)"
+              "state=$($matrix.state)"
+              "outcome=$($matrix.outcomeSummary)"
+              "resultsUrl=$($matrix.resultStorage.resultsUrl)"
+              foreach ($execution in @($matrix.testExecutions)) {
+                $device = $execution.environment.androidDevice
+                "execution=$($execution.id) state=$($execution.state) model=$($device.androidModelId) version=$($device.androidVersionId) error=$($execution.testDetails.errorMessage)"
+              }
+            ) | Out-File 'testlab/test-run.txt' -Encoding utf8
+
+            Write-Host "RECOVERED_MATRIX_ID=$($matrix.testMatrixId)"
+            Write-Host "RECOVERED_MATRIX_STATE=$($matrix.state)"
+            Write-Host "RECOVERED_MATRIX_OUTCOME=$($matrix.outcomeSummary)"
+            Get-Content 'testlab/test-run.txt'
+
+            if ($matrix.state -ne 'FINISHED') { exit 15 }
+            if ($matrix.outcomeSummary -ne 'SUCCESS') { exit 10 }
+          } else {
+            node scripts/run-firebase-testlab-rest.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Upload Test Lab run metadata
         if: always()
