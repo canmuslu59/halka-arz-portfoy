@@ -158,7 +158,7 @@ jobs:
           $profile = 'compat-virtual'
           $scenario = 'permissions'
           $timeout = '2m'
-          $versions = '26,27'
+          $versions = '28,29'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
