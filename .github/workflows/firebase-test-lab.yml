@@ -207,6 +207,7 @@ jobs:
           }
 
           $provider = 'projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github'
+          $oidcAudience = "https://iam.googleapis.com/$provider"
           $stsAudience = "//iam.googleapis.com/$provider"
           $serviceAccount = 'github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com'
 
@@ -216,7 +217,7 @@ jobs:
           }
 
           $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
-          $oidcUrl = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$([uri]::EscapeDataString($provider))"
+          $oidcUrl = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$([uri]::EscapeDataString($oidcAudience))"
           $oidcHeaders = @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
 
           $oidc = Invoke-WithRetry -Name 'github-oidc' -Operation {
