@@ -181,8 +181,9 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
           if (-not (Test-Path 'scripts/run-firebase-testlab-rest.mjs')) { throw 'REST runner missing' }
 
-      - id: auth
-        name: Authenticate to Google Cloud with OIDC
+      - id: auth1
+        name: Authenticate to Google Cloud with OIDC (attempt 1)
+        continue-on-error: true
         uses: google-github-actions/auth@v3
         with:
           project_id: halka-arz-portfoyum
@@ -191,10 +192,52 @@ jobs:
           token_format: access_token
           access_token_lifetime: 3600s
 
+      - name: Wait before OIDC retry 2
+        if: steps.auth1.outcome == 'failure'
+        shell: powershell
+        run: Start-Sleep -Seconds 4
+
+      - id: auth2
+        name: Authenticate to Google Cloud with OIDC (attempt 2)
+        if: steps.auth1.outcome == 'failure'
+        continue-on-error: true
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: halka-arz-portfoyum
+          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 3600s
+
+      - name: Wait before OIDC retry 3
+        if: steps.auth1.outcome == 'failure' && steps.auth2.outcome == 'failure'
+        shell: powershell
+        run: Start-Sleep -Seconds 8
+
+      - id: auth3
+        name: Authenticate to Google Cloud with OIDC (attempt 3)
+        if: steps.auth1.outcome == 'failure' && steps.auth2.outcome == 'failure'
+        continue-on-error: true
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: halka-arz-portfoyum
+          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_lifetime: 3600s
+
+      - name: Validate Google Cloud auth
+        shell: powershell
+        env:
+          TESTLAB_ACCESS_TOKEN: ${{ steps.auth1.outputs.access_token || steps.auth2.outputs.access_token || steps.auth3.outputs.access_token }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TESTLAB_ACCESS_TOKEN)) { throw 'All Google Cloud OIDC attempts failed' }
+          Write-Host 'GOOGLE_CLOUD_OIDC=PASS'
+
       - name: Run Firebase Test Lab via REST
         shell: powershell
         env:
-          TESTLAB_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.auth1.outputs.access_token || steps.auth2.outputs.access_token || steps.auth3.outputs.access_token }}
           TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
           TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
