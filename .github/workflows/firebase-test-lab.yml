@@ -183,63 +183,88 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
           if (-not (Test-Path 'scripts/run-firebase-testlab-rest.mjs')) { throw 'REST runner missing' }
 
-      - id: auth1
-        name: Authenticate to Google Cloud with OIDC (attempt 1)
-        continue-on-error: true
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: halka-arz-portfoyum
-          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
-          token_format: access_token
-          access_token_lifetime: 3600s
-
-      - name: Wait before OIDC retry 2
-        if: steps.auth1.outcome == 'failure'
+      - id: manual_auth
+        name: Authenticate to Google Cloud with PowerShell OIDC
         shell: powershell
-        run: Start-Sleep -Seconds 4
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-      - id: auth2
-        name: Authenticate to Google Cloud with OIDC (attempt 2)
-        if: steps.auth1.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: halka-arz-portfoyum
-          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
-          token_format: access_token
-          access_token_lifetime: 3600s
+          function Invoke-WithRetry {
+            param(
+              [Parameter(Mandatory=$true)][scriptblock]$Operation,
+              [Parameter(Mandatory=$true)][string]$Name,
+              [int]$Attempts = 8
+            )
+            for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+              try {
+                return & $Operation
+              } catch {
+                Write-Host "AUTH_RETRY name=$Name attempt=$attempt/$Attempts error=$($_.Exception.Message)"
+                if ($attempt -eq $Attempts) { throw }
+                Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 10))
+              }
+            }
+          }
 
-      - name: Wait before OIDC retry 3
-        if: steps.auth1.outcome == 'failure' && steps.auth2.outcome == 'failure'
-        shell: powershell
-        run: Start-Sleep -Seconds 8
+          $provider = 'projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github'
+          $stsAudience = "//iam.googleapis.com/$provider"
+          $serviceAccount = 'github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com'
 
-      - id: auth3
-        name: Authenticate to Google Cloud with OIDC (attempt 3)
-        if: steps.auth1.outcome == 'failure' && steps.auth2.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: halka-arz-portfoyum
-          workload_identity_provider: projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com
-          token_format: access_token
-          access_token_lifetime: 3600s
+          if ([string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_URL) -or
+              [string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)) {
+            throw 'GitHub OIDC request environment is unavailable'
+          }
+
+          $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
+          $oidcUrl = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$([uri]::EscapeDataString($provider))"
+          $oidcHeaders = @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
+
+          $oidc = Invoke-WithRetry -Name 'github-oidc' -Operation {
+            Invoke-RestMethod -Uri $oidcUrl -Headers $oidcHeaders -Method Get -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($oidc.value)) { throw 'GitHub OIDC token response is empty' }
+
+          $stsBody = @{
+            audience = $stsAudience
+            grantType = 'urn:ietf:params:oauth:grant-type:token-exchange'
+            requestedTokenType = 'urn:ietf:params:oauth:token-type:access_token'
+            scope = 'https://www.googleapis.com/auth/cloud-platform'
+            subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+            subjectToken = $oidc.value
+          } | ConvertTo-Json -Compress
+
+          $sts = Invoke-WithRetry -Name 'google-sts' -Operation {
+            Invoke-RestMethod -Uri 'https://sts.googleapis.com/v1/token' -Method Post -ContentType 'application/json' -Body $stsBody -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($sts.access_token)) { throw 'Google STS access token response is empty' }
+
+          $iamHeaders = @{ Authorization = "Bearer $($sts.access_token)" }
+          $iamBody = @{
+            scope = @('https://www.googleapis.com/auth/cloud-platform')
+            lifetime = '3600s'
+          } | ConvertTo-Json -Compress
+          $iamUrl = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$($serviceAccount):generateAccessToken"
+
+          $iam = Invoke-WithRetry -Name 'iam-generate-access-token' -Operation {
+            Invoke-RestMethod -Uri $iamUrl -Headers $iamHeaders -Method Post -ContentType 'application/json' -Body $iamBody -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($iam.accessToken)) { throw 'Service account access token response is empty' }
+
+          "access_token=$($iam.accessToken)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host 'GOOGLE_CLOUD_POWERSHELL_OIDC=PASS'
 
       - name: Validate Google Cloud auth
         shell: powershell
         env:
-          TESTLAB_ACCESS_TOKEN: ${{ steps.auth1.outputs.access_token || steps.auth2.outputs.access_token || steps.auth3.outputs.access_token }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.manual_auth.outputs.access_token }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TESTLAB_ACCESS_TOKEN)) { throw 'All Google Cloud OIDC attempts failed' }
-          Write-Host 'GOOGLE_CLOUD_OIDC=PASS'
+          if ([string]::IsNullOrWhiteSpace($env:TESTLAB_ACCESS_TOKEN)) { throw 'Google Cloud access token is missing' }
+          Write-Host 'GOOGLE_CLOUD_AUTH=PASS'
 
       - name: Run Firebase Test Lab via REST
         shell: powershell
         env:
-          TESTLAB_ACCESS_TOKEN: ${{ steps.auth1.outputs.access_token || steps.auth2.outputs.access_token || steps.auth3.outputs.access_token }}
+          TESTLAB_ACCESS_TOKEN: ${{ steps.manual_auth.outputs.access_token }}
           TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
           TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
           TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
