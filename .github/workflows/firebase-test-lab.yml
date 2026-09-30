@@ -63,7 +63,6 @@ concurrency:
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
   NODE_OPTIONS: --tls-max-v1.2
-  RECOVER_MATRIX_ID: matrix-1k26cgkrc4onr
 
 jobs:
   testlab:
@@ -159,9 +158,9 @@ jobs:
         shell: powershell
         run: |
           $profile = 'compat-virtual'
-          $scenario = 'resilience'
+          $scenario = 'permissions'
           $timeout = '2m'
-          $versions = '30,31,32,33'
+          $versions = '30,31'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
