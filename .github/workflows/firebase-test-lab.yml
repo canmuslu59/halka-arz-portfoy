@@ -62,7 +62,7 @@ concurrency:
 
 env:
   FIREBASE_PROJECT_ID: halka-arz-portfoyum
-  NODE_OPTIONS: --tls-max-v1.2
+  NODE_OPTIONS: --tls-max-v1.2 --dns-result-order=ipv4first
 
 jobs:
   testlab:
