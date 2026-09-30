@@ -26,8 +26,31 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function resilientFetch(url, options = {}, maxAttempts = 4) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      const retriableStatus = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (!retriableStatus || attempt === maxAttempts) return response;
+
+      const retryBody = await response.text().catch(() => '');
+      console.warn(`HTTP_RETRY attempt=${attempt}/${maxAttempts} status=${response.status} url=${url} body=${retryBody.slice(0, 300)}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) throw error;
+      console.warn(`NETWORK_RETRY attempt=${attempt}/${maxAttempts} url=${url} error=${String(error?.message || error)}`);
+    }
+
+    await sleep(1000 * (2 ** (attempt - 1)));
+  }
+  throw lastError || new Error(`Request failed after ${maxAttempts} attempts: ${url}`);
+}
+
 async function api(url, options = {}) {
-  const response = await fetch(url, {
+  const response = await resilientFetch(url, {
     ...options,
     headers: { ...headers, ...(options.headers || {}) },
   });
@@ -43,7 +66,7 @@ async function api(url, options = {}) {
 
 async function ensureResultsBucket() {
   const initUrl = `https://toolresults.googleapis.com/toolresults/v1beta3/projects/${encodeURIComponent(projectId)}:initializeSettings`;
-  const response = await fetch(initUrl, {
+  const response = await resilientFetch(initUrl, {
     method: 'POST',
     headers,
     body: '{}',
@@ -72,7 +95,7 @@ async function uploadFile(localPath, objectName, contentType) {
   if (!fs.existsSync(localPath)) throw new Error(`Upload source missing: ${localPath}`);
   const bytes = fs.readFileSync(localPath);
   const url = `https://storage.googleapis.com/upload/storage/v1/b/${encodeURIComponent(bucket)}/o?uploadType=media&name=${encodeURIComponent(objectName)}`;
-  const response = await fetch(url, {
+  const response = await resilientFetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
