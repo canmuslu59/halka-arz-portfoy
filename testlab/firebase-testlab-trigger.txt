@@ -1,1 +1,2 @@
 recover matrix-j75mmpcljhdba powershell-auth-audience-fixed
+trigger batch5 resilience 30-33 2026-09-30
