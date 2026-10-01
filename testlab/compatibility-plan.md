@@ -85,14 +85,15 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 1. Batches 1 through 6 virtual compatibility are complete.
 2. Physical Samsung Galaxy S22 / API 36 resilience — PASS — matrix `matrix-q14x3uqnaafoa`.
 3. Physical Google Pixel 11 / API 37 instrumentation — PASS — matrix `matrix-3gf0ub8wqo0nv`.
-4. Physical-device usage for 2026-10-01: 2 runs. Keep 3 physical runs available for diagnosis/retry.
-5. Next physical follow-up: one additional OEM using the explicit `physical-other-single` profile, then assess whether any targeted Samsung/Pixel permission or lifecycle retest is still useful.
+4. Physical Nothing Phone (4a) / API 36 permissions — PASS — matrix `matrix-3jo99dpsw0l2h`.
+5. Physical-device usage for 2026-10-01: 3 runs. Keep 2 physical runs available for diagnosis/retry.
+6. Manufacturer follow-up now covers Samsung, Google/Pixel, and Nothing. Do not spend the remaining physical quota unless a targeted retest or newly identified risk justifies it.
 
 ## Physical-device follow-up
 
 - [x] Samsung Galaxy S22 / API 36 — resilience PASS — matrix `matrix-q14x3uqnaafoa`
 - [x] Google Pixel 11 / API 37 — instrumentation PASS — matrix `matrix-3gf0ub8wqo0nv`
-- [ ] Additional OEM — pending
+- [x] Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-3jo99dpsw0l2h`
 
 After the six virtual batches pass, use remaining physical quota for manufacturer-specific checks:
 - Samsung first
