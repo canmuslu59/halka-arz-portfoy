@@ -7,3 +7,4 @@ trigger batch5 permissions 32-33 2026-10-01
 trigger batch6 resilience 34-37 2026-10-01
 trigger batch6 permissions 34-35 2026-10-01
 trigger batch6 permissions 36-37 2026-10-01 extra-quota
+trigger physical samsung resilience 2026-10-01
