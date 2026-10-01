@@ -60,13 +60,14 @@ Each API level is tested in four modes:
   - [x] Permissions API 29 — PASS
   - Permissions matrix for API 26 + 27: `matrix-t1i5h01xamo2a`
   - Permissions matrix for API 28 + 29: `matrix-j75mmpcljhdba`
-- [ ] Batch 5 — APIs 30,31,32,33 — resilience + permissions — 8 virtual runs
+- [x] Batch 5 — APIs 30,31,32,33 — resilience + permissions — 8 virtual runs
   - [x] Resilience APIs 30,31,32,33 — PASS — matrix `matrix-1k26cgkrc4onr`
   - [x] Permissions API 30 — PASS
   - [x] Permissions API 31 — PASS
-  - [ ] Permissions API 32 — pending next safe quota window
-  - [ ] Permissions API 33 — pending next safe quota window
+  - [x] Permissions API 32 — PASS
+  - [x] Permissions API 33 — PASS
   - Permissions matrix for API 30 + 31: `matrix-3ltvo9qt084dx`
+  - Permissions matrix for API 32 + 33: `matrix-rokb70cn4cpka`
 - [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
 
 If an API level is not present in the current Firebase Test Lab catalog, record it as unavailable rather than substituting a different API level.
@@ -74,11 +75,11 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 
 ## Next action
 
-1. Batch 1 through Batch 4 are complete.
-2. Batch 5 resilience APIs `30,31,32,33` is complete — PASS — matrix `matrix-1k26cgkrc4onr`.
-3. Batch 5 permissions APIs `30,31` are complete — PASS — matrix `matrix-3ltvo9qt084dx`.
-4. At the next safe quota window, run Batch 5 permissions for APIs `32,33` (2 virtual runs).
-5. If both pass, mark Batch 5 complete and continue with Batch 6 while keeping planned virtual usage at or below 8 and reserving at least 2 virtual runs for diagnosis/retry.
+1. Batch 1 through Batch 5 are complete.
+2. Batch 5 permissions APIs `32,33` are complete — PASS — matrix `matrix-rokb70cn4cpka`.
+3. Current safe daily usage: 2 virtual runs; keep total planned usage at or below 8 and reserve at least 2 virtual runs for diagnosis/retry.
+4. Run Batch 6 resilience for APIs `34,35,36,37` (4 virtual runs).
+5. If resilience passes, run Batch 6 permissions for APIs `34,35` (2 virtual runs); defer APIs `36,37` permissions to the next safe quota window.
 
 ## Physical-device follow-up
 
