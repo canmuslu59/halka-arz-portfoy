@@ -157,8 +157,8 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'compat-virtual'
-          $scenario = 'permissions'
+          $profile = 'physical-single'
+          $scenario = 'resilience'
           $timeout = '2m'
           $versions = '36,37'
           $locale = 'tr'
