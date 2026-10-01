@@ -89,6 +89,10 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 
 ## Physical-device follow-up
 
+- [x] Samsung Galaxy S22 / API 36 — resilience PASS — matrix `matrix-q14x3uqnaafoa`
+- [ ] Google/Pixel — instrumentation pending
+- [ ] Additional OEM — pending
+
 After the six virtual batches pass, use remaining physical quota for manufacturer-specific checks:
 - Samsung first
 - Google/Pixel second
