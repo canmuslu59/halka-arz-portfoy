@@ -4,3 +4,4 @@ recover batch5 resilience matrix 2026-09-30
 trigger batch5 permissions 30-31 2026-09-30
 retry batch5 permissions 30-31 ipv4 2026-09-30
 trigger batch5 permissions 32-33 2026-10-01
+trigger batch6 resilience 34-37 2026-10-01
