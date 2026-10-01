@@ -255,6 +255,9 @@ function chooseDevices(catalog) {
   if (profile === 'compat-virtual') selected = chooseCompatibilityDevices(catalog);
   else if (profile === 'single') selected = virtual.slice(0, 1);
   else if (profile === 'physical-single') selected = physical.slice(0, 1);
+  else if (profile === 'physical-samsung-single') selected = samsung.slice(0, 1);
+  else if (profile === 'physical-google-single') selected = google.slice(0, 1);
+  else if (profile === 'physical-other-single') selected = other.slice(0, 1);
   else if (profile === 'smoke') selected = virtual.slice(0, 3);
   else if (profile === 'physical') selected = physical;
   else if (profile === 'full') selected = [...physical, ...virtual].slice(0, 10);
