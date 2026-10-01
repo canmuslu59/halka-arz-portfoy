@@ -70,10 +70,11 @@ Each API level is tested in four modes:
   - Permissions matrix for API 32 + 33: `matrix-rokb70cn4cpka`
 - [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
   - [x] Resilience APIs 34,35,36,37 — PASS — matrix `matrix-2iy2cr7d6e6n7`
-  - [ ] Permissions API 34 — pending
-  - [ ] Permissions API 35 — pending
+  - [x] Permissions API 34 — PASS
+  - [x] Permissions API 35 — PASS
   - [ ] Permissions API 36 — pending next safe quota window
   - [ ] Permissions API 37 — pending next safe quota window
+  - Permissions matrix for API 34 + 35: `matrix-av9ka69uxs4pa`
 
 If an API level is not present in the current Firebase Test Lab catalog, record it as unavailable rather than substituting a different API level.
 
@@ -81,10 +82,10 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 ## Next action
 
 1. Batch 1 through Batch 5 are complete.
-2. Batch 5 permissions APIs `32,33` are complete — PASS — matrix `matrix-rokb70cn4cpka`.
-3. Current safe daily usage: 2 virtual runs; keep total planned usage at or below 8 and reserve at least 2 virtual runs for diagnosis/retry.
-4. Batch 6 resilience APIs `34,35,36,37` are complete — PASS — matrix `matrix-2iy2cr7d6e6n7`.
-5. Run Batch 6 permissions for APIs `34,35` (2 virtual runs); defer APIs `36,37` permissions to the next safe quota window.
+2. Batch 6 resilience APIs `34,35,36,37` are complete — PASS — matrix `matrix-2iy2cr7d6e6n7`.
+3. Batch 6 permissions APIs `34,35` are complete — PASS — matrix `matrix-av9ka69uxs4pa`.
+4. Planned virtual-device usage for 2026-10-01 is complete at 8 runs; retain 2 virtual runs for diagnosis/retry.
+5. At the next safe quota window, run Batch 6 permissions for APIs `36,37`. If both pass, mark Batch 6 complete and proceed to physical-device follow-up.
 
 ## Physical-device follow-up
 
