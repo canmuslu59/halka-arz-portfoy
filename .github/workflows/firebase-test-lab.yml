@@ -19,6 +19,9 @@ on:
           - smoke
           - compat-virtual
           - physical-single
+          - physical-samsung-single
+          - physical-google-single
+          - physical-other-single
           - physical
           - full
       scenario:
