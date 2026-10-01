@@ -69,6 +69,11 @@ Each API level is tested in four modes:
   - Permissions matrix for API 30 + 31: `matrix-3ltvo9qt084dx`
   - Permissions matrix for API 32 + 33: `matrix-rokb70cn4cpka`
 - [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
+  - [x] Resilience APIs 34,35,36,37 — PASS — matrix `matrix-2iy2cr7d6e6n7`
+  - [ ] Permissions API 34 — pending
+  - [ ] Permissions API 35 — pending
+  - [ ] Permissions API 36 — pending next safe quota window
+  - [ ] Permissions API 37 — pending next safe quota window
 
 If an API level is not present in the current Firebase Test Lab catalog, record it as unavailable rather than substituting a different API level.
 
@@ -78,8 +83,8 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 1. Batch 1 through Batch 5 are complete.
 2. Batch 5 permissions APIs `32,33` are complete — PASS — matrix `matrix-rokb70cn4cpka`.
 3. Current safe daily usage: 2 virtual runs; keep total planned usage at or below 8 and reserve at least 2 virtual runs for diagnosis/retry.
-4. Run Batch 6 resilience for APIs `34,35,36,37` (4 virtual runs).
-5. If resilience passes, run Batch 6 permissions for APIs `34,35` (2 virtual runs); defer APIs `36,37` permissions to the next safe quota window.
+4. Batch 6 resilience APIs `34,35,36,37` are complete — PASS — matrix `matrix-2iy2cr7d6e6n7`.
+5. Run Batch 6 permissions for APIs `34,35` (2 virtual runs); defer APIs `36,37` permissions to the next safe quota window.
 
 ## Physical-device follow-up
 
