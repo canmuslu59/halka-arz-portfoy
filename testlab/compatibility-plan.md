@@ -68,24 +68,24 @@ Each API level is tested in four modes:
   - [x] Permissions API 33 — PASS
   - Permissions matrix for API 30 + 31: `matrix-3ltvo9qt084dx`
   - Permissions matrix for API 32 + 33: `matrix-rokb70cn4cpka`
-- [ ] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
+- [x] Batch 6 — APIs 34,35,36,37 — resilience + permissions — 8 virtual runs
   - [x] Resilience APIs 34,35,36,37 — PASS — matrix `matrix-2iy2cr7d6e6n7`
   - [x] Permissions API 34 — PASS
   - [x] Permissions API 35 — PASS
-  - [ ] Permissions API 36 — pending next safe quota window
-  - [ ] Permissions API 37 — pending next safe quota window
+  - [x] Permissions API 36 — PASS
+  - [x] Permissions API 37 — PASS
   - Permissions matrix for API 34 + 35: `matrix-av9ka69uxs4pa`
+  - Permissions matrix for API 36 + 37: `matrix-208u3vty49s92`
 
 If an API level is not present in the current Firebase Test Lab catalog, record it as unavailable rather than substituting a different API level.
 
 
 ## Next action
 
-1. Batch 1 through Batch 5 are complete.
-2. Batch 6 resilience APIs `34,35,36,37` are complete — PASS — matrix `matrix-2iy2cr7d6e6n7`.
-3. Batch 6 permissions APIs `34,35` are complete — PASS — matrix `matrix-av9ka69uxs4pa`.
-4. Planned virtual-device usage for 2026-10-01 is complete at 8 runs; retain 2 virtual runs for diagnosis/retry.
-5. At the next safe quota window, run Batch 6 permissions for APIs `36,37`. If both pass, mark Batch 6 complete and proceed to physical-device follow-up.
+1. Batches 1 through 6 are complete.
+2. Batch 6 permissions APIs `36,37` are complete — PASS — matrix `matrix-208u3vty49s92`.
+3. Exhaustive virtual compatibility queue for APIs 26 through 37 is complete.
+4. Next phase: physical-device follow-up, prioritizing Samsung, then Google/Pixel, then one additional OEM when useful.
 
 ## Physical-device follow-up
 
