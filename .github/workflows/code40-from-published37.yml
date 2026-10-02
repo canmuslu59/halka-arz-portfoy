@@ -58,9 +58,9 @@ jobs:
           $gradlePath = 'android/app/build.gradle'
           $publicIndexPath = 'public/index.html'
           $assetIndexPath = 'android/app/src/main/assets/www/index.html'
-          $originalGradle = Get-Content -Raw $gradlePath
-          $originalPublicIndex = Get-Content -Raw $publicIndexPath
-          $originalAssetIndex = Get-Content -Raw $assetIndexPath
+          $originalGradle = [IO.File]::ReadAllText($gradlePath, [Text.Encoding]::UTF8)
+          $originalPublicIndex = [IO.File]::ReadAllText($publicIndexPath, [Text.Encoding]::UTF8)
+          $originalAssetIndex = [IO.File]::ReadAllText($assetIndexPath, [Text.Encoding]::UTF8)
           try {
             $baselineGradle = $originalGradle.Replace('versionCode 40', 'versionCode 37')
             $baselinePublicIndex = $originalPublicIndex.Replace('v2.5.4 • Build 40', 'v2.5.4 • Build 37')
