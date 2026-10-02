@@ -67,6 +67,7 @@ jobs:
             'ui-market-notification-regression.test.js',
             'data-cache-notification-behavior.test.js',
             'android-notification-background-behavior.test.js'
+            'repeated-purchase-and-add-sheet-regression.test.js'
           )
           $tests = Get-ChildItem test/*.test.js | Where-Object { $skip -notcontains $_.Name } | ForEach-Object { $_.FullName }
           node --test --test-concurrency=1 $tests
