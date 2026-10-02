@@ -18,7 +18,7 @@
   <header class="topbar">
     <div class="shell topbar-inner">
       <div class="topbar-brand" style="display:flex;align-items:center;flex:0 0 auto">
-        <img class="topbar-logo" src="./icon.svg" width="44" height="44" alt="Hisse Portföyüm" />
+        <img class="topbar-logo" src="./launcher-icon.webp" width="44" height="44" alt="Hisse Portföyüm" />
       </div>
       <div class="topbar-actions">
         <div id="marketStatus" class="market-status closed" aria-live="polite">
@@ -37,35 +37,79 @@
 
   <main class="shell main">
     <section id="portfolioView" class="app-view">
-    <section class="hero-card" aria-labelledby="portfolioValueLabel">
-      <div class="hero-topline">
-        <span id="portfolioValueLabel" class="muted">Toplam portföy büyüklüğü</span>
-        <span id="lastUpdated" class="status-dot">—</span>
+    <section id="portfolioHeroCard" class="hero-card wallet-home-card" aria-label="Cüzdan">
+      <div class="hero-topline hero-topline-actions">
+        <span class="wallet-title">Cüzdan</span>
+        <button id="sharePortfolioBtn" class="icon-btn share-btn" type="button" aria-label="Portföy kartını görsel olarak paylaş" title="Paylaş">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/><path d="M5 13v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+        </button>
       </div>
       <div id="totalWealth" class="hero-value">₺0,00</div>
       <div class="hero-return-row">
         <span id="totalProfitBadge" class="pill neutral">₺0,00 · %0,00</span>
       </div>
-      <div class="hero-grid">
-        <div>
-          <span class="metric-label">Bugün</span>
-          <div class="metric-value-row"><strong id="dailyProfit">₺0,00</strong><span id="dailyPct" class="metric-inline-value">%0,00</span></div>
-        </div>
-        <div>
-          <span class="metric-label">Yatırılan</span>
-          <strong id="invested">₺0,00</strong>
-        </div>
-        <div>
-          <span class="metric-label">Aktif değer</span>
-          <strong id="activeValue">₺0,00</strong>
-        </div>
-        <div>
-          <span class="metric-label">Satış nakdi</span>
-          <strong id="salesProceeds">₺0,00</strong>
-        </div>
+      <div class="hero-grid wallet-metrics-grid">
+        <div class="wallet-metric-today"><span class="metric-label">Bugün</span><strong id="dailyProfit">₺0,00</strong></div>
+        <div class="wallet-metric-change"><span class="metric-label">Günlük Değişim</span><strong id="dailyPct">%0,00</strong></div>
+        <div class="wallet-metric-invested"><span class="metric-label">Yatırılan</span><strong id="invested">₺0,00</strong></div>
+        <div class="wallet-metric-hidden" aria-hidden="true"><strong id="activeValue">₺0,00</strong></div>
+        <div class="wallet-metric-hidden" aria-hidden="true"><strong id="salesProceeds">₺0,00</strong></div>
       </div>
     </section>
 
+    <section id="weeklyMoversCard" class="weekly-movers-card" aria-label="Haftanın en hareketli hisseleri">
+      <div class="weekly-movers-head">
+        <div><span class="eyebrow">HAFTALIK</span><h3>Haftanın En Hareketlileri</h3></div>
+        <span class="weekly-movers-period">5 işlem günü</span>
+      </div>
+      <div id="weeklyMoversList" class="weekly-movers-list"><div class="weekly-movers-empty">Haftalık veri bekleniyor.</div></div>
+    </section>
+
+    <section id="comparisonCard" class="comparison-card portfolio-comparison-card" aria-label="Portföy karşılaştırması">
+      <div class="comparison-head"><span class="eyebrow">KARŞILAŞTIRMA</span></div>
+      <div class="comparison-range" role="tablist" aria-label="Karşılaştırma dönemi">
+        <button id="comparisonRangeDaily" class="comparison-range-btn active" data-comparison-range="daily" type="button">Günlük</button>
+        <button id="comparisonRangeWeekly" class="comparison-range-btn" data-comparison-range="weekly" type="button">Haftalık</button>
+        <button id="comparisonRangeMonthly" class="comparison-range-btn" data-comparison-range="monthly" type="button">Aylık</button>
+      </div>
+      <div class="comparison-grid comparison-grid-expanded">
+        <div class="comparison-item portfolio"><span>Portföy</span><strong id="comparisonPortfolio">—</strong></div>
+        <div class="comparison-item"><span title="Ons altın × USD/TRY bazlı">Ons Altın (TL)</span><strong id="comparisonGold">—</strong></div>
+        <div class="comparison-item"><span>BIST 100</span><strong id="comparisonBist">—</strong></div>
+        <div class="comparison-item"><span>Dolar</span><strong id="comparisonUsd">—</strong></div>
+      </div>
+    </section>
+
+    </section>
+
+    <section id="holdingsView" class="app-view" hidden>
+    <section class="section holdings-section">
+      <div class="section-head sticky-title">
+        <div>
+          <span class="eyebrow">HİSSELERİM</span>
+          <h2>Hisselerim</h2>
+        </div>
+        <div class="holding-controls">
+          <select id="holdingSort" class="select" aria-label="Hisseleri sırala">
+            <option value="dailyProfit">Bugün TL</option>
+            <option value="dailyPct">Bugün %</option>
+            <option value="totalProfit">Toplam kâr</option>
+            <option value="totalProfitPct">Toplam %</option>
+            <option value="activeValue">Güncel değer</option>
+            <option value="ticker">Hisse kodu</option>
+          </select>
+          <span id="holdingCount" class="count-chip">0 hisse</span>
+        </div>
+      </div>
+      <div id="holdings" class="holdings-list"></div>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">↗</div>
+        <h3>İlk hissenizi ekleyin</h3>
+      </div>
+    </section>
+    </section>
+
+    <section id="performanceView" class="app-view" hidden>
     <section class="chart-card">
       <div class="section-head history-chart-head">
         <div>
@@ -122,52 +166,29 @@
       </div>
     </section>
 
-    <section class="section holdings-section">
-      <div class="section-head sticky-title">
-        <div>
-          <span class="eyebrow">HİSSELERİM</span>
-          <h2>Halka arzlar</h2>
-        </div>
-        <div class="holding-controls">
-          <select id="holdingSort" class="select" aria-label="Hisseleri sırala">
-            <option value="dailyProfit">Bugün TL</option>
-            <option value="dailyPct">Bugün %</option>
-            <option value="totalProfit">Toplam kâr</option>
-            <option value="totalProfitPct">Toplam %</option>
-            <option value="activeValue">Güncel değer</option>
-            <option value="ticker">Hisse kodu</option>
-          </select>
-          <span id="holdingCount" class="count-chip">0 hisse</span>
-        </div>
-      </div>
-      <div id="holdings" class="holdings-list"></div>
-      <div id="emptyState" class="empty-state">
-        <div class="empty-icon">↗</div>
-        <h3>İlk hissenizi ekleyin</h3>
-      </div>
-    </section>
     </section>
 
-    <section id="calendarView" class="app-view" hidden>
-      <section class="view-hero">
+    <section id="marketsView" class="app-view finance-news-view" hidden>
+      <section class="finance-news-head">
         <div>
-          <span class="eyebrow">ÜCRETSİZ</span>
-          <h2>Halka Arz Takvimi</h2>
+          <span class="eyebrow">FİNANS</span>
+          <h2>Popüler Haberler</h2>
+          <p>Sadece finans gündemi</p>
         </div>
-        <button id="calendarRefreshBtn" class="secondary-btn compact-btn" type="button">Yenile</button>
+        <button id="newsRefreshBtn" class="news-all-pill" type="button" aria-label="Haberleri yenile">Tümü <span>›</span></button>
       </section>
-      <div class="calendar-toolbar">
-        <span id="calendarStatus" class="muted small">Takvim henüz yüklenmedi.</span>
-        <select id="calendarFilter" class="select" aria-label="Halka arz durumunu filtrele">
-          <option value="all">Tümü</option>
-          <option value="active">Talepte</option>
-          <option value="upcoming">Yaklaşan</option>
-          <option value="completed">Tamamlanan</option>
-        </select>
-      </div>
-      <div id="calendarList" class="calendar-grid">
-        <div class="calendar-empty">Henüz veri yok.</div>
-      </div>
+
+      <div id="newsStatus" class="finance-news-status">Finans haberleri yükleniyor…</div>
+      <div id="popularNewsRail" class="popular-news-rail" aria-label="Popüler finans haberleri"></div>
+      <div id="popularNewsDots" class="popular-news-dots" aria-hidden="true"></div>
+
+      <section class="latest-news-section" aria-label="Son finans haberleri">
+        <div class="latest-news-head">
+          <h3>Son Haberler</h3>
+          <span>Tüm Haberler <b>›</b></span>
+        </div>
+        <div id="latestNewsList" class="latest-news-list"></div>
+      </section>
     </section>
 
     <section id="proView" class="app-view" hidden>
@@ -224,9 +245,17 @@
   </main>
 
   <nav id="bottomNav" class="bottom-nav" aria-label="Ana menü">
-    <button id="portfolioTab" class="nav-tab active" data-view="portfolio" type="button"><span>▦</span><b>Portföy</b></button>
-    <button id="calendarTab" class="nav-tab" data-view="calendar" type="button"><span>◫</span><b>Takvim</b></button>
-    <button id="proTab" class="nav-tab" data-view="pro" type="button"><span>✦</span><b>Gelişmiş</b></button>
+    <button id="holdingsTab" class="nav-tab" data-view="holdings" type="button"><span>▦</span><b>Hisselerim</b></button>
+    <button id="performanceTab" class="nav-tab" data-view="performance" type="button"><span>↗</span><b>Performans</b></button>
+    <button id="walletHomeTab" class="nav-tab wallet-center-tab" data-view="portfolio" type="button" aria-label="Cüzdan ana sayfa" title="Cüzdan">
+      <svg class="wallet-center-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 7.5h14a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11"/>
+        <path d="M20 11h-5a2 2 0 0 0 0 4h5"/>
+        <circle cx="15.5" cy="13" r=".7"/>
+      </svg>
+      <b>Cüzdan</b>
+    </button>
+    <button id="marketsTab" class="nav-tab" data-view="markets" type="button"><span>▤</span><b>Haberler</b></button>
     <button id="settingsTab" class="nav-tab" data-view="settings" type="button"><span>⚙</span><b>Ayarlar</b></button>
   </nav>
 
@@ -286,7 +315,7 @@
     <div class="sheet-head">
       <div>
         <span class="eyebrow">YENİ KAYIT</span>
-        <h2 id="addTitle">Halka arz ekle</h2>
+        <h2 id="addTitle">Hisse ekle</h2>
       </div>
       <button class="close-btn" data-close-sheet aria-label="Kapat">×</button>
     </div>
@@ -299,8 +328,23 @@
         <span>Elinizdeki lot</span>
         <input id="lotsInput" name="lots" inputmode="numeric" type="number" min="1" step="1" placeholder="Örn. 24" required />
       </label>
+      <label>
+        <span>Alış fiyatı</span>
+        <input id="purchasePriceInput" name="purchasePrice" inputmode="decimal" type="number" min="0.01" step="0.01" placeholder="Örn. 42,50" required />
+      </label>
+      <label>
+        <span>Alış tarihi</span>
+        <input id="purchaseDateInput" name="purchaseDate" type="date" required />
+      </label>
+      <label class="ipo-purchase-option">
+        <input id="ipoPurchaseCheck" name="ipoPurchase" type="checkbox" />
+        <span class="ipo-purchase-copy">
+          <strong>Halka arzdan aldım</strong>
+          <small>İşaretlersen halka arz fiyatı ve ilk işlem tarihi otomatik doldurulmaya çalışılır.</small>
+        </span>
+      </label>
       <div id="lookupPreview" class="lookup-preview" hidden></div>
-      <button id="addSubmit" class="primary-btn" type="submit">Otomatik bul ve ekle</button>
+      <button id="addSubmit" class="primary-btn" type="submit">Hisseyi ekle</button>
       
     </form>
   </section>
@@ -317,15 +361,36 @@
     <div id="detailContent"></div>
   </section>
 
+  <div id="deleteHoldingModal" class="delete-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteHoldingConfirmTitle" hidden>
+    <div class="delete-confirm-card">
+      <div class="delete-confirm-icon" aria-hidden="true">!</div>
+      <div class="delete-confirm-copy">
+        <span class="eyebrow">PORTFÖY</span>
+        <h3 id="deleteHoldingConfirmTitle">Hisseyi sil</h3>
+        <p id="deleteHoldingConfirmText">Bu hisse portföyünden kaldırılacak.</p>
+      </div>
+      <div class="delete-confirm-actions">
+        <button id="deleteHoldingCancel" class="secondary-btn" type="button">Vazgeç</button>
+        <button id="deleteHoldingConfirm" class="danger-btn" type="button">Sil</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <template id="holdingTemplate">
     <article class="holding-card">
       <button class="holding-main" type="button">
         <div class="holding-title-row">
-          <div>
-            <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
-            <div class="company muted"></div><div class="sector-tag"></div>
+          <div class="holding-identity">
+            <span class="holding-logo-avatar" aria-hidden="true">
+              <img class="holding-logo" alt="" hidden />
+              <span class="holding-logo-fallback">?</span>
+            </span>
+            <div class="holding-copy">
+              <div class="ticker-line"><strong class="ticker"></strong><span class="lots"></span></div>
+              <div class="company muted"></div><div class="sector-tag"></div>
+            </div>
           </div>
           <div class="price-stack">
             <strong class="current-price"></strong>

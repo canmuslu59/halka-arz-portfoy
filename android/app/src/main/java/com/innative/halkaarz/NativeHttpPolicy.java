@@ -17,7 +17,12 @@ final class NativeHttpPolicy {
             "www.fintables.com",
             "webservice.foreks.com",
             "oyakyatirim.com.tr",
-            "www.oyakyatirim.com.tr"
+            "www.oyakyatirim.com.tr",
+            "halka-arz-portfoy-news-test.grass-airboat.workers.dev",
+            "aa.com.tr",
+            "www.aa.com.tr",
+            "bloomberght.com",
+            "www.bloomberght.com"
     ));
 
     private NativeHttpPolicy() {}

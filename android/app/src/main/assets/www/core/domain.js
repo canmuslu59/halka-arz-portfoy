@@ -1,3 +1,4 @@
+import { normalizedPurchases, calculatePurchaseLedger } from './purchase-ledger.js';
 export function cleanTicker(value) {
   return String(value ?? '')
     .trim()
@@ -92,26 +93,34 @@ export function saleWithholding(lots, salePrice, costPrice) {
 }
 
 export function calculateHolding(holding, { today = null } = {}) {
-  const initialLots = Number(holding.initialLots ?? holding.currentLots ?? 0);
-  const currentLots = Number(holding.currentLots ?? 0);
-  const ipoPriceValue = nullableFiniteNumber(holding.ipoPrice);
-  const ipoPrice = ipoPriceValue != null && ipoPriceValue > 0 ? ipoPriceValue : null;
+  const originalPriceValue = nullableFiniteNumber(holding.ipoPrice);
+  const originalPrice = originalPriceValue != null && originalPriceValue > 0 ? originalPriceValue : null;
+  const ledger = calculatePurchaseLedger({ ...holding, ipoPrice: originalPrice });
+  const costBasisKnown = ledger.purchases.length > 0;
+  const initialLots = costBasisKnown ? ledger.totalPurchasedLots : Number(holding.initialLots ?? holding.currentLots ?? 0);
+  const currentLots = costBasisKnown ? ledger.currentLots : Number(holding.currentLots ?? 0);
+  const averagePurchasePrice = costBasisKnown ? ledger.averagePurchasePrice : originalPrice;
+  const ipoPrice = averagePurchasePrice ?? originalPrice;
+  const positionCost = costBasisKnown ? ledger.positionCost : (ipoPrice == null ? null : currentLots * ipoPrice);
   const currentPrice = nullableFiniteNumber(holding.currentPrice);
   const previousClose = nullableFiniteNumber(holding.previousClose);
-  const sales = Array.isArray(holding.sales) ? holding.sales : [];
+  const purchases = costBasisKnown ? ledger.purchases : [];
+  const sales = costBasisKnown ? ledger.sales : (Array.isArray(holding.sales) ? holding.sales : []);
 
-  const invested = ipoPrice == null ? null : initialLots * ipoPrice;
+  const invested = costBasisKnown ? ledger.totalPurchaseCost : (ipoPrice == null ? null : initialLots * ipoPrice);
   const activeValue = currentLots === 0 ? 0 : currentPrice == null ? null : currentLots * currentPrice;
-  const grossSalesProceeds = sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * Number(sale.price || 0), 0);
-  const grossRealizedProfit = ipoPrice == null
-    ? null
-    : sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - ipoPrice), 0);
-  const withholdingTax = ipoPrice == null
-    ? 0
-    : sales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, ipoPrice), 0);
+  const grossSalesProceeds = costBasisKnown
+    ? ledger.grossSalesProceeds
+    : sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * Number(sale.price || 0), 0);
+  const grossRealizedProfit = costBasisKnown
+    ? ledger.grossRealizedProfit
+    : ipoPrice == null ? null : sales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - ipoPrice), 0);
+  const withholdingTax = costBasisKnown
+    ? ledger.withholdingTax
+    : ipoPrice == null ? 0 : sales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, sale.costPrice ?? ipoPrice), 0);
   const salesProceeds = grossSalesProceeds - withholdingTax;
   const realizedProfit = grossRealizedProfit == null ? null : grossRealizedProfit - withholdingTax;
-  const unrealizedProfit = currentLots === 0 ? 0 : currentPrice == null || ipoPrice == null ? null : currentLots * (currentPrice - ipoPrice);
+  const unrealizedProfit = currentLots === 0 ? 0 : currentPrice == null || positionCost == null ? null : activeValue - positionCost;
   const totalProfit = realizedProfit == null || unrealizedProfit == null ? null : realizedProfit + unrealizedProfit;
   const totalWealth = activeValue == null ? null : activeValue + salesProceeds;
   const latestMarketDate = holding.latestMarketDate || null;
@@ -122,9 +131,10 @@ export function calculateHolding(holding, { today = null } = {}) {
   const saleDayGain = previousClose == null
     ? null
     : todaySales.reduce((sum, sale) => sum + Number(sale.lots || 0) * (Number(sale.price || 0) - previousClose), 0);
-  const todayWithholdingTax = ipoPrice == null
-    ? 0
-    : todaySales.reduce((sum, sale) => sum + saleWithholding(sale.lots, sale.price, ipoPrice), 0);
+  const todayWithholdingTax = todaySales.reduce((sum, sale) => {
+    const costPrice = nullableFiniteNumber(sale.costPrice) ?? ipoPrice;
+    return sum + (costPrice == null ? 0 : saleWithholding(sale.lots, sale.price, costPrice));
+  }, 0);
   const hasDailyMarketPrices = previousClose != null && (currentLots === 0 || currentPrice != null);
   const dailyProfit = !hasDailyMarketPrices
     ? null
@@ -144,6 +154,9 @@ export function calculateHolding(holding, { today = null } = {}) {
     initialLots,
     currentLots,
     ipoPrice,
+    averagePurchasePrice,
+    positionCost,
+    purchases,
     currentPrice,
     previousClose,
     latestMarketDate,
@@ -217,19 +230,11 @@ export function calculateTotals(holdings) {
   return totals;
 }
 
-function normalizedSales(holding) {
-  return (Array.isArray(holding.sales) ? holding.sales : [])
-    .filter(sale => sale && typeof sale.date === 'string')
-    .map(sale => ({ date: sale.date, lots: Number(sale.lots || 0), price: Number(sale.price || 0) }))
-    .filter(sale => sale.lots > 0 && sale.price > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
 function historyStateOnDate(holding, date) {
-  const start = holding.firstTradeDate || holding.history?.[0]?.date || null;
-  const ipoPrice = Number(holding.ipoPrice);
-  const initialLots = Number(holding.initialLots || 0);
-  if (!start || date < start || !(ipoPrice > 0) || !(initialLots > 0)) return null;
+  const fullLedger = calculatePurchaseLedger(holding);
+  const purchases = fullLedger.purchases;
+  const start = purchases[0]?.date || holding.firstTradeDate || holding.history?.[0]?.date || null;
+  if (!start || date < start || !purchases.length) return null;
 
   const rows = Array.isArray(holding.history) ? holding.history : [];
   let close = null;
@@ -238,34 +243,34 @@ function historyStateOnDate(holding, date) {
     const rowClose = nullableFiniteNumber(row.close);
     if (row.date >= start && rowClose != null) close = rowClose;
   }
-  if (close == null && date === start) close = ipoPrice;
-  let soldLots = 0;
-  let proceeds = 0;
-  for (const sale of normalizedSales(holding)) {
-    if (sale.date > date) break;
-    soldLots += sale.lots;
-    proceeds += sale.lots * sale.price - saleWithholding(sale.lots, sale.price, ipoPrice);
+  const ledger = calculatePurchaseLedger(holding, { throughDate:date });
+  if (close == null && ledger.currentLots > 0) {
+    const sameDayPurchase = ledger.purchases.filter(purchase => purchase.date === date).slice(-1)[0];
+    if (sameDayPurchase) close = sameDayPurchase.price;
   }
-  const activeLots = Math.max(0, initialLots - soldLots);
-  if (close == null && activeLots > 0) return null;
-  const cost = initialLots * ipoPrice;
+  if (close == null && ledger.currentLots > 0) return null;
+  const capitalAdded = ledger.purchases
+    .filter(purchase => purchase.date === date)
+    .reduce((sum, purchase) => sum + Number(purchase.lots) * Number(purchase.price), 0);
   return {
-    value: activeLots * close + proceeds,
-    cost,
-    capitalAdded: date === start ? cost : 0,
+    value: ledger.currentLots * (close ?? 0) + ledger.salesProceeds,
+    cost: ledger.totalPurchaseCost,
+    capitalAdded,
   };
 }
 
 export function makePortfolioHistory(holdings) {
   const dates = new Set();
   for (const holding of holdings) {
-    const start = holding.firstTradeDate || holding.history?.[0]?.date;
-    if (!start || !holding.ipoPrice || !holding.initialLots) continue;
-    dates.add(start);
+    const ledger = calculatePurchaseLedger(holding);
+    const purchases = ledger.purchases;
+    const start = purchases[0]?.date || holding.firstTradeDate || holding.history?.[0]?.date;
+    if (!start || !purchases.length) continue;
+    for (const purchase of purchases) dates.add(purchase.date);
     for (const row of Array.isArray(holding.history) ? holding.history : []) {
       if (row?.date && row.date >= start) dates.add(row.date);
     }
-    for (const sale of normalizedSales(holding)) {
+    for (const sale of ledger.sales) {
       if (sale.date >= start) dates.add(sale.date);
     }
   }
@@ -278,7 +283,8 @@ export function makePortfolioHistory(holdings) {
     for (const holding of holdings) {
       const state = historyStateOnDate(holding, date);
       if (!state) {
-        const start = holding.firstTradeDate || holding.history?.[0]?.date;
+        const purchases = normalizedPurchases(holding);
+        const start = purchases[0]?.date || holding.firstTradeDate || holding.history?.[0]?.date;
         if (!start || date >= start) complete = false;
         continue;
       }

@@ -9,6 +9,7 @@ import {
   makePortfolioHistory,
   validateSale,
 } from './domain.js';
+import { normalizedPurchases } from './purchase-ledger.js';
 
 const QUOTE_TTL_MS = 12_000;
 
@@ -298,13 +299,31 @@ function hydrate(raw, errors = {}) {
         if (!historyIsFresh) {
           try {
             const result = await historyFn(nextRaw.ticker, firstTradeDate);
+            const downloadedHistory = Array.isArray(result?.history) ? result.history : [];
+            const existingHistory = Array.isArray(nextRaw.historySnapshot?.history) ? nextRaw.historySnapshot.history : [];
+            const quoteHistory = Array.isArray(nextRaw.quoteSnapshot?.history) ? nextRaw.quoteSnapshot.history : [];
+            const fallbackHistory = existingHistory.length ? existingHistory : quoteHistory;
             nextRaw.historySnapshot = {
-              history:Array.isArray(result.history) ? result.history : [],
+              history: downloadedHistory.length ? downloadedHistory : fallbackHistory,
               fetchedAt:now().toISOString(),
-              fetchedLocalDate:localDate,
+              // Never cache an empty upstream response as a complete daily history.
+              fetchedLocalDate:downloadedHistory.length ? localDate : null,
               startDate:firstTradeDate,
             };
+            if (!downloadedHistory.length) {
+              rowErrors.history = 'Tam geçmiş fiyat kaynağı boş döndü; mevcut fiyat geçmişi kullanılıyor.';
+            }
           } catch (error) {
+            const existingHistory = Array.isArray(nextRaw.historySnapshot?.history) ? nextRaw.historySnapshot.history : [];
+            const quoteHistory = Array.isArray(nextRaw.quoteSnapshot?.history) ? nextRaw.quoteSnapshot.history : [];
+            if (!existingHistory.length && quoteHistory.length) {
+              nextRaw.historySnapshot = {
+                history:quoteHistory,
+                fetchedAt:now().toISOString(),
+                fetchedLocalDate:null,
+                startDate:firstTradeDate,
+              };
+            }
             rowErrors.history = messageOf(error, 'Geçmiş fiyat verisi alınamadı.');
           }
         }
@@ -344,7 +363,37 @@ function hydrate(raw, errors = {}) {
       throw new Error('İlk işlem tarihi gelecekte olamaz.');
     }
     const data = await repository.load();
-    if (data.holdings.some(item => cleanTicker(item.ticker) === key)) throw new Error(`${key} zaten portföyde.`);
+    const existingIndex = data.holdings.findIndex(item => cleanTicker(item.ticker) === key);
+    if (existingIndex >= 0) {
+      const purchasePrice = positiveNumber(ipoPriceOverride);
+      if (purchasePrice == null || !normalizedFirstTradeDateOverride) {
+        throw new Error(key + ' zaten portföyde; yeni alım için alış fiyatı ve tarihi gerekli.');
+      }
+      const stamp = now().toISOString();
+      const raw = { ...data.holdings[existingIndex], sales:[...(data.holdings[existingIndex].sales || [])] };
+      const effectivePrice = positiveNumber(raw.ipoPriceOverride) ?? positiveNumber(raw.ipoSnapshot?.ipoPrice);
+      const effectiveDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || raw.addedAt?.slice(0, 10) || null;
+      const purchases = normalizedPurchases({ ...raw, ipoPrice:effectivePrice, firstTradeDate:effectiveDate }).map(purchase => ({ ...purchase }));
+      purchases.push({
+        id: uuid(),
+        lots: lotCount,
+        price: purchasePrice,
+        date: normalizedFirstTradeDateOverride,
+        createdAt: stamp,
+      });
+      purchases.sort((a,b) => String(a.date).localeCompare(String(b.date)) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      raw.purchases = purchases;
+      raw.initialLots = purchases.reduce((sum, purchase) => sum + Number(purchase.lots || 0), 0);
+      raw.currentLots = Number(raw.currentLots || 0) + lotCount;
+      const earliestPurchaseDate = purchases[0]?.date || null;
+      if (earliestPurchaseDate && (!effectiveDate || earliestPurchaseDate < effectiveDate)) {
+        raw.firstTradeDateOverride = earliestPurchaseDate;
+        raw.historySnapshot = null;
+      }
+      data.holdings[existingIndex] = raw;
+      await repository.save(data);
+      return { holding:hydrate(raw), autoIpoFound:false, merged:true };
+    }
 
     const [quoteResult, ipoResult, sectorResult] = await Promise.allSettled([quoteFn(key), getIpo(key), sectorFn(key)]);
     if (quoteResult.status !== 'fulfilled') throw new Error(`${key} için BIST fiyat verisi bulunamadı. Kod doğru mu?`);
@@ -369,12 +418,19 @@ function hydrate(raw, errors = {}) {
       sectorOverride: null,
       sales: [],
       quoteSnapshot: { ...quoteResult.value, fetchedAt: stamp },
-      historySnapshot: firstTradeDate ? {
-        history:Array.isArray(historyResult?.history) ? historyResult.history : (quoteResult.value.history || []),
-        fetchedAt:stamp,
-        fetchedLocalDate:historyError ? null : localDate,
-        startDate:firstTradeDate,
-      } : null,
+      historySnapshot: firstTradeDate ? (() => {
+        const downloadedHistory = Array.isArray(historyResult?.history) ? historyResult.history : [];
+        const quoteHistory = Array.isArray(quoteResult.value?.history) ? quoteResult.value.history : [];
+        const resolvedHistory = downloadedHistory.length ? downloadedHistory : quoteHistory;
+        return {
+          history: resolvedHistory,
+          fetchedAt: stamp,
+          // Empty daily history is not a successful full-history refresh.
+          // Keep recent quote rows visible and retry the full history later.
+          fetchedLocalDate: historyError || !downloadedHistory.length ? null : localDate,
+          startDate:firstTradeDate,
+        };
+      })() : null,
       ipoSnapshot: ipoData ? { ...ipoData, fetchedAt: stamp } : null,
       sectorSnapshot: sectorResult.status === 'fulfilled' ? normalizedSectorSnapshot(sectorResult.value, inferSectorFromCompany(ipoData?.company, key), stamp) : normalizedSectorSnapshot({ ticker:key, sector:null, source:null }, inferSectorFromCompany(ipoData?.company, key), stamp),
     };
@@ -428,11 +484,14 @@ function hydrate(raw, errors = {}) {
     const firstTradeDate = raw.firstTradeDateOverride || raw.ipoSnapshot?.firstTradeDate || null;
     if (firstTradeDate && saleDate < firstTradeDate) throw new Error('Satış tarihi ilk işlem tarihinden önce olamaz.');
     const stamp = now().toISOString();
+    const beforeSale = hydrate(raw);
+    const costPrice = positiveNumber(beforeSale.averagePurchasePrice) ?? positiveNumber(beforeSale.ipoPrice);
     raw.sales.push({
       id: uuid(),
       operationId,
       lots: valid.lots,
       price: valid.price,
+      costPrice,
       date: saleDate,
       createdAt: stamp,
     });

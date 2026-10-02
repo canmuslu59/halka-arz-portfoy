@@ -3,10 +3,13 @@ package com.innative.halkaarz;
 import android.Manifest;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -29,6 +32,7 @@ import androidx.activity.SystemBarStyle;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -39,6 +43,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -324,6 +330,58 @@ public class MainActivity extends ComponentActivity {
         NewsTestScheduler.ensure(this);
     }
 
+    private void sharePortfolioCardImage(double leftPx, double topPx, double widthPx, double heightPx) {
+        WebView currentWebView = webView;
+        if (currentWebView == null) return;
+        try {
+            int viewWidth = currentWebView.getWidth();
+            int viewHeight = currentWebView.getHeight();
+            int left = Math.max(0, (int) Math.round(leftPx));
+            int top = Math.max(0, (int) Math.round(topPx));
+            int right = Math.min(viewWidth, left + Math.max(1, (int) Math.round(widthPx)));
+            int bottom = Math.min(viewHeight, top + Math.max(1, (int) Math.round(heightPx)));
+            if (viewWidth <= 0 || viewHeight <= 0 || right <= left || bottom <= top) {
+                throw new IllegalStateException("Portföy kartı görünür değil.");
+            }
+
+            Bitmap fullBitmap = Bitmap.createBitmap(viewWidth, viewHeight, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(fullBitmap);
+            currentWebView.draw(canvas);
+            Bitmap cardBitmap = Bitmap.createBitmap(fullBitmap, left, top, right - left, bottom - top);
+            fullBitmap.recycle();
+
+            File shareDir = new File(getCacheDir(), "shared");
+            if (!shareDir.exists() && !shareDir.mkdirs()) {
+                cardBitmap.recycle();
+                throw new IllegalStateException("Paylaşım klasörü oluşturulamadı.");
+            }
+            File imageFile = new File(shareDir, "portfolio-card.png");
+            try (FileOutputStream output = new FileOutputStream(imageFile)) {
+                if (!cardBitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw new IllegalStateException("Portföy kartı görseli oluşturulamadı.");
+                }
+            } finally {
+                cardBitmap.recycle();
+            }
+
+            Uri imageUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", imageFile);
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("image/png");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, imageUri);
+            shareIntent.setClipData(ClipData.newRawUri("Portföy kartı", imageUri));
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(shareIntent, "Portföy kartını paylaş"));
+        } catch (Exception error) {
+            Toast.makeText(this, "Portföy kartı paylaşımı açılamadı", Toast.LENGTH_SHORT).show();
+        } finally {
+            WebView latestWebView = webView;
+            if (latestWebView != null) {
+                latestWebView.post(() -> latestWebView.evaluateJavascript(
+                        "window.__portfolioShareCaptureComplete && window.__portfolioShareCaptureComplete();", null));
+            }
+        }
+    }
+
     private void openAppNotificationSettings() {
         Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
@@ -427,6 +485,11 @@ public class MainActivity extends ComponentActivity {
             } catch (Exception ignored) {
                 return false;
             }
+        }
+
+        @JavascriptInterface
+        public void shareCardImage(double leftPx, double topPx, double widthPx, double heightPx) {
+            activity.runOnUiThread(() -> activity.sharePortfolioCardImage(leftPx, topPx, widthPx, heightPx));
         }
 
         @JavascriptInterface
