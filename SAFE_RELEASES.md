@@ -35,6 +35,14 @@ Google Play daha düşük bir versionCode kabul etmez. Geri dönüş, Code41 iç
 
 Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki versionCode/versionName değiştirilip aynı anahtarla yeniden imzalanabilir.
 
+## Code42 / v2.5.8 — Aday (henüz Last Known Good değil)
+
+- Branch: `release/v2.5.8-code42`
+- Release kaydı: `releases/code42/` (README.md, SHA256SUMS-UNSIGNED.txt, NOTIFICATION-BYTECODE.txt)
+- İçerik: Code41 bildirim mekanizması + Labs özellikleri (haberler, tutar gizliliği, tema seçimi, yedekleme, yeni ayarlar) + açık mod "Toplam portföy" kontrast düzeltmesi.
+- Bildirim mekanizması: 26 bildirim dosyası Code41 ile bayt bayt aynı (`test/code42-labs-production.test.js`); derlenmiş 33 bildirim sınıfının 31'i birebir, 2'sinde yalnız üretimde çalışmayan önizleme yolundaki sürüm numarası farkı.
+- İmzasız AAB SHA-256: `5f4f8aa4329e9d7c5499dad8ee21ff6b85dba921e46831ba0c09a0f92671391a` (CI run 37042107933).
+- Sorun çıkarsa: Code41'e dön (yukarıdaki adımlar). Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
 ## Önceki güvenli nokta — Code32 / v2.4.9
 
 - Durum: **GÜVENLİ GERİ DÖNÜŞ NOKTASI — SİLME**
