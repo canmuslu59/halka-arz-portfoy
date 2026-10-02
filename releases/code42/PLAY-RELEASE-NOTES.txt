@@ -1,0 +1,18 @@
+<tr-TR>
+• Yeni Haberler ekranı: Bloomberg HT, AA, TRT Haber ve CNN Türk'ten finans haberleri; arama, kategoriler, "Portföyüm" filtresi ve haber kaydetme
+• Cüzdan kartında tek dokunuşla tutarları gizleme
+• Tema seçimi: Sistem, Açık, Koyu
+• Portföy yedeği: dosyaya kaydet, paylaş, geri yükle
+• Yenilenen Ayarlar ekranı
+• Açık modda Performans ekranındaki toplam portföy tutarı artık net okunuyor
+• Kararlılık iyileştirmeleri
+</tr-TR>
+<en-US>
+• New News screen: finance news from Bloomberg HT, AA, TRT Haber and CNN Türk with search, categories, a "My Portfolio" filter and saved articles
+• Hide amounts with one tap on the wallet card
+• Theme choice: System, Light, Dark
+• Portfolio backup: save to file, share, restore
+• Redesigned Settings screen
+• Light mode: the total portfolio value on the Performance screen is now clearly readable
+• Stability improvements
+</en-US>
