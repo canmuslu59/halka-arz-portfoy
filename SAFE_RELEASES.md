@@ -42,6 +42,8 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 - İçerik: Code41 bildirim mekanizması + Labs özellikleri (haberler, tutar gizliliği, tema seçimi, yedekleme, yeni ayarlar) + açık mod "Toplam portföy" kontrast düzeltmesi.
 - Bildirim mekanizması: 26 bildirim dosyası Code41 ile bayt bayt aynı (`test/code42-labs-production.test.js`); derlenmiş 33 bildirim sınıfının 31'i birebir, 2'sinde yalnız üretimde çalışmayan önizleme yolundaki sürüm numarası farkı.
 - İmzasız AAB SHA-256: `5f4f8aa4329e9d7c5499dad8ee21ff6b85dba921e46831ba0c09a0f92671391a` (CI run 37042107933).
+- Tag: `v2.5.8-code42` (kaynak commit `fc84b39406b7f0b5bcca4d4c044b622be396dedf`)
+- Final Play AAB: `Hisse-Portfoyum-v2.5.8-Code42-Play.aab`, SHA-256 `00e06b249e5ba555be997d2eff640d275c7e57fa4ac2f5fb0fa5c6999d9c7c89`; upload sertifikası `02:D9:…:A2:72` doğrulandı.
 - Sorun çıkarsa: Code41'e dön (yukarıdaki adımlar). Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
 ## Önceki güvenli nokta — Code32 / v2.4.9
 
