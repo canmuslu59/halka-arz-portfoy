@@ -87,7 +87,7 @@ jobs:
         run: |
           foreach ($path in @('public/index.html','android/app/src/main/assets/www/index.html')) {
             $text = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
-            $text = $text.Replace('v2.5.4 • Build 40', 'v2.5.4 • Build 37')
+            $text = $text.Replace('Build 40', 'Build 37')
             [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding($false)))
           }
 
