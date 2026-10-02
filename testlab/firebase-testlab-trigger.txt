@@ -10,3 +10,4 @@ trigger batch6 permissions 36-37 2026-10-01 extra-quota
 trigger physical samsung resilience 2026-10-01
 trigger physical google instrumentation 2026-10-01
 trigger physical other permissions 2026-10-01
+trigger physical samsung permissions 2026-10-02
