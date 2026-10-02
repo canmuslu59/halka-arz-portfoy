@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -17,6 +18,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
+import android.webkit.ValueCallback;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -31,6 +33,8 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.SystemBarStyle;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.browser.customtabs.CustomTabColorSchemeParams;
+import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.graphics.Insets;
@@ -46,10 +50,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -63,7 +73,15 @@ public class MainActivity extends ComponentActivity {
     private static final String NOTIFICATION_ASKED_KEY = "notification_permission_asked_v1";
     private static final String WALLET_WIDGET_PROMPTED_KEY = "wallet_widget_prompted_v1";
     private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_BACKUP_BYTES = 5 * 1024 * 1024;
     private static final int MAX_REDIRECTS = 5;
+    // Haberler ekranının ek RSS kaynakları yalnız WebView köprüsünde açılır;
+    // arka plan bildirim işçisinin kullandığı NativeHttpPolicy listesi değişmez.
+    private static final Set<String> NEWS_FEED_HOSTS = new HashSet<>(Arrays.asList(
+            "www.trthaber.com",
+            "www.cnnturk.com",
+            "www.haberturk.com"
+    ));
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
     private final ExecutorService networkExecutor = new ThreadPoolExecutor(
             4,
@@ -78,6 +96,14 @@ public class MainActivity extends ComponentActivity {
     private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             granted -> handleNotificationPermissionResult()
+    );
+    private final ActivityResultLauncher<String> backupCreateLauncher = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/json"),
+            this::writePendingBackup
+    );
+    private final ActivityResultLauncher<String[]> backupOpenLauncher = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(),
+            this::readPickedBackup
     );
     private final OnBackPressedCallback backPressedCallback = new OnBackPressedCallback(true) {
         @Override
@@ -95,6 +121,8 @@ public class MainActivity extends ComponentActivity {
     private int imeBottomCssPx;
     private long lastBackPressMs;
     private boolean walletWidgetPromoPending;
+    private boolean lightThemeActive;
+    private String pendingBackupJson;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,12 +174,9 @@ public class MainActivity extends ComponentActivity {
 
     private void deliverWalletWidgetPromo() {
         if (!walletWidgetPromoPending || webView == null) return;
-        webView.post(() -> {
-            if (webView == null) return;
-            String script = "Boolean(window.__showWalletWidgetPromo && (window.__showWalletWidgetPromo(), true))";
-            webView.evaluateJavascript(script, value -> {
-                if ("true".equalsIgnoreCase(String.valueOf(value))) walletWidgetPromoPending = false;
-            });
+        String script = "Boolean(window.__showWalletWidgetPromo && (window.__showWalletWidgetPromo(), true))";
+        evaluateJavascriptIfAlive(script, value -> {
+            if ("true".equalsIgnoreCase(String.valueOf(value))) walletWidgetPromoPending = false;
         });
     }
 
@@ -195,7 +220,20 @@ public class MainActivity extends ComponentActivity {
                 + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-ime-bottom','" + imeBottomCssPx + "px');";
-        webView.post(() -> webView.evaluateJavascript(script, null));
+        evaluateJavascriptIfAlive(script);
+    }
+
+    private void evaluateJavascriptIfAlive(String script, ValueCallback<String> callback) {
+        WebView current = webView;
+        if (current == null) return;
+        current.post(() -> {
+            if (webView != current || isFinishing() || isDestroyed()) return;
+            current.evaluateJavascript(script, callback);
+        });
+    }
+
+    private void evaluateJavascriptIfAlive(String script) {
+        evaluateJavascriptIfAlive(script, null);
     }
 
     private void setSystemBarIcons(boolean lightTheme) {
@@ -248,7 +286,7 @@ public class MainActivity extends ComponentActivity {
         BackgroundAlertScheduler.ensure(this);
         NewsTestScheduler.ensure(this);
         if (webView != null) {
-            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+            evaluateJavascriptIfAlive("window.__notificationPermissionChanged && window.__notificationPermissionChanged();");
         }
     }
 
@@ -289,7 +327,7 @@ public class MainActivity extends ComponentActivity {
         if (webView == null || pendingPushRoute == null) return;
         JSONObject route = pendingPushRoute;
         pendingPushRoute = null;
-        webView.post(() -> webView.evaluateJavascript("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");", null));
+        evaluateJavascriptIfAlive("window.__handlePushRoute && window.__handlePushRoute(" + route.toString() + ");");
     }
 
     private void handleNativeBackPress() {
@@ -324,7 +362,7 @@ public class MainActivity extends ComponentActivity {
     private void handleNotificationPermissionResult() {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFICATION_ASKED_KEY, true).apply();
         if (webView != null) {
-            webView.post(() -> webView.evaluateJavascript("window.__notificationPermissionChanged && window.__notificationPermissionChanged();", null));
+            evaluateJavascriptIfAlive("window.__notificationPermissionChanged && window.__notificationPermissionChanged();");
         }
         BackgroundAlertScheduler.ensure(this);
         NewsTestScheduler.ensure(this);
@@ -390,6 +428,137 @@ public class MainActivity extends ComponentActivity {
         } catch (Exception ignored) {
             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
         }
+    }
+
+    private static boolean isAppLocal(Uri uri) {
+        return uri != null && "https".equalsIgnoreCase(uri.getScheme()) && "app.local".equalsIgnoreCase(uri.getHost());
+    }
+
+    // Haber ve kaynak bağlantıları uygulama penceresinde değil, temaya uygun bir Custom Tab'de açılır.
+    private void openExternalUri(Uri uri) {
+        if (uri == null) return;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if ("mailto".equals(scheme) || "tel".equals(scheme)) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Bağlantı açılamadı.", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (!"https".equals(scheme) && !"http".equals(scheme)) return;
+        try {
+            int toolbarColor = lightThemeActive ? Color.rgb(244, 247, 251) : Color.rgb(11, 16, 32);
+            CustomTabColorSchemeParams colors = new CustomTabColorSchemeParams.Builder()
+                    .setToolbarColor(toolbarColor)
+                    .build();
+            new CustomTabsIntent.Builder()
+                    .setDefaultColorSchemeParams(colors)
+                    .setColorScheme(lightThemeActive ? CustomTabsIntent.COLOR_SCHEME_LIGHT : CustomTabsIntent.COLOR_SCHEME_DARK)
+                    .setShowTitle(true)
+                    .setShareState(CustomTabsIntent.SHARE_STATE_ON)
+                    .setUrlBarHidingEnabled(true)
+                    .build()
+                    .launchUrl(this, uri);
+        } catch (Exception customTabError) {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE));
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Bağlantıyı açacak tarayıcı bulunamadı.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    // Yedekleme: kaydetme ve geri yükleme Android dosya seçicisiyle, paylaşma FileProvider ile yapılır.
+    // Sonuçlar web katmanındaki window.__labsBackup* geri çağrılarına iletilir.
+    private void notifyBackupResult(String callbackName, String payload) {
+        evaluateJavascriptIfAlive("window." + callbackName + " && window." + callbackName + "("
+                + JSONObject.quote(payload == null ? "" : payload) + ");");
+    }
+
+    private void startBackupSave(String json, String fileName) {
+        pendingBackupJson = json;
+        try {
+            backupCreateLauncher.launch(safeBackupFileName(fileName));
+        } catch (Exception error) {
+            pendingBackupJson = null;
+            notifyBackupResult("__labsBackupSaveFailed", "Dosya kaydetme ekranı açılamadı.");
+        }
+    }
+
+    private void writePendingBackup(Uri uri) {
+        String json = pendingBackupJson;
+        pendingBackupJson = null;
+        if (uri == null || json == null) {
+            notifyBackupResult("__labsBackupSaveFailed", "");
+            return;
+        }
+        try (OutputStream output = getContentResolver().openOutputStream(uri, "wt")) {
+            if (output == null) throw new IllegalStateException("Dosya açılamadı.");
+            output.write(json.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            notifyBackupResult("__labsBackupSaved", "");
+        } catch (Exception error) {
+            notifyBackupResult("__labsBackupSaveFailed", "Yedek dosyası yazılamadı.");
+        }
+    }
+
+    private void startBackupPick() {
+        try {
+            backupOpenLauncher.launch(new String[] { "application/json", "text/plain", "application/octet-stream", "*/*" });
+        } catch (Exception error) {
+            notifyBackupResult("__labsBackupPickFailed", "Dosya seçme ekranı açılamadı.");
+        }
+    }
+
+    private void readPickedBackup(Uri uri) {
+        if (uri == null) {
+            notifyBackupResult("__labsBackupPickFailed", "");
+            return;
+        }
+        try {
+            networkExecutor.execute(() -> {
+                try (InputStream input = getContentResolver().openInputStream(uri)) {
+                    if (input == null) throw new IllegalStateException("Dosya açılamadı.");
+                    notifyBackupResult("__labsBackupPicked", readUtf8(input, MAX_BACKUP_BYTES));
+                } catch (Exception error) {
+                    notifyBackupResult("__labsBackupPickFailed", "Yedek dosyası okunamadı.");
+                }
+            });
+        } catch (Exception error) {
+            notifyBackupResult("__labsBackupPickFailed", "Yedek dosyası okunamadı.");
+        }
+    }
+
+    private void shareBackupFile(String json, String fileName) {
+        try {
+            File backupDir = new File(getCacheDir(), "backups");
+            if (!backupDir.exists() && !backupDir.mkdirs()) {
+                throw new IllegalStateException("Yedek klasörü oluşturulamadı.");
+            }
+            File backupFile = new File(backupDir, safeBackupFileName(fileName));
+            try (FileOutputStream output = new FileOutputStream(backupFile)) {
+                output.write(json.getBytes(StandardCharsets.UTF_8));
+            }
+            Uri backupUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", backupFile);
+            Intent shareIntent = new Intent(Intent.ACTION_SEND)
+                    .setType("application/json")
+                    .putExtra(Intent.EXTRA_STREAM, backupUri)
+                    .putExtra(Intent.EXTRA_SUBJECT, "Portföy yedeği")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            shareIntent.setClipData(ClipData.newRawUri("Portföy yedeği", backupUri));
+            startActivity(Intent.createChooser(shareIntent, "Portföy yedeğini paylaş"));
+        } catch (Exception error) {
+            Toast.makeText(this, "Yedek paylaşılamadı.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static String safeBackupFileName(String requested) {
+        String name = requested == null ? "" : requested.trim().replaceAll("[^A-Za-z0-9._-]", "-");
+        if (name.isEmpty()) name = "portfoy-yedek.json";
+        if (!name.toLowerCase(Locale.ROOT).endsWith(".json")) name = name + ".json";
+        if (name.length() > 80) name = name.substring(name.length() - 80);
+        return name;
     }
 
     private class AndroidBridge {
@@ -494,7 +663,57 @@ public class MainActivity extends ComponentActivity {
 
         @JavascriptInterface
         public void setSystemTheme(String theme) {
-            activity.runOnUiThread(() -> setSystemBarIcons("light".equalsIgnoreCase(theme)));
+            boolean light = "light".equalsIgnoreCase(theme);
+            activity.lightThemeActive = light;
+            activity.runOnUiThread(() -> setSystemBarIcons(light));
+        }
+
+        // WebView prefers-color-scheme değerini uygulama temasından aldığı için "Sistem" teması
+        // telefonun gerçek koyu/açık ayarını buradan okur.
+        @JavascriptInterface
+        public boolean isSystemDarkMode() {
+            int nightMode = activity.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            return nightMode == Configuration.UI_MODE_NIGHT_YES;
+        }
+
+        @JavascriptInterface
+        public String getAppInfo() {
+            try {
+                JSONObject info = new JSONObject();
+                info.put("packageName", activity.getPackageName());
+                info.put("versionName", BuildConfig.VERSION_NAME);
+                info.put("versionCode", BuildConfig.VERSION_CODE);
+                return info.toString();
+            } catch (Exception ignored) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface
+        public void openExternalUrl(String urlText) {
+            if (urlText == null) return;
+            Uri uri = Uri.parse(urlText.trim());
+            if (isAppLocal(uri)) return;
+            activity.runOnUiThread(() -> activity.openExternalUri(uri));
+        }
+
+        @JavascriptInterface
+        public boolean saveBackupFile(String json, String fileName) {
+            if (!isValidJsonObject(json) || json.length() > MAX_BACKUP_BYTES) return false;
+            activity.runOnUiThread(() -> activity.startBackupSave(json, fileName));
+            return true;
+        }
+
+        @JavascriptInterface
+        public boolean shareBackup(String json, String fileName) {
+            if (!isValidJsonObject(json) || json.length() > MAX_BACKUP_BYTES) return false;
+            activity.runOnUiThread(() -> activity.shareBackupFile(json, fileName));
+            return true;
+        }
+
+        @JavascriptInterface
+        public void pickBackupFile() {
+            activity.runOnUiThread(activity::startBackupPick);
         }
 
         @JavascriptInterface
@@ -506,14 +725,14 @@ public class MainActivity extends ComponentActivity {
                     if (webView == null) return;
                     String callback = "window.__nativeHttpResolve && window.__nativeHttpResolve("
                             + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(envelope) + ");";
-                    webView.post(() -> webView.evaluateJavascript(callback, null));
+                    evaluateJavascriptIfAlive(callback);
                 });
             } catch (Exception error) {
                 if (webView == null) return;
                 String message = error.getMessage() == null ? "Ağ isteği başlatılamadı." : error.getMessage();
                 String callback = "window.__nativeHttpReject && window.__nativeHttpReject("
                         + JSONObject.quote(safeRequestId) + "," + JSONObject.quote(message) + ");";
-                webView.post(() -> webView.evaluateJavascript(callback, null));
+                evaluateJavascriptIfAlive(callback);
             }
         }
 
@@ -523,7 +742,7 @@ public class MainActivity extends ComponentActivity {
         JSONObject envelope = new JSONObject();
         HttpURLConnection connection = null;
         try {
-            URL url = NativeHttpPolicy.requireAllowed(urlText);
+            URL url = requireBridgeAllowed(urlText);
             int redirectCount = 0;
             while (true) {
                 connection = (HttpURLConnection) url.openConnection();
@@ -539,7 +758,7 @@ public class MainActivity extends ComponentActivity {
                 if (isRedirectStatus(status)) {
                     if (redirectCount >= MAX_REDIRECTS) throw new IllegalStateException("Çok fazla yönlendirme.");
                     String location = connection.getHeaderField("Location");
-                    URL nextUrl = NativeHttpPolicy.resolveRedirect(url, location);
+                    URL nextUrl = resolveBridgeRedirect(url, location);
                     connection.disconnect();
                     connection = null;
                     url = nextUrl;
@@ -565,6 +784,26 @@ public class MainActivity extends ComponentActivity {
             if (connection != null) connection.disconnect();
         }
         return envelope.toString();
+    }
+
+    private static boolean isNewsFeedHost(URL url) {
+        return url != null
+                && "https".equalsIgnoreCase(url.getProtocol())
+                && url.getHost() != null
+                && NEWS_FEED_HOSTS.contains(url.getHost().toLowerCase(Locale.ROOT));
+    }
+
+    private static URL requireBridgeAllowed(String urlText) throws Exception {
+        URL url = new URL(urlText);
+        return isNewsFeedHost(url) ? url : NativeHttpPolicy.requireAllowed(url);
+    }
+
+    private static URL resolveBridgeRedirect(URL current, String location) throws Exception {
+        if (location != null && !location.trim().isEmpty()) {
+            URL target = new URL(current, location.trim());
+            if (isNewsFeedHost(target)) return target;
+        }
+        return NativeHttpPolicy.resolveRedirect(current, location);
     }
 
     private static boolean isRedirectStatus(int status) {
