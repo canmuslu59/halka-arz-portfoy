@@ -100,7 +100,7 @@ jobs:
       - name: Normalize published-source line endings to LF
         shell: powershell
         run: |
-          node -e "const fs=require('fs'); for (const p of ['android/app/src/main/assets/www/index.html','android/app/src/main/assets/www/app.js','android/app/src/main/assets/www/styles.css','android/app/src/main/java/com/innative/halkaarz/MainActivity.java','android/app/src/main/AndroidManifest.xml']) { const s=fs.readFileSync(p,'utf8').replace(/\r\n/g,'\n'); fs.writeFileSync(p,s,'utf8'); }"
+          node -e "const fs=require('fs'),path=require('path'); const exts=new Set(['.js','.html','.css','.svg','.webmanifest','.xml','.java']); const roots=['android/app/src/main/assets/www','android/app/src/main/java/com/innative/halkaarz','android/app/src/main/AndroidManifest.xml']; const walk=p=>{const st=fs.statSync(p); if(st.isDirectory()){for(const n of fs.readdirSync(p)) walk(path.join(p,n)); return;} if(!exts.has(path.extname(p))) return; const s=fs.readFileSync(p,'utf8').replace(/\r\n/g,'\n'); fs.writeFileSync(p,s,'utf8');}; for(const p of roots) walk(p);"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply approved production overlays
