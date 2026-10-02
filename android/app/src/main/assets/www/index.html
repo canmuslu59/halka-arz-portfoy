@@ -9,6 +9,7 @@
   <title>Hisse Portföyüm</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./labs.css" />
 
 </head>
 <body>
@@ -40,9 +41,15 @@
     <section id="portfolioHeroCard" class="hero-card wallet-home-card" aria-label="Cüzdan">
       <div class="hero-topline hero-topline-actions">
         <span class="wallet-title">Cüzdan</span>
-        <button id="sharePortfolioBtn" class="icon-btn share-btn" type="button" aria-label="Portföy kartını görsel olarak paylaş" title="Paylaş">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/><path d="M5 13v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
-        </button>
+        <div class="labs-hero-actions">
+          <button id="privacyQuickToggle" class="icon-btn share-btn labs-privacy-btn" type="button" aria-label="Tutarları gizle" aria-pressed="false" title="Tutarları gizle">
+            <svg class="labs-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="labs-eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7c1.9 0 3.5-.6 4.9-1.4"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+          </button>
+          <button id="sharePortfolioBtn" class="icon-btn share-btn" type="button" aria-label="Portföy kartını görsel olarak paylaş" title="Paylaş">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5"/><path d="M8 9l4-4 4 4"/><path d="M5 13v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>
+          </button>
+        </div>
       </div>
       <div id="totalWealth" class="hero-value">₺0,00</div>
       <div class="hero-return-row">
@@ -168,27 +175,42 @@
 
     </section>
 
-    <section id="marketsView" class="app-view finance-news-view" hidden>
-      <section class="finance-news-head">
+    <section id="marketsView" class="app-view finance-news-view labs-news" hidden>
+      <section class="finance-news-head labs-news-head">
         <div>
-          <span class="eyebrow">FİNANS</span>
-          <h2>Popüler Haberler</h2>
-          <p>Sadece finans gündemi</p>
+          <span class="eyebrow">FİNANS GÜNDEMİ</span>
+          <h2>Haberler</h2>
+          <p id="newsStatus" class="labs-news-status" aria-live="polite">Haberler yükleniyor…</p>
         </div>
-        <button id="newsRefreshBtn" class="news-all-pill" type="button" aria-label="Haberleri yenile">Tümü <span>›</span></button>
+        <button id="newsRefreshBtn" class="icon-btn labs-news-refresh" type="button" aria-label="Haberleri yenile" title="Yenile">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9A7 7 0 0 1 18.5 6.5L20 8M4 16l1.5 1.5A7 7 0 0 0 17.9 15"/></svg>
+        </button>
       </section>
 
-      <div id="newsStatus" class="finance-news-status">Finans haberleri yükleniyor…</div>
-      <div id="popularNewsRail" class="popular-news-rail" aria-label="Popüler finans haberleri"></div>
-      <div id="popularNewsDots" class="popular-news-dots" aria-hidden="true"></div>
+      <div class="labs-news-search" role="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="newsSearch" type="search" placeholder="Haberlerde ara (ör. altın, faiz, hisse kodu)" autocomplete="off" enterkeyhint="search" aria-label="Haberlerde ara" />
+        <button id="newsSearchClear" type="button" aria-label="Aramayı temizle" hidden>×</button>
+      </div>
 
-      <section class="latest-news-section" aria-label="Son finans haberleri">
+      <div id="newsFilters" class="labs-news-filters" role="tablist" aria-label="Haber kategorileri"></div>
+
+      <section id="newsFeaturedSection" class="labs-news-featured" aria-label="Öne çıkan haberler" hidden>
+        <div class="latest-news-head"><h3>Öne Çıkanlar</h3></div>
+        <div id="popularNewsRail" class="popular-news-rail"></div>
+        <div id="popularNewsDots" class="popular-news-dots" aria-hidden="true"></div>
+      </section>
+
+      <section class="latest-news-section labs-news-list-section" aria-label="Haber listesi">
         <div class="latest-news-head">
-          <h3>Son Haberler</h3>
-          <span>Tüm Haberler <b>›</b></span>
+          <h3 id="newsListTitle">Son Haberler</h3>
+          <span id="newsListCount"></span>
         </div>
         <div id="latestNewsList" class="latest-news-list"></div>
+        <button id="newsLoadMore" class="secondary-btn labs-news-more" type="button" hidden>Daha fazla göster</button>
       </section>
+
+      <p class="labs-news-disclaimer">Haberler yayıncıların RSS akışlarından alınır ve dokunduğunuzda kaynak sitede açılır. Yatırım tavsiyesi değildir.</p>
     </section>
 
     <section id="proView" class="app-view" hidden>
@@ -205,40 +227,102 @@
     </section>
 
     <section id="settingsView" class="app-view" hidden>
-      <section class="settings-stack">
-        <article class="settings-card">
-          <div class="settings-row settings-row-head">
-            <div><span class="eyebrow">BİLDİRİMLER</span><h2>Borsa hareketleri</h2></div>
-            <label class="switch" aria-label="Borsa hareket bildirimlerini aç veya kapat">
+      <section class="settings-stack labs-settings">
+        <header class="labs-settings-head">
+          <span class="eyebrow">TERCİHLER</span>
+          <h2>Ayarlar</h2>
+        </header>
+
+        <article class="settings-card labs-settings-card" aria-labelledby="settingsAppearanceTitle">
+          <div class="labs-card-title">
+            <span class="labs-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor"/></svg></span>
+            <div><h3 id="settingsAppearanceTitle">Görünüm</h3><p>Tema ve tutar gizliliği</p></div>
+          </div>
+          <div class="labs-setting-row labs-setting-row-stack">
+            <div><strong>Tema</strong><span>“Sistem” telefonun koyu/açık ayarını izler.</span></div>
+            <div class="labs-segmented" role="radiogroup" aria-label="Tema">
+              <button type="button" role="radio" data-theme-choice="system">Sistem</button>
+              <button type="button" role="radio" data-theme-choice="light">Açık</button>
+              <button type="button" role="radio" data-theme-choice="dark">Koyu</button>
+            </div>
+          </div>
+          <div class="labs-setting-row">
+            <div><strong>Tutarları gizle</strong><span>Toplam değer, kâr/zarar ve lot bilgilerini bulanıklaştırır. Cüzdan kartındaki göz simgesiyle de açılıp kapanır.</span></div>
+            <label class="switch" aria-label="Tutarları gizle">
+              <input id="privacyModeToggle" type="checkbox" />
+              <span></span>
+            </label>
+          </div>
+        </article>
+
+        <article class="settings-card labs-settings-card" aria-labelledby="settingsNotificationsTitle">
+          <div class="labs-card-title">
+            <span class="labs-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 2h16Z"/><path d="M10 21h4"/></svg></span>
+            <div><h3 id="settingsNotificationsTitle">Bildirimler</h3><p>Portföy hareketleri ve bildirim durumu</p></div>
+          </div>
+
+          <div id="notificationPermissionBanner" class="labs-permission-banner" hidden>
+            <div><strong>Bildirimler kapalı</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
+            <button id="requestNotificationPermission" class="primary-btn compact-btn" type="button">İzin ver</button>
+          </div>
+
+          <div class="labs-setting-row">
+            <div><strong>Portföy hareketleri</strong><span>Toplam portföy eşiği aştığında, hisseler tavan/taban olduğunda.</span></div>
+            <label class="switch" aria-label="Portföy hareket bildirimlerini aç veya kapat">
               <input id="notificationEnabled" type="checkbox" checked />
               <span></span>
             </label>
           </div>
-          <div class="setting-block">
+          <div id="notificationThresholdBlock" class="setting-block labs-threshold">
             <div class="setting-label-row"><label for="notificationThreshold">Portföy değişim eşiği</label><strong id="notificationThresholdValue">%3</strong></div>
             <input id="notificationThreshold" class="range" type="range" min="1" max="10" step="0.5" value="3" />
             <div class="range-labels"><span>%1</span><span>%10</span></div>
-            <small>Yükseliş ve düşüşlerde geçerlidir.</small>
+            <small>Gün içinde yükselişte ve düşüşte, her eşik katında bir kez bildirilir.</small>
           </div>
-          <div class="permission-row">
-            <div><strong>Telefon bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
-            <button id="requestNotificationPermission" class="secondary-btn compact-btn" type="button">İzin ver</button>
+
+          <div class="labs-setting-row">
+            <div><strong>Haber bildirimleri</strong><span>Son dakika ve haber özeti bildirimleri Android bildirim ayarlarındaki kanallardan açılıp kapatılır.</span></div>
           </div>
-          <div class="permission-row">
-            <div><strong>Bildirim tanılama</strong></div>
-            <div>
-              <button id="notificationSettingsButton" class="secondary-btn compact-btn" type="button" hidden>Bildirim ayarları</button>
-            </div>
-          </div>
+
+          <details class="labs-diagnostics">
+            <summary>Bildirim durumu</summary>
+            <dl id="notificationDiagnostics"></dl>
+            <button id="notificationSettingsButton" class="secondary-btn compact-btn" type="button">Android bildirim ayarlarını aç</button>
+          </details>
         </article>
 
-        <article class="settings-card about-card">
-          <div><span class="eyebrow">HAKKINDA</span><h2>Hisse Portföyüm</h2></div>
+        <article class="settings-card labs-settings-card" aria-labelledby="settingsSourcesTitle">
+          <div class="labs-card-title">
+            <span class="labs-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5" fill="currentColor"/></svg></span>
+            <div><h3 id="settingsSourcesTitle">Haber kaynakları</h3><p>Haberler ekranında gösterilecek yayıncılar</p></div>
+          </div>
+          <div id="newsSourceSettings" class="labs-source-list"></div>
+        </article>
+
+        <article class="settings-card labs-settings-card" aria-labelledby="settingsDataTitle">
+          <div class="labs-card-title">
+            <span class="labs-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></span>
+            <div><h3 id="settingsDataTitle">Veri ve yedekleme</h3><p id="backupSummary">Portföyünüz yalnızca bu cihazda saklanır.</p></div>
+          </div>
+          <div class="labs-button-grid">
+            <button id="backupSaveBtn" class="secondary-btn" type="button">Yedeği dosyaya kaydet</button>
+            <button id="backupShareBtn" class="secondary-btn" type="button">Yedeği paylaş</button>
+            <button id="backupRestoreBtn" class="secondary-btn" type="button">Yedekten geri yükle</button>
+            <button id="cacheClearBtn" class="secondary-btn" type="button">Önbelleği temizle</button>
+          </div>
+          <small id="backupStatus" class="labs-hint">Telefon değiştirmeden veya uygulamayı kaldırmadan önce yedek alın.</small>
+        </article>
+
+        <article class="settings-card labs-settings-card about-card" aria-labelledby="settingsAboutTitle">
+          <div class="labs-card-title">
+            <img class="labs-about-logo" src="./launcher-icon.webp" width="40" height="40" alt="" />
+            <div><h3 id="settingsAboutTitle">Hisse Portföyüm</h3><p>Halka arz ve hisse portföy takibi</p></div>
+          </div>
           <div class="about-links">
-            <a href="./privacy.html">Gizlilik</a>
+            <a href="./privacy.html">Gizlilik politikası</a>
             <span>Portföy takip uygulaması • yatırım tavsiyesi değildir.</span>
           </div>
-          <small id="appVersion" class="build-info">Hisse Portföyüm<br />v2.5.4 • Build 37</small>
+          <small id="appVersion" class="build-info">Hisse Portföyüm<br />v2.5.8 • Build 42</small>
         </article>
       </section>
     </section>
@@ -372,6 +456,21 @@
       <div class="delete-confirm-actions">
         <button id="deleteHoldingCancel" class="secondary-btn" type="button">Vazgeç</button>
         <button id="deleteHoldingConfirm" class="danger-btn" type="button">Sil</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="labsConfirmModal" class="delete-confirm-overlay labs-confirm" role="dialog" aria-modal="true" aria-labelledby="labsConfirmTitle" hidden>
+    <div class="delete-confirm-card">
+      <div class="delete-confirm-icon labs-confirm-icon" aria-hidden="true">↺</div>
+      <div class="delete-confirm-copy">
+        <span id="labsConfirmEyebrow" class="eyebrow">YEDEK</span>
+        <h3 id="labsConfirmTitle">Yedekten geri yükle</h3>
+        <p id="labsConfirmText"></p>
+      </div>
+      <div class="delete-confirm-actions">
+        <button id="labsConfirmCancel" class="secondary-btn" type="button">Vazgeç</button>
+        <button id="labsConfirmOk" class="primary-btn" type="button">Geri yükle</button>
       </div>
     </div>
   </div>

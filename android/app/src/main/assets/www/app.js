@@ -11,6 +11,12 @@ import { createProAccess } from './core/pro-access.js';
 import { createRootNavigationState, nextNavigationState, canHandleAppBack } from './core/navigation.js';
 import { createRefreshGate } from './core/refresh-coordinator.js';
 import { comparisonSeriesFromYahoo, comparisonWindowFromBist, percentageMoveBetweenDates, combinedPercentageMoveBetweenDates, compoundedPortfolioMove } from './core/comparison-math.js';
+// Code42: Labs'tan üretime taşınan haber akışı ve yedekleme modülleri.
+import {
+  NEWS_CATEGORIES, NEWS_SOURCES, resolveEnabledSources, parseRssFeed, mergeNewsItems, chooseFeaturedNews,
+  buildHoldingMatchers, matchNewsToHoldings, filterNews, normalizeHttpsUrl,
+} from './core/news-feed.js';
+import { createBackupPayload, parseBackupText, BACKUP_SETTINGS_KEYS } from './core/labs-backup.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -95,11 +101,35 @@ function applyTheme(theme, { persist = true } = {}) {
   if (toggle) toggle.setAttribute('aria-label', resolved === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç');
   try { window.AndroidBridge?.setSystemTheme?.(resolved); } catch {}
   requestAnimationFrame(drawChart);
+  if (typeof renderThemeChoice === 'function') renderThemeChoice();
+}
+
+// "Sistem" teması. Android WebView prefers-color-scheme değerini
+// uygulama temasından aldığı için gerçek cihaz ayarı native köprüden okunur.
+function systemPrefersDark() {
+  try {
+    const native = window.AndroidBridge?.isSystemDarkMode?.();
+    if (typeof native === 'boolean') return native;
+  } catch {}
+  return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true;
+}
+
+function themePreference() {
+  const saved = safeGetLocal('themePreference');
+  return saved === 'light' || saved === 'dark' ? saved : 'system';
+}
+
+function applyThemePreference(preference) {
+  const value = preference === 'light' || preference === 'dark' ? preference : 'system';
+  safeSetLocal('themePreference', value);
+  applyTheme(resolveTheme(value, systemPrefersDark()), { persist:false });
 }
 
 function initTheme() {
-  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true;
-  applyTheme(resolveTheme(safeGetLocal('themePreference'), prefersDark), { persist:false });
+  applyTheme(resolveTheme(themePreference(), systemPrefersDark()), { persist:false });
+  window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', () => {
+    if (themePreference() === 'system') applyTheme(resolveTheme('system', systemPrefersDark()), { persist:false });
+  });
 }
 
 function formatIpoSize(value) {
@@ -403,6 +433,123 @@ function maybeRequestNotificationPermissionOnce() {
   try { window.AndroidBridge?.requestNotificationPermission?.(); } catch {}
 }
 
+// ---------------------------------------------------------------------------
+// Ayarlar ekranı. Anahtar adları Labs ile aynıdır; Labs yedekleri geri yüklenebilir.
+// ---------------------------------------------------------------------------
+const PRIVACY_KEY = 'labs_privacy_mode_v1';
+const LAST_BACKUP_KEY = 'labs_last_backup_at_v1';
+const SETTINGS_STAMP_FMT = new Intl.DateTimeFormat('tr-TR', { timeZone:'Europe/Istanbul', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+const NOTIFICATION_CHANNEL_NAMES = Object.freeze({
+  market:'Borsa hareketleri', portfolio:'Portföy artışları', portfolioFall:'Portföy düşüşleri', ceiling:'Tavan',
+  floor:'Taban', ipo:'Yeni halka arzlar', newsBreaking:'Son dakika haberleri', newsDigest:'Haber özetleri',
+});
+const BACKGROUND_OUTCOME_TEXT = Object.freeze({
+  running:'Kontrol sürüyor', waiting_quotes:'Bazı hisselerin fiyatı bekleniyor', channel_blocked:'Bildirim kanalı kapalı',
+  permission_blocked:'Bildirim izni kapalı', no_config:'Ayarlar henüz aktarılmadı', no_holdings:'Takip edilecek aktif hisse yok',
+  disabled:'Portföy bildirimleri kapalı', error:'Son kontrol tamamlanamadı', checked:'Son kontrol tamamlandı',
+});
+
+function settingsStamp(value) {
+  const stamp = Number(value);
+  return stamp > 0 ? SETTINGS_STAMP_FMT.format(new Date(stamp)) : '—';
+}
+
+function renderThemeChoice() {
+  const current = themePreference();
+  $$('[data-theme-choice]').forEach(button => {
+    const active = button.dataset.themeChoice === current;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-checked', String(active));
+  });
+}
+
+function applyPrivacyMode(enabled, { persist = true } = {}) {
+  const on = Boolean(enabled);
+  document.documentElement.classList.toggle('labs-privacy', on);
+  if (persist) safeSetLocal(PRIVACY_KEY, on ? '1' : '0');
+  const toggle = $('#privacyModeToggle');
+  if (toggle) toggle.checked = on;
+  const quick = $('#privacyQuickToggle');
+  if (quick) {
+    const label = on ? 'Tutarları göster' : 'Tutarları gizle';
+    quick.setAttribute('aria-pressed', String(on));
+    quick.setAttribute('aria-label', label);
+    quick.title = label;
+  }
+}
+
+function readNotificationStatus() {
+  try {
+    const raw = window.AndroidBridge?.getNotificationStatus?.();
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderNotificationDiagnostics(status = readNotificationStatus()) {
+  const root = $('#notificationDiagnostics');
+  if (!root) return;
+  if (!status) {
+    root.innerHTML = '<div><dt>Durum</dt><dd>Tanılama yalnız Android uygulamasında kullanılabilir.</dd></div>';
+    return;
+  }
+  const channels = status.channels && typeof status.channels === 'object' ? status.channels : {};
+  const blocked = Object.entries(channels).filter(([, value]) => value && value.enabled === false).map(([key]) => NOTIFICATION_CHANNEL_NAMES[key] || key);
+  const background = status.background || {};
+  const newsTest = status.newsTest || {};
+  const nextDigest = [newsTest.nextMorningTargetAt, newsTest.nextEveningTargetAt].map(Number).filter(value => value > Date.now()).sort((a, b) => a - b)[0];
+  const rows = [
+    ['Bildirim izni', status.permissionGranted === false ? 'Kapalı' : 'Verildi'],
+    ['Uygulama bildirimleri', status.notificationsEnabled === false ? 'Android ayarlarında kapalı' : 'Açık'],
+    ['Kapalı kanallar', blocked.length ? blocked.join(', ') : 'Yok'],
+    ['Portföy kontrolü', (BACKGROUND_OUTCOME_TEXT[background.outcome] || 'Bekleniyor') + (Number(background.checkedAt) > 0 ? ' · ' + settingsStamp(background.checkedAt) : '')],
+    ['Haber kontrolü', newsTest.lastError ? 'Hata · ' + String(newsTest.lastError).slice(0, 80) : (Number(newsTest.lastSuccessAt) > 0 ? 'Başarılı · ' + settingsStamp(newsTest.lastSuccessAt) : 'Bekleniyor')],
+    ['Sonraki haber özeti', nextDigest ? settingsStamp(nextDigest) : '—'],
+  ];
+  root.innerHTML = rows.map(([label, value]) => '<div><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>').join('');
+}
+
+function renderNewsSourceSettings() {
+  const root = $('#newsSourceSettings');
+  if (!root) return;
+  root.innerHTML = NEWS_SOURCES.map(source => {
+    const on = news.sources[source.id] !== false;
+    const status = news.sourceStatus[source.id];
+    let detail = 'Henüz yüklenmedi';
+    let cls = '';
+    if (!on) detail = source.defaultEnabled ? 'Kapalı' : 'Kapalı · finans dışı haber oranı yüksek';
+    else if (status?.ok) detail = status.count + ' haber · ' + settingsStamp(status.at);
+    else if (status && status.ok === false) { detail = 'Ulaşılamadı (' + status.error + ') · ' + settingsStamp(status.at); cls = ' class="negative"'; }
+    return '<div class="labs-setting-row labs-source-row">' +
+      '<div><strong>' + esc(source.name) + '</strong><span' + cls + '>' + esc(detail) + '</span></div>' +
+      '<label class="switch" aria-label="' + esc(source.name) + ' kaynağını aç veya kapat"><input type="checkbox" data-news-source="' + esc(source.id) + '"' + (on ? ' checked' : '') + ' /><span></span></label>' +
+    '</div>';
+  }).join('');
+}
+
+function renderBackupSummary() {
+  const summary = $('#backupSummary');
+  if (!summary) return;
+  const count = (state.portfolio?.holdings || []).length;
+  const last = Number(safeGetLocal(LAST_BACKUP_KEY) || 0);
+  summary.textContent = (count ? count + ' hisse bu cihazda saklanıyor' : 'Portföyünüz yalnızca bu cihazda saklanır') +
+    ' · ' + (last > 0 ? 'Son yedek ' + settingsStamp(last) : 'Henüz yedek alınmadı');
+}
+
+function appInfo() {
+  try { return JSON.parse(window.AndroidBridge?.getAppInfo?.() || 'null'); } catch { return null; }
+}
+
+function renderAppInfo() {
+  const element = $('#appVersion');
+  if (!element) return;
+  const info = appInfo();
+  const version = info?.versionName || '2.5.8';
+  const build = info?.versionCode || 42;
+  element.innerHTML = 'Hisse Portföyüm<br />v' + esc(version) + ' • Build ' + esc(build);
+}
+
 function renderSettings() {
   const settings = normalizeAlertSettings(state.alertSettings);
   state.alertSettings = settings;
@@ -410,21 +557,210 @@ function renderSettings() {
   const threshold = $('#notificationThreshold');
   const value = $('#notificationThresholdValue');
   if (enabled) enabled.checked = settings.enabled;
-  if (threshold) threshold.value = String(settings.threshold);
+  if (threshold) {
+    if (document.activeElement !== threshold) threshold.value = String(settings.threshold);
+    threshold.disabled = !settings.enabled;
+  }
   if (value) value.textContent = `%${String(settings.threshold).replace('.', ',')}`;
+  $('#notificationThresholdBlock')?.classList.toggle('is-disabled', !settings.enabled);
+
   const permission = readNativeNotificationPermission();
+  const banner = $('#notificationPermissionBanner');
+  if (banner) banner.hidden = !(permission === 'prompt' || permission === 'denied');
   const permissionEl = $('#notificationPermissionStatus');
-  if (permissionEl) permissionEl.textContent = notificationPermissionText(permission);
+  if (permissionEl) {
+    permissionEl.textContent = permission === 'denied'
+      ? 'İzin Android ayarlarından verilmeli.'
+      : 'Bildirim alabilmek için izin vermeniz gerekiyor.';
+  }
   const permissionButton = $('#requestNotificationPermission');
-  if (permissionButton) permissionButton.hidden = permission === 'granted' || permission === 'not_required' || permission === 'unsupported';
+  if (permissionButton) permissionButton.textContent = permission === 'denied' ? 'Ayarları aç' : 'İzin ver';
+
+  const settingsButton = $('#notificationSettingsButton');
+  if (settingsButton) settingsButton.hidden = typeof window.AndroidBridge?.openNotificationSettings !== 'function';
+
+  renderThemeChoice();
+  applyPrivacyMode(safeGetLocal(PRIVACY_KEY) === '1', { persist:false });
+  renderNotificationDiagnostics();
+  renderNewsSourceSettings();
+  renderBackupSummary();
+  renderAppInfo();
 }
 
-function persistAlertSettings() {
+function persistAlertSettings({ sync = true } = {}) {
   state.alertSettings = normalizeAlertSettings(state.alertSettings);
   safeSetLocal('alertEnabled', String(state.alertSettings.enabled));
   safeSetLocal('alertThreshold', String(state.alertSettings.threshold));
   renderSettings();
-  syncPushConfiguration();
+  if (sync) syncPushConfiguration();
+}
+
+// ---- Yedekleme ----
+function backupFileName() {
+  return 'portfoy-yedek-' + todayIstanbul() + '.json';
+}
+
+function markBackupDone() {
+  safeSetLocal(LAST_BACKUP_KEY, String(Date.now()));
+  renderBackupSummary();
+}
+
+async function buildBackupJson() {
+  const portfolio = await repository.load();
+  const settings = {};
+  for (const key of BACKUP_SETTINGS_KEYS) {
+    const value = safeGetLocal(key);
+    if (value != null) settings[key] = value;
+  }
+  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.5.8' });
+  return { json:JSON.stringify(payload, null, 2), count:payload.portfolio.holdings.length };
+}
+
+async function exportBackup(mode) {
+  try {
+    const { json, count } = await buildBackupJson();
+    if (!count) { toast('Yedeklenecek hisse yok.'); return; }
+    const bridge = window.AndroidBridge;
+    if (mode === 'share' && typeof bridge?.shareBackup === 'function') {
+      if (bridge.shareBackup(json, backupFileName())) markBackupDone();
+      else toast('Yedek hazırlanamadı.');
+      return;
+    }
+    if (mode === 'save' && typeof bridge?.saveBackupFile === 'function') {
+      if (!bridge.saveBackupFile(json, backupFileName())) toast('Yedek hazırlanamadı.');
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([json], { type:'application/json' }));
+    link.download = backupFileName();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    markBackupDone();
+  } catch (error) {
+    toast(error?.message || 'Yedek oluşturulamadı.');
+  }
+}
+
+let labsConfirmResolver = null;
+
+function confirmLabs({ eyebrow = 'ONAY', title, text, okText = 'Tamam' }) {
+  const modal = $('#labsConfirmModal');
+  if (!modal) return Promise.resolve(window.confirm(text));
+  $('#labsConfirmEyebrow').textContent = eyebrow;
+  $('#labsConfirmTitle').textContent = title;
+  $('#labsConfirmText').textContent = text;
+  $('#labsConfirmOk').textContent = okText;
+  modal.hidden = false;
+  return new Promise(resolve => { labsConfirmResolver = resolve; });
+}
+
+function closeLabsConfirm(result) {
+  const modal = $('#labsConfirmModal');
+  if (modal) modal.hidden = true;
+  const resolve = labsConfirmResolver;
+  labsConfirmResolver = null;
+  resolve?.(result);
+}
+
+async function restoreBackupFromText(text) {
+  let parsed;
+  try {
+    parsed = parseBackupText(text);
+  } catch (error) {
+    toast(error.message);
+    return;
+  }
+  const current = await repository.load();
+  const date = parsed.exportedAt ? ' (' + settingsStamp(Date.parse(parsed.exportedAt)) + ')' : '';
+  const ok = await confirmLabs({
+    eyebrow:'YEDEK',
+    title:'Yedekten geri yükle',
+    text:parsed.portfolio.holdings.length + ' hisselik yedek' + date + ' yüklenecek. Bu cihazdaki mevcut portföy (' +
+      current.holdings.length + ' hisse) yedekteki verilerle değiştirilecek.',
+    okText:'Geri yükle',
+  });
+  if (!ok) return;
+  try {
+    await repository.save(parsed.portfolio);
+    for (const [key, value] of Object.entries(parsed.settings)) safeSetLocal(key, value);
+    toast('Yedek geri yüklendi. Uygulama yenileniyor…');
+    setTimeout(() => window.location.reload(), 700);
+  } catch (error) {
+    toast(error?.message || 'Yedek geri yüklenemedi.');
+  }
+}
+
+function startBackupRestore() {
+  const bridge = window.AndroidBridge;
+  if (typeof bridge?.pickBackupFile === 'function') {
+    bridge.pickBackupFile();
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json,text/plain';
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (file) restoreBackupFromText(await file.text());
+  }, { once:true });
+  input.click();
+}
+
+window.__labsBackupPicked = text => { restoreBackupFromText(text); };
+window.__labsBackupPickFailed = message => { if (message) toast(message); };
+window.__labsBackupSaved = () => { markBackupDone(); toast('Yedek dosyası kaydedildi.'); };
+window.__labsBackupSaveFailed = message => { if (message) toast(message); };
+
+function clearLabsCaches() {
+  const exact = new Set(['finance_news_cache_v3', NEWS_CACHE_KEY, 'halka_arz_calendar_cache_v3']);
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key && (exact.has(key) || key.startsWith('halka_arz_detail_cache_v1_'))) localStorage.removeItem(key);
+    }
+  } catch {}
+  news.items = [];
+  news.fetchedAt = 0;
+  news.sourceStatus = {};
+  state.calendar = null;
+  state.calendarLoaded = false;
+  renderNewsSourceSettings();
+  toast('Önbellek temizlendi. Portföyünüz ve ayarlarınız korunur.');
+  loadNews({ force:true });
+}
+
+function bindSettingsUi() {
+  $$('[data-theme-choice]').forEach(button => button.addEventListener('click', () => applyThemePreference(button.dataset.themeChoice)));
+  $('#privacyModeToggle')?.addEventListener('change', event => applyPrivacyMode(event.target.checked));
+  $('#privacyQuickToggle')?.addEventListener('click', () => {
+    const next = !document.documentElement.classList.contains('labs-privacy');
+    applyPrivacyMode(next);
+    toast(next ? 'Tutarlar gizlendi.' : 'Tutarlar gösteriliyor.');
+  });
+  $('#notificationSettingsButton')?.addEventListener('click', () => {
+    try { window.AndroidBridge?.openNotificationSettings?.(); } catch {}
+  });
+  $('.labs-diagnostics')?.addEventListener('toggle', () => renderNotificationDiagnostics());
+  $('#newsSourceSettings')?.addEventListener('change', event => {
+    const input = event.target instanceof HTMLInputElement ? event.target : null;
+    const id = input?.dataset.newsSource;
+    if (!id) return;
+    news.sources = { ...news.sources, [id]:input.checked };
+    safeSetLocal(NEWS_SOURCES_KEY, JSON.stringify(news.sources));
+    news.visible = NEWS_PAGE_SIZE;
+    if (input.checked) loadNews({ force:true });
+    else renderNews();
+    renderNewsSourceSettings();
+  });
+  $('#backupSaveBtn')?.addEventListener('click', () => exportBackup('save'));
+  $('#backupShareBtn')?.addEventListener('click', () => exportBackup('share'));
+  $('#backupRestoreBtn')?.addEventListener('click', startBackupRestore);
+  $('#cacheClearBtn')?.addEventListener('click', clearLabsCaches);
+  $('#labsConfirmCancel')?.addEventListener('click', () => closeLabsConfirm(false));
+  $('#labsConfirmOk')?.addEventListener('click', () => closeLabsConfirm(true));
+  $('#labsConfirmModal')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeLabsConfirm(false); });
 }
 
 const LOCAL_ALERT_STATE_KEY = 'localAlertStateV1';
@@ -502,25 +838,94 @@ window.__handlePushRoute = route => {
   }
 };
 
-const NEWS_FEED_URL = 'https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60';
-const NEWS_REFRESH_TTL_MS = 2 * 60 * 1000;
-const NEWS_CATEGORY_NAMES = Object.freeze({
-  borsa:'Borsa',
-  sirketler:'Şirketler',
-  doviz:'Döviz',
-  altin:'Altın',
-  ekonomi:'Ekonomi',
-  'halka-arz':'Halka Arz',
-});
+// ---------------------------------------------------------------------------
+// Çok kaynaklı finans haberleri (Bloomberg HT, AA, TRT, CNN Türk…)
+// RSS akışları native köprü üzerinden çekilir, cihazda birleştirilir ve
+// önbelleğe alınır. Makaleler uygulama penceresinde değil, Custom Tab'de açılır.
+// ---------------------------------------------------------------------------
+const NEWS_CACHE_KEY = 'labs_news_cache_v1';
+const NEWS_SAVED_KEY = 'labs_news_saved_v1';
+const NEWS_READ_KEY = 'labs_news_read_v1';
+const NEWS_FILTER_KEY = 'labs_news_filter_v1';
+const NEWS_SOURCES_KEY = 'labs_news_sources_v1';
+const NEWS_STALE_MS = 10 * 60 * 1000;
+const NEWS_BACKGROUND_REFRESH_MS = 5 * 60 * 1000;
+const NEWS_CACHE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+const NEWS_PAGE_SIZE = 20;
+const NEWS_SAVED_LIMIT = 100;
+const NEWS_READ_LIMIT = 500;
 const NEWS_CATEGORY_SYMBOLS = Object.freeze({
   borsa:'BIST', sirketler:'AŞ', doviz:'$ ₺ €', altin:'◆', ekonomi:'₺', 'halka-arz':'IPO',
 });
+const NEWS_FILTERS = Object.freeze([
+  { id:'all', label:'Tümü' },
+  { id:'portfolio', label:'Portföyüm' },
+  ...Object.entries(NEWS_CATEGORIES).map(([id, label]) => ({ id, label })),
+  { id:'saved', label:'Kaydedilenler' },
+]);
 const FINANCE_NEWS_CLOCK_FMT = new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit'});
 const FINANCE_NEWS_DAY_FMT = new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',day:'numeric',month:'short'});
 const FINANCE_NEWS_DAY_KEY_FMT = new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'});
-let popularFinanceNewsItems = [];
-let popularFinanceNewsFetchedAt = 0;
-let popularFinanceNewsPromise = null;
+const BOOKMARK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4Z"/></svg>';
+
+const news = {
+  items:[],
+  fetchedAt:0,
+  sourceStatus:{},
+  promise:null,
+  error:'',
+  filter:NEWS_FILTERS.some(item => item.id === safeGetLocal(NEWS_FILTER_KEY)) ? safeGetLocal(NEWS_FILTER_KEY) : 'all',
+  query:'',
+  visible:NEWS_PAGE_SIZE,
+  saved:loadSavedNews(),
+  read:loadReadNews(),
+  sources:resolveEnabledSources(safeParseLocalJson(NEWS_SOURCES_KEY)),
+  matcherKey:null,
+  matchers:[],
+};
+
+function isValidNewsItem(item) {
+  return Boolean(item && typeof item.id === 'string' && typeof item.title === 'string' && normalizeHttpsUrl(item.url));
+}
+
+function loadSavedNews() {
+  const list = safeParseLocalJson(NEWS_SAVED_KEY);
+  const map = new Map();
+  for (const item of Array.isArray(list) ? list : []) if (isValidNewsItem(item)) map.set(item.id, item);
+  return map;
+}
+
+function persistSavedNews() {
+  safeSetLocal(NEWS_SAVED_KEY, JSON.stringify([...news.saved.values()].slice(-NEWS_SAVED_LIMIT)));
+}
+
+function loadReadNews() {
+  const list = safeParseLocalJson(NEWS_READ_KEY);
+  return new Set(Array.isArray(list) ? list.filter(id => typeof id === 'string').slice(-NEWS_READ_LIMIT) : []);
+}
+
+function persistReadNews() {
+  safeSetLocal(NEWS_READ_KEY, JSON.stringify([...news.read].slice(-NEWS_READ_LIMIT)));
+}
+
+function persistNewsCache() {
+  safeSetLocal(NEWS_CACHE_KEY, JSON.stringify({
+    fetchedAt:news.fetchedAt,
+    items:news.items.slice(0, 160),
+    sourceStatus:news.sourceStatus,
+  }));
+}
+
+function restoreNewsCache() {
+  const cached = safeParseLocalJson(NEWS_CACHE_KEY);
+  const fetchedAt = Number(cached?.fetchedAt || 0);
+  if (!Array.isArray(cached?.items) || !Number.isFinite(fetchedAt)) return false;
+  if (Date.now() - fetchedAt > NEWS_CACHE_MAX_AGE_MS) return false;
+  news.items = cached.items.filter(isValidNewsItem);
+  news.fetchedAt = fetchedAt;
+  news.sourceStatus = cached.sourceStatus && typeof cached.sourceStatus === 'object' ? cached.sourceStatus : {};
+  return news.items.length > 0;
+}
 
 function parseFinanceNewsDate(value) {
   const raw = String(value || '').trim();
@@ -532,529 +937,393 @@ function parseFinanceNewsDate(value) {
 
 function formatFinanceNewsTime(iso) {
   const date = parseFinanceNewsDate(iso);
-  if (!date) return 'Güncel';
+  if (!date) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return Math.abs(diffMs) < 5 * 60 * 1000 ? 'Şimdi' : 'Güncel';
+  if (diffMs < 0) return 'Şimdi';
   const minutes = Math.floor(diffMs / 60_000);
   if (minutes < 1) return 'Şimdi';
   if (minutes < 60) return minutes + ' dk önce';
   const todayKey = FINANCE_NEWS_DAY_KEY_FMT.format(now);
   const dateKey = FINANCE_NEWS_DAY_KEY_FMT.format(date);
   const yesterdayKey = FINANCE_NEWS_DAY_KEY_FMT.format(new Date(now.getTime() - 86_400_000));
-  if (dateKey === todayKey) return Math.floor(minutes / 60) + ' saat önce';
+  if (dateKey === todayKey) return Math.floor(minutes / 60) + ' sa önce';
   const clock = FINANCE_NEWS_CLOCK_FMT.format(date);
   if (dateKey === yesterdayKey) return 'Dün ' + clock;
-  return FINANCE_NEWS_DAY_FMT.format(date) + ' • ' + clock;
+  return FINANCE_NEWS_DAY_FMT.format(date) + ' ' + clock;
 }
 
-const GENERIC_FINANCE_NEWS_FEED_TITLES = new Set([
-  'hisse senetleri','borsa kapanış','çeyrek altın','cumhuriyet altını','ziynet altını',
-  'yatırım fonları','halka arz takvimi','ekonomi haberleri','borsa haberleri',
-  'altın fiyatları','gram altın fiyatı','çeyrek altın fiyatı'
-]);
-
-function financeNewsCleanTitle(value) {
-  return String(value || '').replace(/\s+/g,' ').trim().replace(/^(?:HABERLER|PİYASALAR)\s+/iu,'').trim();
+function newsArtClass(category) {
+  return 'news-art-' + (NEWS_CATEGORIES[category] ? category : 'ekonomi');
 }
 
-function financeNewsIsArticle(item) {
-  if (!item?.url) return false;
-  try {
-    const url = new URL(String(item.url));
-    const host = url.hostname.toLocaleLowerCase('tr-TR');
-    if ((host === 'bloomberght.com' || host === 'www.bloomberght.com') && !/-\d{6,}\/?$/u.test(url.pathname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
+function newsCategoryClass(category) {
+  return 'news-cat-' + (NEWS_CATEGORIES[category] ? category : 'ekonomi');
 }
 
-function financeNewsItemsOnly(items) {
-  return (Array.isArray(items) ? items : [])
-    .filter(item => item && NEWS_CATEGORY_NAMES[item.category] && item.title && item.url && financeNewsIsArticle(item))
-    .map(item => ({ ...item, title:financeNewsCleanTitle(item.title) }))
-    .filter(item => !GENERIC_FINANCE_NEWS_FEED_TITLES.has(item.title.toLocaleLowerCase('tr-TR')))
-    .slice()
-    .sort((a,b) => (parseFinanceNewsDate(b.publishedAt)?.getTime() || 0) - (parseFinanceNewsDate(a.publishedAt)?.getTime() || 0));
-}
-
-function choosePopularFinanceNews(items, limit = 4) {
-  const result = [];
-  const usedCategories = new Set();
-  for (const item of items) {
-    if (result.length >= limit) break;
-    if (usedCategories.has(item.category)) continue;
-    result.push(item);
-    usedCategories.add(item.category);
-  }
-  for (const item of items) {
-    if (result.length >= limit) break;
-    if (!result.includes(item)) result.push(item);
-  }
-  return result;
-}
-
-function financeNewsArtClass(category) {
-  return 'news-art-' + (NEWS_CATEGORY_NAMES[category] ? category : 'ekonomi');
-}
-
-function financeNewsCategoryClass(category) {
-  return 'news-cat-' + (NEWS_CATEGORY_NAMES[category] ? category : 'ekonomi');
-}
-
-function financeNewsSourceInitial(source) {
+function newsSourceInitial(source) {
   const cleaned = String(source || 'Finans').trim();
   return cleaned ? cleaned.charAt(0).toLocaleUpperCase('tr-TR') : 'F';
 }
 
-const FINANCE_NEWS_CACHE_KEY = 'finance_news_cache_v3';
-const FINANCE_NEWS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const FINANCE_NEWS_BACKGROUND_REFRESH_MS = 2 * 60 * 1000;
-const financeNewsPreloadRefs = new Map();
-
-function persistFinanceNewsCache(items) {
-  try {
-    const safeItems = financeNewsItemsOnly(items).slice(0, 40);
-    localStorage.setItem(FINANCE_NEWS_CACHE_KEY, JSON.stringify({
-      fetchedAt: Date.now(),
-      items: safeItems,
-    }));
-  } catch {}
+function newsHoldingMatchers() {
+  const holdings = (state.portfolio?.holdings || []).filter(item => Number(item.currentLots || 0) > 0);
+  const key = holdings.map(item => item.ticker + ':' + (item.company || '')).join('|');
+  if (key !== news.matcherKey) {
+    news.matcherKey = key;
+    news.matchers = buildHoldingMatchers(holdings);
+  }
+  return news.matchers;
 }
 
-function restoreFinanceNewsCache() {
-  try {
-    const cached = JSON.parse(localStorage.getItem(FINANCE_NEWS_CACHE_KEY) || 'null');
-    const fetchedAt = Number(cached?.fetchedAt || 0);
-    if (!Array.isArray(cached?.items) || !cached.items.length) return false;
-    if (!Number.isFinite(fetchedAt) || Date.now() - fetchedAt > FINANCE_NEWS_CACHE_MAX_AGE_MS) return false;
-    popularFinanceNewsItems = financeNewsItemsOnly(cached.items);
-    popularFinanceNewsFetchedAt = fetchedAt;
-    preloadFinanceNewsImages(popularFinanceNewsItems);
-    renderPopularFinanceNews();
-    return popularFinanceNewsItems.length > 0;
-  } catch {
-    return false;
-  }
+function newsPoolFor(filter) {
+  if (filter !== 'saved') return news.items;
+  // Kaydedilen haberler akıştan düşse bile listede kalır.
+  const byId = new Map(news.items.map(item => [item.id, item]));
+  for (const item of news.saved.values()) if (!byId.has(item.id)) byId.set(item.id, item);
+  return [...byId.values()].sort((a, b) =>
+    (parseFinanceNewsDate(b.publishedAt)?.getTime() || 0) - (parseFinanceNewsDate(a.publishedAt)?.getTime() || 0));
 }
 
-function preloadFinanceNewsImages(items, limit = 12) {
-  if (typeof Image !== 'function') return;
-  const urls = [];
-  const seen = new Set();
-  for (const item of financeNewsItemsOnly(items)) {
-    const url = normalizeFinanceArticleImageUrl(item?.imageUrl, item?.url);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    urls.push(url);
-    if (urls.length >= limit) break;
-  }
-  for (const url of urls) {
-    if (financeNewsPreloadRefs.has(url)) continue;
-    const image = new Image();
-    image.decoding = 'async';
-    image.referrerPolicy = 'no-referrer';
-    image.onload = image.onerror = () => {
-      setTimeout(() => financeNewsPreloadRefs.delete(url), 30_000);
-    };
-    financeNewsPreloadRefs.set(url, image);
-    image.src = url;
-  }
+function newsFilterOptions(category, matchers) {
+  return {
+    category,
+    query:category === news.filter ? news.query : '',
+    sources:category === 'saved' ? null : news.sources,
+    holdingMatchers:matchers,
+    savedIds:new Set(news.saved.keys()),
+  };
 }
 
-function renderPopularFinanceNews() {
-  const rail = $('#popularNewsRail');
-  const dots = $('#popularNewsDots');
-  const latest = $('#latestNewsList');
-  const status = $('#newsStatus');
-  if (!rail || !dots || !latest || !status) return;
-
-  const items = financeNewsItemsOnly(popularFinanceNewsItems);
-  if (!items.length) {
-    rail.innerHTML = '<div class="finance-news-empty">' + esc(financeNewsLastError || 'Finans haberleri şu anda görüntülenemiyor. Biraz sonra tekrar deneyin.') + '</div>';
-    dots.innerHTML = '';
-    latest.innerHTML = '';
-    status.textContent = financeNewsLastError || 'Haber akışı bekleniyor';
-    return;
-  }
-
-  const popular = choosePopularFinanceNews(items, 4);
-  const popularIds = new Set(popular.map(item => item.id || item.url));
-  const latestItems = items.filter(item => !popularIds.has(item.id || item.url)).slice(0, 10);
-  const visibleLatest = latestItems.length ? latestItems : items.slice(0, 8);
-
-  rail.innerHTML = popular.map(item => {
-    const category = NEWS_CATEGORY_NAMES[item.category] || 'Ekonomi';
-    const symbol = NEWS_CATEGORY_SYMBOLS[item.category] || '₺';
-    return '<article class="news-feature-card">' +
-      '<a class="news-source-link" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' +
-        '<div class="news-feature-art ' + financeNewsArtClass(item.category) + '">' +
-          (item.imageUrl ? '<img class="news-feature-image" src="' + esc(item.imageUrl) + '" alt="" loading="eager" fetchpriority="high" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true" />' : '') +
-          '<span class="news-art-grid"></span>' +
-          '<span class="news-art-symbol">' + esc(symbol) + '</span>' +
-          '<span class="news-category-chip ' + financeNewsCategoryClass(item.category) + '">' + esc(category) + '</span>' +
-        '</div>' +
-        '<div class="news-feature-body">' +
-          '<div class="news-feature-meta"><span class="news-source"><span class="news-source-dot">' + esc(financeNewsSourceInitial(item.source)) + '</span>' + esc(item.source || 'Finans') + '</span><span class="news-time">' + esc(formatFinanceNewsTime(item.publishedAt)) + '</span></div>' +
-          '<h3 class="news-feature-title">' + esc(item.title) + '</h3>' +
-        '</div>' +
-      '</a>' +
-    '</article>';
+function renderNewsFilters(matchers) {
+  const root = $('#newsFilters');
+  if (!root) return;
+  root.innerHTML = NEWS_FILTERS.map(filter => {
+    const count = filterNews(newsPoolFor(filter.id), { ...newsFilterOptions(filter.id, matchers), query:'' }).length;
+    const active = news.filter === filter.id;
+    const muted = count === 0 && !['all', 'portfolio', 'saved'].includes(filter.id);
+    return '<button type="button" role="tab" class="labs-chip' + (active ? ' active' : '') + (muted ? ' muted' : '') +
+      (filter.id === 'portfolio' ? ' labs-chip-portfolio' : '') + '" data-news-filter="' + esc(filter.id) + '" aria-selected="' + active + '">' +
+      esc(filter.label) + '<span>' + count + '</span></button>';
   }).join('');
+  const active = $('.labs-chip.active', root);
+  if (active && !root.dataset.scrolled) {
+    root.dataset.scrolled = '1';
+    active.scrollIntoView({ block:'nearest', inline:'center' });
+  }
+}
 
-  dots.innerHTML = popular.map((_, index) => '<span class="popular-news-dot' + (index === 0 ? ' active' : '') + '" data-news-dot="' + index + '"></span>').join('');
+function newsTickersHtml(item, matchers) {
+  const tickers = matchNewsToHoldings(item, matchers);
+  return tickers.length ? '<span class="labs-news-tickers">' + tickers.map(ticker => '<b>' + esc(ticker) + '</b>').join('') + '</span>' : '';
+}
 
-  latest.innerHTML = visibleLatest.map(item => {
-    const category = NEWS_CATEGORY_NAMES[item.category] || 'Ekonomi';
-    const symbol = NEWS_CATEGORY_SYMBOLS[item.category] || '₺';
-    return '<a class="news-latest-item" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' +
-      '<span class="news-latest-thumb ' + financeNewsArtClass(item.category) + '">' +
+function newsSaveButtonHtml(item) {
+  const saved = news.saved.has(item.id);
+  return '<button class="labs-news-save' + (saved ? ' saved' : '') + '" type="button" data-news-save="' + esc(item.id) + '" aria-pressed="' + saved +
+    '" aria-label="' + (saved ? 'Kaydedilenlerden çıkar' : 'Haberi kaydet') + '">' + BOOKMARK_ICON + '</button>';
+}
+
+function newsTimeHtml(item) {
+  const text = formatFinanceNewsTime(item.publishedAt);
+  return text ? '<span class="news-time" data-news-time="' + esc(item.publishedAt || '') + '">' + esc(text) + '</span>' : '';
+}
+
+function featuredNewsHtml(item, matchers) {
+  const category = NEWS_CATEGORIES[item.category] || 'Ekonomi';
+  const symbol = NEWS_CATEGORY_SYMBOLS[item.category] || '₺';
+  return '<article class="news-feature-card labs-news-card' + (news.read.has(item.id) ? ' is-read' : '') + '" data-news-id="' + esc(item.id) + '">' +
+    '<a class="news-source-link" href="' + esc(item.url) + '" data-news-open="' + esc(item.id) + '" rel="noopener noreferrer">' +
+      '<div class="news-feature-art ' + newsArtClass(item.category) + '">' +
+        (item.imageUrl ? '<img class="news-feature-image" src="' + esc(item.imageUrl) + '" alt="" loading="eager" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true" />' : '') +
+        '<span class="news-art-grid"></span>' +
+        '<span class="news-art-symbol">' + esc(symbol) + '</span>' +
+        '<span class="news-category-chip ' + newsCategoryClass(item.category) + '">' + esc(category) + '</span>' +
+      '</div>' +
+      '<div class="news-feature-body">' +
+        '<div class="news-feature-meta"><span class="news-source"><span class="news-source-dot">' + esc(newsSourceInitial(item.source)) + '</span>' + esc(item.source || 'Finans') + '</span>' + newsTimeHtml(item) + '</div>' +
+        '<h3 class="news-feature-title">' + esc(item.title) + '</h3>' +
+        newsTickersHtml(item, matchers) +
+      '</div>' +
+    '</a>' +
+    newsSaveButtonHtml(item) +
+  '</article>';
+}
+
+function newsListItemHtml(item, matchers) {
+  const category = NEWS_CATEGORIES[item.category] || 'Ekonomi';
+  const symbol = NEWS_CATEGORY_SYMBOLS[item.category] || '₺';
+  return '<article class="labs-news-item' + (news.read.has(item.id) ? ' is-read' : '') + '" data-news-id="' + esc(item.id) + '">' +
+    '<a class="news-latest-item labs-news-link" href="' + esc(item.url) + '" data-news-open="' + esc(item.id) + '" rel="noopener noreferrer">' +
+      '<span class="news-latest-thumb ' + newsArtClass(item.category) + '">' +
         '<span>' + esc(symbol) + '</span>' +
         (item.imageUrl ? '<img class="news-latest-image" src="' + esc(item.imageUrl) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true" />' : '') +
       '</span>' +
-      '<span class="news-latest-copy"><span class="news-latest-meta"><span class="news-latest-category ' + financeNewsCategoryClass(item.category) + '">' + esc(category) + '</span><span>' + esc(item.source || 'Finans') + '</span><span class="news-time">' + esc(formatFinanceNewsTime(item.publishedAt)) + '</span></span><h4>' + esc(item.title) + '</h4></span>' +
-      '<span class="news-latest-arrow">›</span>' +
-    '</a>';
-  }).join('');
-
-  status.textContent = 'Finans gündemi · ' + items.length + ' haber';
-
-  if (!rail.dataset.newsDotsBound) {
-    rail.dataset.newsDotsBound = '1';
-    rail.addEventListener('scroll', () => {
-      const cards = $$('.news-feature-card', rail);
-      if (!cards.length) return;
-      const cardWidth = cards[0].getBoundingClientRect().width + 12;
-      const index = Math.max(0, Math.min(cards.length - 1, Math.round(rail.scrollLeft / Math.max(1, cardWidth))));
-      $$('.popular-news-dot', dots).forEach((dot, dotIndex) => dot.classList.toggle('active', dotIndex === index));
-    }, { passive:true });
-  }
+      '<span class="news-latest-copy">' +
+        '<span class="news-latest-meta"><span class="news-latest-category ' + newsCategoryClass(item.category) + '">' + esc(category) + '</span><span>' + esc(item.source || 'Finans') + '</span>' + newsTimeHtml(item) + '</span>' +
+        '<h4>' + esc(item.title) + '</h4>' +
+        newsTickersHtml(item, matchers) +
+      '</span>' +
+    '</a>' +
+    newsSaveButtonHtml(item) +
+  '</article>';
 }
 
-const AA_FINANCE_URL = 'https://www.aa.com.tr/tr/ekonomi';
-let financeNewsLastError = '';
-
-function validateFinanceNewsPayload(payload, label) {
-  if (!payload || !Array.isArray(payload.items) || payload.items.length < 1) {
-    throw new Error(label + ' boş haber listesi döndürdü.');
+function newsEmptyHtml(matchers) {
+  if (news.query) {
+    return '<div class="finance-news-empty">“' + esc(news.query) + '” için haber bulunamadı.</div>';
   }
-  return payload;
+  if (news.filter === 'portfolio') {
+    if (!matchers.length) return '<div class="finance-news-empty">Portföyünüze hisse eklediğinizde, bu şirketlerle ilgili haberler burada listelenir.</div>';
+    return '<div class="finance-news-empty">Şu an portföyünüzdeki şirketlerle ilgili haber yok.<br><small>Takip edilen: ' +
+      matchers.map(item => esc(item.ticker)).join(', ') + '</small></div>';
+  }
+  if (news.filter === 'saved') {
+    return '<div class="finance-news-empty">Kaydettiğiniz haberler burada görünür. Kaydetmek için haberin yanındaki işarete dokunun.</div>';
+  }
+  if (!NEWS_SOURCES.some(source => news.sources[source.id])) {
+    return '<div class="finance-news-empty">Tüm haber kaynakları kapalı.<br><button class="secondary-btn compact-btn" type="button" data-news-goto-settings>Kaynakları aç</button></div>';
+  }
+  if (news.promise) {
+    return Array.from({ length:4 }, () => '<div class="labs-news-skeleton"><span></span><div><i></i><i></i><i></i></div></div>').join('');
+  }
+  if (!news.items.length) {
+    return '<div class="finance-news-empty">' + esc(news.error || 'Haberler şu anda alınamadı.') +
+      '<br><button class="secondary-btn compact-btn" type="button" data-news-retry>Tekrar dene</button></div>';
+  }
+  return '<div class="finance-news-empty">Bu kategoride şu an haber yok.</div>';
 }
 
-function inferAaFinanceCategory(title) {
-  const text = String(title || '').toLocaleLowerCase('tr-TR');
-  if (/halka arz|arz talep|borsada işlem/.test(text)) return 'halka-arz';
-  if (/borsa|bist|hisse|endeks|spk|borsa istanbul/.test(text)) return 'borsa';
-  if (/altın|gram altın|ons/.test(text)) return 'altin';
-  if (/dolar|euro|avro|döviz|kur |kurun|sterlin/.test(text)) return 'doviz';
-  if (/şirket|holding|banka|bankacılık|firma|sanayi|otomobil|otomotiv/.test(text)) return 'sirketler';
-  return 'ekonomi';
-}
-
-function parseAaFinanceFallback(html) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(String(html || ''), 'text/html');
-  const seen = new Set();
-  const items = [];
-  for (const anchor of doc.querySelectorAll('a[href]')) {
-    const href = String(anchor.getAttribute('href') || '').trim();
-    if (!href.includes('/tr/ekonomi/')) continue;
-    const title = String(anchor.textContent || '').replace(/\s+/g, ' ').trim();
-    if (title.length < 20) continue;
-    let url;
-    try { url = new URL(href, 'https://www.aa.com.tr').href; }
-    catch { continue; }
-    if (seen.has(url)) continue;
-    seen.add(url);
-    items.push({
-      id: 'aa:' + url,
-      source: 'Anadolu Ajansı',
-      title,
-      url,
-      category: inferAaFinanceCategory(title),
-      publishedAt: null,
-    });
-    if (items.length >= 30) break;
-  }
-  return { items, fetchedAt: new Date().toISOString(), partial: true, fallback: 'aa-ekonomi' };
-}
-
-async function fetchAaFinanceFallback() {
-  const html = await httpGetText(AA_FINANCE_URL);
-  return validateFinanceNewsPayload(parseAaFinanceFallback(html), 'AA Ekonomi');
-}
-
-async function fetchPopularFinanceNewsPayload() {
-  let nativeMessage = '';
-  let fetchMessage = '';
-  try {
-    return validateFinanceNewsPayload(await httpGetJson(NEWS_FEED_URL), 'Finans servisi');
-  } catch (nativeError) {
-    nativeMessage = nativeError instanceof Error ? nativeError.message : String(nativeError || 'Android ağ isteği başarısız');
-  }
-
-  try {
-    const response = await fetch(NEWS_FEED_URL, {
-      method:'GET',
-      cache:'no-store',
-      headers:{ accept:'application/json' },
-    });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return validateFinanceNewsPayload(await response.json(), 'WebView finans servisi');
-  } catch (fetchError) {
-    fetchMessage = fetchError instanceof Error ? fetchError.message : String(fetchError || 'WebView ağ isteği başarısız');
-  }
-
-  try {
-    return await fetchAaFinanceFallback();
-  } catch (aaError) {
-    const aaMessage = aaError instanceof Error ? aaError.message : String(aaError || 'AA ekonomi isteği başarısız');
-    throw new Error('Worker(native): ' + nativeMessage + ' / Worker(web): ' + fetchMessage + ' / AA: ' + aaMessage);
-  }
-}
-
-const FINANCE_NEWS_METADATA_LIMIT = 18;
-const GENERIC_FINANCE_NEWS_TITLES = Object.freeze([
-  'Hisse Senetleri',
-  'Borsa Kapanış',
-  'Cumhuriyet Altını',
-  'Ziynet Altını',
-  'Borsa',
-  'Altın',
-  'Döviz',
-  'Piyasalar',
-  'Ekonomi',
-]);
-
-function normalizeFinanceNewsTitle(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .replace(/\s*[|\-–—]\s*Bloomberg\s*HT\s*$/i, '')
-    .trim();
-}
-
-function isGenericFinanceNewsTitle(value) {
-  const title = normalizeFinanceNewsTitle(value).toLocaleLowerCase('tr-TR');
-  if (!title) return true;
-  return GENERIC_FINANCE_NEWS_TITLES.some(label => label.toLocaleLowerCase('tr-TR') === title) ||
-    /^(hisse senetleri|borsa kapanış|cumhuriyet altını|ziynet altını|piyasalar|döviz|altın|borsa|ekonomi)$/.test(title);
-}
-
-function normalizeVerifiedFinancePublicationTime(value) {
-  const parsed = parseFinanceNewsDate(value);
-  if (!parsed) return null;
-  const stamp = parsed.getTime();
-  if (!Number.isFinite(stamp) || stamp > Date.now() + 10 * 60 * 1000) return null;
-  return parsed.toISOString();
-}
-
-function findJsonLdFinancePublicationTime(value) {
-  if (!value) return null;
-  if (Array.isArray(value)) {
-    for (const child of value) {
-      const found = findJsonLdFinancePublicationTime(child);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (typeof value !== 'object') return null;
-  if (value.datePublished) return value.datePublished;
-  for (const child of Object.values(value)) {
-    const found = findJsonLdFinancePublicationTime(child);
-    if (found) return found;
-  }
-  return null;
-}
-
-function normalizeFinanceArticleImageUrl(value, baseUrl = '') {
-  const raw = typeof value === 'string'
-    ? value
-    : (value && typeof value === 'object' ? (value.url || value.contentUrl || '') : '');
-  if (!raw) return null;
-  try {
-    const parsed = new URL(String(raw).trim(), baseUrl || undefined);
-    return parsed.protocol === 'https:' ? parsed.href : null;
-  } catch {
-    return null;
-  }
-}
-
-function findJsonLdFinanceImage(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    for (const child of value) {
-      const found = findJsonLdFinanceImage(child);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (typeof value !== 'object') return null;
-  if (value.image) {
-    const found = findJsonLdFinanceImage(value.image);
-    if (found) return found;
-  }
-  if (value.contentUrl) return value.contentUrl;
-  if (value.url && /image/i.test(String(value['@type'] || ''))) return value.url;
-  for (const child of Object.values(value)) {
-    if (child && typeof child === 'object') {
-      const found = findJsonLdFinanceImage(child);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function extractFinanceArticleMetadata(html, baseUrl = '') {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(String(html || ''), 'text/html');
-  const titleCandidates = [
-    doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content'),
-    doc.querySelector('h1')?.textContent,
-  ];
-  let title = null;
-  for (const candidate of titleCandidates) {
-    const cleaned = normalizeFinanceNewsTitle(candidate);
-    if (cleaned && cleaned.length >= 18 && !isGenericFinanceNewsTitle(cleaned)) {
-      title = cleaned;
-      break;
-    }
-  }
-
-  const publicationCandidates = [
-    doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="article:published_time"]')?.getAttribute('content'),
-    doc.querySelector('time[datetime]')?.getAttribute('datetime'),
-  ];
-  for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
-    try {
-      const parsed = JSON.parse(script.textContent || 'null');
-      const datePublished = findJsonLdFinancePublicationTime(parsed);
-      if (datePublished) publicationCandidates.push(datePublished);
-    } catch {}
-  }
-  let publishedAt = null;
-  for (const candidate of publicationCandidates) {
-    publishedAt = normalizeVerifiedFinancePublicationTime(candidate);
-    if (publishedAt) break;
-  }
-  const imageCandidates = [
-    doc.querySelector('meta[property="og:image"]')?.getAttribute('content'),
-    doc.querySelector('meta[property="og:image:secure_url"]')?.getAttribute('content'),
-    doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content'),
-    doc.querySelector('meta[property="twitter:image"]')?.getAttribute('content'),
-  ];
-  for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
-    try {
-      const parsed = JSON.parse(script.textContent || 'null');
-      const jsonLdImage = findJsonLdFinanceImage(parsed);
-      if (jsonLdImage) imageCandidates.push(jsonLdImage);
-    } catch {}
-  }
-  let imageUrl = null;
-  for (const candidate of imageCandidates) {
-    imageUrl = normalizeFinanceArticleImageUrl(candidate, baseUrl);
-    if (imageUrl) break;
-  }
-  return { title, publishedAt, imageUrl };
-}
-
-function financeNewsArticleHost(item) {
-  try { return new URL(String(item?.url || '')).hostname.toLocaleLowerCase('tr-TR'); }
-  catch { return ''; }
-}
-
-function isBloombergHtFinanceItem(item) {
-  const host = financeNewsArticleHost(item);
-  return String(item?.source || '').trim() === 'Bloomberg HT' || host === 'bloomberght.com' || host === 'www.bloomberght.com';
-}
-
-async function enrichFinanceNewsItem(item) {
-  const genericTitle = isGenericFinanceNewsTitle(item?.title);
-  const verifyOriginal = isBloombergHtFinanceItem(item);
-  if (!verifyOriginal) return genericTitle ? null : item;
-
-  try {
-    const metadata = extractFinanceArticleMetadata(await httpGetText(item.url), item.url);
-    const title = metadata.title || (genericTitle ? null : normalizeFinanceNewsTitle(item.title));
-    if (!title || isGenericFinanceNewsTitle(title)) return null;
-    return {
-      ...item,
-      title,
-      publishedAt: metadata.publishedAt || null,
-      publicationTimeVerified: Boolean(metadata.publishedAt),
-      imageUrl: metadata.imageUrl || normalizeFinanceArticleImageUrl(item?.imageUrl, item?.url) || null,
-    };
-  } catch {
-    if (genericTitle) return null;
-    return {
-      ...item,
-      title: normalizeFinanceNewsTitle(item.title),
-      publishedAt: null,
-      publicationTimeVerified: false,
-    };
-  }
-}
-
-async function enrichFinanceNewsItems(items) {
-  const sourceItems = Array.isArray(items) ? items : [];
-  const visibleCandidates = sourceItems.slice(0, FINANCE_NEWS_METADATA_LIMIT);
-  const verified = await Promise.all(visibleCandidates.map(enrichFinanceNewsItem));
-  const remainder = sourceItems
-    .slice(FINANCE_NEWS_METADATA_LIMIT)
-    .filter(item => !isGenericFinanceNewsTitle(item?.title))
-    .map(item => isBloombergHtFinanceItem(item)
-      ? {
-          ...item,
-          title: normalizeFinanceNewsTitle(item.title),
-          publishedAt:null,
-          publicationTimeVerified:false,
-        }
-      : item);
-  return verified.filter(Boolean).concat(remainder);
-}
-
-async function loadPopularFinanceNews({ force = false } = {}) {
-  if (!force && popularFinanceNewsItems.length && Date.now() - popularFinanceNewsFetchedAt < NEWS_REFRESH_TTL_MS) {
-    renderPopularFinanceNews();
-    return popularFinanceNewsItems;
-  }
-  if (!force && popularFinanceNewsPromise) return popularFinanceNewsPromise;
+function renderNewsStatus() {
   const status = $('#newsStatus');
-  if (status) status.textContent = 'Finans haberleri yenileniyor…';
-  const task = fetchPopularFinanceNewsPayload()
-    .then(async payload => {
-      financeNewsLastError = '';
-      const feedItems = financeNewsItemsOnly(payload?.items);
-      if (feedItems.length) {
-        popularFinanceNewsItems = feedItems;
-        popularFinanceNewsFetchedAt = Date.now();
-        persistFinanceNewsCache(popularFinanceNewsItems);
-        preloadFinanceNewsImages(popularFinanceNewsItems);
-        renderPopularFinanceNews();
+  const button = $('#newsRefreshBtn');
+  if (button) {
+    button.classList.toggle('spinning', Boolean(news.promise));
+    button.disabled = Boolean(news.promise);
+  }
+  if (!status) return;
+  const enabled = NEWS_SOURCES.filter(source => news.sources[source.id]);
+  if (news.promise) { status.textContent = news.items.length ? 'Yenileniyor…' : 'Haberler yükleniyor…'; return; }
+  if (!news.fetchedAt) { status.textContent = news.error || (enabled.length ? 'Haberler yükleniyor…' : 'Haber kaynağı seçilmedi'); return; }
+  const failed = enabled.filter(source => news.sourceStatus[source.id] && news.sourceStatus[source.id].ok === false);
+  let text = FINANCE_NEWS_CLOCK_FMT.format(new Date(news.fetchedAt)) + ' güncellendi · ' + (enabled.length - failed.length) + ' kaynak';
+  if (failed.length) text += ' · ' + failed.length + ' kaynağa ulaşılamadı';
+  if (Date.now() - news.fetchedAt > NEWS_STALE_MS * 3) text = 'Önbellekten · ' + text;
+  status.textContent = text;
+}
+
+function renderNews() {
+  const list = $('#latestNewsList');
+  if (!list) return;
+  const matchers = newsHoldingMatchers();
+  renderNewsFilters(matchers);
+  renderNewsStatus();
+
+  const filtered = filterNews(newsPoolFor(news.filter), newsFilterOptions(news.filter, matchers));
+  const showFeatured = news.filter === 'all' && !news.query && filtered.length > 6;
+  const featured = showFeatured ? chooseFeaturedNews(filtered, 5) : [];
+  const featuredSection = $('#newsFeaturedSection');
+  const rail = $('#popularNewsRail');
+  const dots = $('#popularNewsDots');
+  if (featuredSection) featuredSection.hidden = featured.length === 0;
+  if (rail) {
+    rail.innerHTML = featured.map(item => featuredNewsHtml(item, matchers)).join('');
+    rail.scrollLeft = 0;
+  }
+  if (dots) dots.innerHTML = featured.map((_, index) => '<span class="popular-news-dot' + (index === 0 ? ' active' : '') + '"></span>').join('');
+
+  const featuredIds = new Set(featured.map(item => item.id));
+  const rest = filtered.filter(item => !featuredIds.has(item.id));
+  const filterLabel = NEWS_FILTERS.find(item => item.id === news.filter)?.label || 'Tümü';
+  const title = $('#newsListTitle');
+  if (title) title.textContent = news.query ? 'Arama sonuçları' : news.filter === 'all' ? 'Son Haberler' : filterLabel;
+  const count = $('#newsListCount');
+  if (count) count.textContent = rest.length ? rest.length + ' haber' : '';
+
+  list.innerHTML = rest.length
+    ? rest.slice(0, news.visible).map(item => newsListItemHtml(item, matchers)).join('')
+    : newsEmptyHtml(matchers);
+  const more = $('#newsLoadMore');
+  if (more) {
+    const remaining = rest.length - news.visible;
+    more.hidden = remaining <= 0;
+    more.textContent = 'Daha fazla göster (' + Math.max(0, remaining) + ')';
+  }
+}
+
+function refreshNewsTimes() {
+  $$('[data-news-time]').forEach(element => {
+    const text = formatFinanceNewsTime(element.dataset.newsTime);
+    if (text && element.textContent !== text) element.textContent = text;
+  });
+}
+
+function shortNewsError(error) {
+  const message = String(error?.message || error || 'Ağ hatası');
+  if (/zaman aşımı|timeout/i.test(message)) return 'zaman aşımı';
+  if (/HTTP \d+/.test(message)) return message.match(/HTTP \d+/)[0];
+  if (/izin verilmiyor/i.test(message)) return 'izinli değil';
+  return 'bağlantı hatası';
+}
+
+async function fetchNewsSource(source) {
+  const items = parseRssFeed(await httpGetText(source.url), source);
+  if (!items.length) throw new Error('Akış boş döndü');
+  return items;
+}
+
+function loadNews({ force = false } = {}) {
+  if (!force && news.items.length && Date.now() - news.fetchedAt < NEWS_STALE_MS) {
+    renderNews();
+    return Promise.resolve(news.items);
+  }
+  if (news.promise) return news.promise;
+  const enabled = NEWS_SOURCES.filter(source => news.sources[source.id]);
+  if (!enabled.length) {
+    renderNews();
+    return Promise.resolve(news.items);
+  }
+  const previous = news.items;
+  const task = Promise.allSettled(enabled.map(fetchNewsSource))
+    .then(results => {
+      const at = Date.now();
+      const lists = [];
+      let succeeded = 0;
+      results.forEach((result, index) => {
+        const source = enabled[index];
+        if (result.status === 'fulfilled') {
+          succeeded += 1;
+          lists.push(result.value);
+          news.sourceStatus[source.id] = { ok:true, count:result.value.length, at };
+        } else {
+          // Ulaşılamayan kaynağın son başarılı haberleri listede kalır.
+          lists.push(previous.filter(item => item.sourceId === source.id));
+          news.sourceStatus[source.id] = { ok:false, error:shortNewsError(result.reason), at };
+        }
+      });
+      if (succeeded > 0) {
+        news.items = mergeNewsItems(lists);
+        news.fetchedAt = at;
+        news.error = '';
+        persistNewsCache();
+      } else {
+        news.error = 'Haberler şu anda alınamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+        if (state.view === 'markets' && previous.length) toast('Haberler yenilenemedi; son kayıtlı haberler gösteriliyor.');
       }
-      const enrichedItems = await enrichFinanceNewsItems(payload?.items);
-      popularFinanceNewsItems = financeNewsItemsOnly(enrichedItems);
-      popularFinanceNewsFetchedAt = Date.now();
-      persistFinanceNewsCache(popularFinanceNewsItems);
-      preloadFinanceNewsImages(popularFinanceNewsItems);
-      renderPopularFinanceNews();
-      return popularFinanceNewsItems;
-    })
-    .catch(error => {
-      const reason = String(error?.message || 'Ağ hatası').slice(0, 240);
-      financeNewsLastError = 'Haberler alınamadı · ' + reason;
-      if (status) status.textContent = financeNewsLastError;
-      if (!popularFinanceNewsItems.length) renderPopularFinanceNews();
-      return popularFinanceNewsItems;
+      return news.items;
     })
     .finally(() => {
-      if (popularFinanceNewsPromise === task) popularFinanceNewsPromise = null;
+      if (news.promise === task) news.promise = null;
+      renderNews();
+      if (state.view === 'settings') renderNewsSourceSettings();
     });
-  popularFinanceNewsPromise = task;
+  news.promise = task;
+  renderNews();
   return task;
+}
+
+function onNewsViewShown() {
+  renderNews();
+  if (!news.items.length || Date.now() - news.fetchedAt >= NEWS_STALE_MS) loadNews({ force:true });
+}
+
+function openExternalUrl(url) {
+  const safe = normalizeHttpsUrl(url);
+  if (!safe) return;
+  try {
+    if (typeof window.AndroidBridge?.openExternalUrl === 'function') {
+      window.AndroidBridge.openExternalUrl(safe);
+      return;
+    }
+  } catch {}
+  window.open(safe, '_blank', 'noopener,noreferrer');
+}
+
+function findNewsItem(id) {
+  return news.items.find(item => item.id === id) || news.saved.get(id) || null;
+}
+
+function openNewsItem(id) {
+  const item = findNewsItem(id);
+  if (!item) return;
+  news.read.add(item.id);
+  persistReadNews();
+  $$('[data-news-id]').forEach(element => {
+    if (element.dataset.newsId === item.id) element.classList.add('is-read');
+  });
+  openExternalUrl(item.url);
+}
+
+function toggleSavedNews(id) {
+  const item = findNewsItem(id);
+  if (!item) return;
+  if (news.saved.has(item.id)) {
+    news.saved.delete(item.id);
+    toast('Kaydedilenlerden çıkarıldı.');
+  } else {
+    news.saved.set(item.id, item);
+    toast('Haber kaydedildi.');
+  }
+  persistSavedNews();
+  renderNews();
+}
+
+function setNewsFilter(filter) {
+  if (!NEWS_FILTERS.some(item => item.id === filter)) return;
+  news.filter = filter;
+  news.visible = NEWS_PAGE_SIZE;
+  safeSetLocal(NEWS_FILTER_KEY, filter);
+  renderNews();
+  $('#newsFilters [data-news-filter="' + filter + '"]')?.scrollIntoView({ block:'nearest', inline:'center', behavior:'smooth' });
+}
+
+function bindNewsUi() {
+  const view = $('#marketsView');
+  if (!view || view.dataset.newsBound) return;
+  view.dataset.newsBound = '1';
+  view.addEventListener('click', event => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    const save = target.closest('[data-news-save]');
+    if (save) { event.preventDefault(); toggleSavedNews(save.dataset.newsSave); return; }
+    const open = target.closest('[data-news-open]');
+    if (open) { event.preventDefault(); openNewsItem(open.dataset.newsOpen); return; }
+    const filter = target.closest('[data-news-filter]');
+    if (filter) { setNewsFilter(filter.dataset.newsFilter); return; }
+    if (target.closest('[data-news-retry]')) { loadNews({ force:true }); return; }
+    if (target.closest('[data-news-goto-settings]')) switchView('settings');
+  });
+  $('#newsRefreshBtn')?.addEventListener('click', () => loadNews({ force:true }));
+  $('#newsLoadMore')?.addEventListener('click', () => { news.visible += NEWS_PAGE_SIZE; renderNews(); });
+
+  const search = $('#newsSearch');
+  const clear = $('#newsSearchClear');
+  let searchTimer = null;
+  search?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    if (clear) clear.hidden = !search.value;
+    searchTimer = setTimeout(() => {
+      news.query = search.value.trim();
+      news.visible = NEWS_PAGE_SIZE;
+      renderNews();
+    }, 180);
+  });
+  search?.addEventListener('keydown', event => { if (event.key === 'Enter') search.blur(); });
+  clear?.addEventListener('click', () => {
+    if (search) search.value = '';
+    clear.hidden = true;
+    news.query = '';
+    renderNews();
+  });
+
+  const rail = $('#popularNewsRail');
+  rail?.addEventListener('scroll', () => {
+    const cards = $$('.news-feature-card', rail);
+    if (!cards.length) return;
+    const cardWidth = cards[0].getBoundingClientRect().width + 12;
+    const index = Math.max(0, Math.min(cards.length - 1, Math.round(rail.scrollLeft / Math.max(1, cardWidth))));
+    $$('.popular-news-dot', $('#popularNewsDots')).forEach((dot, dotIndex) => dot.classList.toggle('active', dotIndex === index));
+  }, { passive:true });
 }
 
 function switchView(view, { push = true, selectedTicker = null } = {}) {
@@ -1073,7 +1342,7 @@ function switchView(view, { push = true, selectedTicker = null } = {}) {
   if ($('#screenTitle')) $('#screenTitle').textContent = VIEW_META[next].title;
   if ($('#addFab')) $('#addFab').hidden = !['portfolio','holdings'].includes(next);
   if ($('#refreshBtn')) $('#refreshBtn').hidden = !['portfolio','holdings'].includes(next);
-  if (next === 'markets') loadPopularFinanceNews();
+  if (next === 'markets') onNewsViewShown();
   if (next === 'portfolio') renderHomeComparison();
   if (next === 'performance') requestAnimationFrame(drawChart);
   if (next === 'pro' && typeof renderProView === 'function') renderProView({ selectedTicker });
@@ -2201,12 +2470,19 @@ $('#holdingSort').addEventListener('change', event => {
 $$('.nav-tab').forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
 $('#themeToggle')?.addEventListener('click', () => applyTheme(nextTheme(state.theme)));
 $('#notificationEnabled')?.addEventListener('change', event => { state.alertSettings.enabled = event.target.checked; persistAlertSettings(); });
-$('#notificationThreshold')?.addEventListener('input', event => { state.alertSettings.threshold = Number(event.target.value); persistAlertSettings(); });
+// Kaydırırken yalnız etiket güncellenir; kayıt ve senkronizasyon bırakınca yapılır.
+$('#notificationThreshold')?.addEventListener('input', event => {
+  const preview = normalizeAlertSettings({ ...state.alertSettings, threshold:Number(event.target.value) });
+  const value = $('#notificationThresholdValue');
+  if (value) value.textContent = `%${String(preview.threshold).replace('.', ',')}`;
+});
+$('#notificationThreshold')?.addEventListener('change', event => { state.alertSettings.threshold = Number(event.target.value); persistAlertSettings(); });
 $('#requestNotificationPermission')?.addEventListener('click', () => {
   try { window.AndroidBridge?.requestNotificationPermission?.(); } catch {}
   setTimeout(renderSettings, 400);
 });
-$('#newsRefreshBtn')?.addEventListener('click', () => loadPopularFinanceNews({ force:true }));
+bindNewsUi();
+bindSettingsUi();
 $('#sheetBackdrop').addEventListener('click', () => closeSheets());
 $('#deleteHoldingCancel')?.addEventListener('click', closeDeleteHoldingConfirm);
 $('#deleteHoldingConfirm')?.addEventListener('click', confirmDeleteHolding);
@@ -2222,7 +2498,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     renderMarketStatus();
     if (state.view === 'portfolio' || state.view === 'holdings') { loadPortfolio({ quiet:true }); if (state.view === 'portfolio') loadHomeComparison(); }
-    else if (state.view === 'markets') loadPopularFinanceNews();
+    else if (state.view === 'markets') onNewsViewShown();
     else if (state.view === 'settings') renderSettings();
   }
 });
@@ -2256,6 +2532,8 @@ else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(wind
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'app.local') navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 initTheme();
+applyPrivacyMode(safeGetLocal(PRIVACY_KEY) === '1', { persist:false });
+restoreNewsCache();
 applyNavigationState(window.history.state);
 renderMarketStatus();
 loadPortfolio();
@@ -2270,24 +2548,26 @@ setInterval(() => {
   else { closedQuoteTick += 1; if (closedQuoteTick % 4 === 0) loadPortfolio({ quiet:true }); }
 }, 15_000);
 setInterval(() => { if (!document.hidden) renderMarketStatus(); }, 30_000);
-restoreFinanceNewsCache();
-setTimeout(() => { loadPopularFinanceNews(); }, 0);
+// Haberler açılışta önbellekten gösterilir; ağ yenilemesi yalnız
+// önbellek bayatsa yapılır. Arka planda yalnız Haberler ekranı açıkken yenilenir.
+setTimeout(() => {
+  if (!news.items.length || Date.now() - news.fetchedAt >= NEWS_STALE_MS) loadNews();
+}, 2500);
 setInterval(() => {
-  if (!document.hidden) loadPopularFinanceNews({ force:true });
-}, FINANCE_NEWS_BACKGROUND_REFRESH_MS);
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return;
-  const stale = !popularFinanceNewsItems.length || Date.now() - popularFinanceNewsFetchedAt >= NEWS_REFRESH_TTL_MS;
-  if (stale) loadPopularFinanceNews({ force:true });
-});
+  if (document.hidden || state.view !== 'markets') return;
+  refreshNewsTimes();
+  if (Date.now() - news.fetchedAt >= NEWS_BACKGROUND_REFRESH_MS) loadNews({ force:true });
+}, 60_000);
 
 
-/* TEST_NEWS_NOTIFICATION_ROUTE_V1 */
+/* TEST_NEWS_NOTIFICATION_ROUTE_V1: haber bildirimi haberler ekranını açar; bildirimde haber adresi varsa haberi de açar */
 const __previousHandlePushRoute = window.__handlePushRoute;
 window.__handlePushRoute = route => {
   const kind = String(route?.kind || '');
   if (kind === 'news_breaking' || kind === 'news_digest') {
     switchView('markets');
+    const newsUrl = normalizeHttpsUrl(route?.newsUrl);
+    if (newsUrl) setTimeout(() => openExternalUrl(newsUrl), 300);
     return true;
   }
   return __previousHandlePushRoute?.(route);

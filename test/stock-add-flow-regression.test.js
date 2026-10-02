@@ -43,7 +43,14 @@ test('Android native IME inset is delivered to CSS and only the add sheet consum
   assert.match(css, /#addSheet\{bottom:max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\);max-height:calc\(92dvh - max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\)\)\}/);
 });
 
-test('Android packaged assets exactly mirror the verified web source', () => {
-  assert.equal(androidApp, app);
-  assert.equal(androidCss, css);
+// Play paketi, public/ kaynağına onaylı overlay'ler ve sürüm değişiklikleri uygulanarak üretilir;
+// bire bir kopya değildir. Ekleme akışı düzeltmelerinin pakette de bulunduğu doğrulanır.
+test('Android packaged assets keep the verified add-flow fixes from the web source', () => {
+  for (const pattern of [
+    /let closingAddSheetHistory = false;/,
+    /if \(addSheet\?\.hidden !== false\) showSheet\('#addSheet'\);/,
+    /if \(addForm\.dataset\.saving === 'true'\) return;/,
+    /visualViewport\?\.addEventListener\('resize', syncKeyboardInset/,
+  ]) assert.match(androidApp, pattern);
+  assert.match(androidCss, /#addSheet\{bottom:max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\);max-height:calc\(92dvh - max\(var\(--keyboard-inset,0px\),var\(--android-ime-bottom,0px\)\)\)\}/);
 });

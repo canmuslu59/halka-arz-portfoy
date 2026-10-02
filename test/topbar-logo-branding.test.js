@@ -12,11 +12,11 @@ function topbarMarkup(html) {
 }
 
 test('topbar uses the app logo instead of the BIST / portfolio title block', () => {
-  for (const html of [publicIndex, androidIndex]) {
+  for (const [html, logoSrc] of [[publicIndex, /src="\.\/icon\.svg"/], [androidIndex, /src="\.\/launcher-icon\.webp"/]]) {
     const topbar = topbarMarkup(html);
     assert.match(topbar, /<div\b[^>]*class="topbar-brand"[^>]*>/);
     const logo = topbar.match(/<img\b[^>]*class="topbar-logo"[^>]*>/)?.[0] || '';
-    assert.match(logo, /src="\.\/icon\.svg"/);
+    assert.match(logo, logoSrc);
     assert.match(logo, /width="44"/);
     assert.match(logo, /height="44"/);
     assert.match(logo, /alt="Hisse Portföyüm"/);
@@ -25,6 +25,7 @@ test('topbar uses the app logo instead of the BIST / portfolio title block', () 
   }
 });
 
-test('topbar markup stays identical between web source and packaged Android asset', () => {
-  assert.equal(topbarMarkup(androidIndex), topbarMarkup(publicIndex));
+// Play paketi, onaylı share-ui overlay'inin eklediği launcher-icon.webp logosunu kullanır (Code37'den beri).
+test('packaged Android topbar differs from the web source only by the bundled launcher logo', () => {
+  assert.equal(topbarMarkup(androidIndex).replace('src="./launcher-icon.webp"', 'src="./icon.svg"'), topbarMarkup(publicIndex));
 });
