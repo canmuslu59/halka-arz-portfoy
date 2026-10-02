@@ -1,0 +1,26 @@
+Hisse Portfoyum v2.5.7 / Code41 - Google Play Upload Verification
+
+Reference release: Hisse-Portfoyum-v2.5.4-Code37-Play.aab
+Package: com.innative.halkaarz
+Version name: 2.5.7
+Version code: 41
+
+Change scope:
+- Only base/manifest/AndroidManifest.xml differs from the published Code37 payload when signature metadata is ignored.
+- All other 204 non-signature AAB entries are byte-for-byte identical to the published Code37 AAB.
+- App assets, Java/Dex payload, notification implementation, Firebase/backend payload and UI resources were not modified.
+
+Signing:
+- Existing Google Play upload key reused: YES
+- Upload alias: halkaarz-upload
+- Upload certificate SHA-256: 02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72
+- jarsigner verification: PASS
+- ZIP integrity: PASS
+- Unsigned-to-signed non-META-INF payload equality: PASS (205/205 entries, 0 diffs)
+
+Final signed AAB:
+Hisse-Portfoyum-v2.5.7-Code41-Play.aab
+SHA-256: f74007bb9f108048de2dd3ae367c8cc4f1b08e055540292a1d7f27d02f4f1109
+
+Security:
+- No keystore, private key or password is stored in this repository release record.
