@@ -1,0 +1,351 @@
+name: Code39 Final Play AAB
+
+on:
+  push:
+    branches:
+      - release/v2.5.6-code39-from37
+    paths:
+      - .github/workflows/code39-final-play-aab.yml
+      - test/*.test.js
+      - cloudflare/news-notifications.js
+      - android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code39-final-play-aab
+  cancel-in-progress: true
+
+env:
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+
+jobs:
+  build:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Verify production push build inputs
+        shell: powershell
+        run: |
+          $expected = 'https://halka-arz-portfoy-push.grass-airboat.workers.dev'
+          if ($env:PUSH_BACKEND_URL -cne $expected) {
+            throw "PUSH_BACKEND_URL must be production backend; got '$env:PUSH_BACKEND_URL'"
+          }
+          Write-Host "PUSH_BACKEND_URL=$env:PUSH_BACKEND_URL"
+
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Lock known-good market notification core offline
+        shell: powershell
+        run: |
+          function Get-GitBlobSha([string]$path) {
+            $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+            $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
+            $all = New-Object byte[] ($header.Length + $bytes.Length)
+            [Array]::Copy($header, 0, $all, 0, $header.Length)
+            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
+            $sha = [Security.Cryptography.SHA1]::Create()
+            try { return ([BitConverter]::ToString($sha.ComputeHash($all))).Replace('-', '').ToLowerInvariant() }
+            finally { $sha.Dispose() }
+          }
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+            'public/core/notification-rules.js' = 'e953ca7205b133af2724b39a0d4ff4c6739fa013'
+            'public/core/market-reference.js' = '81fef009d1eec65d65b0f4f5ec89e4ae4569bd85'
+            'public/core/market-calendar.js' = '13eb6978b14053cc6bbeee7edc7e993169d3a6b9'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = Get-GitBlobSha $entry.Key
+            if ($actual -cne $entry.Value) {
+              throw "KNOWN-GOOD MARKET CORE CHANGED: $($entry.Key) expected=$($entry.Value) actual=$actual"
+            }
+          }
+          Write-Host 'KNOWN_GOOD_MARKET_CORE_BLOB_LOCK=PASS'
+
+      - name: Sync Android assets
+        shell: powershell
+        run: |
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply approved production overlays
+        shell: powershell
+        run: |
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check android/app/src/main/assets/www/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Code39 changes and production guards
+        shell: powershell
+        run: |
+          $gradle = Get-Content -Raw android/app/build.gradle
+          $activity = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/MainActivity.java
+          $worker = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java
+          $helper = Get-Content -Raw android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java
+          $widgetInfo = Get-Content -Raw android/app/src/main/res/xml/wallet_widget_info.xml
+          $widgetLayout = Get-Content -Raw android/app/src/main/res/layout/wallet_widget.xml
+          $index = Get-Content -Raw android/app/src/main/assets/www/index.html
+          $styles = Get-Content -Raw android/app/src/main/assets/www/styles.css
+          $cloudNews = Get-Content -Raw cloudflare/news-notifications.js
+
+          if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
+          if (-not $gradle.Contains('versionCode 39')) { throw 'versionCode 39 missing' }
+          if (-not $gradle.Contains("versionName '2.5.4'")) { throw 'versionName 2.5.4 missing' }
+          if (-not $index.Contains('v2.5.6 • Build 39')) { throw 'Code39 UI identity missing' }
+
+          if (-not $activity.Contains('EdgeToEdge.enable(')) { throw 'EdgeToEdge.enable missing' }
+          if ($activity.Contains('setStatusBarColor') -or $activity.Contains('setNavigationBarColor')) { throw 'Deprecated system-bar setter present' }
+
+          if ($activity.Contains('AlertDialog')) { throw 'Native widget AlertDialog still present' }
+          if (-not $activity.Contains('__showWalletWidgetPromo')) { throw 'In-app widget promo bridge missing' }
+          if (-not $index.Contains('id="walletWidgetPromo"')) { throw 'In-app widget promo UI missing' }
+          if (-not $widgetInfo.Contains('android:minHeight="55dp"')) { throw 'Widget compact height missing' }
+          if (-not $widgetInfo.Contains('android:targetCellHeight="1"')) { throw 'Widget must target one row' }
+          if ($widgetLayout.Contains('widget_active')) { throw 'Old active widget metric present' }
+          if (-not $widgetLayout.Contains('widget_daily_pct')) { throw 'Daily percent widget metric missing' }
+
+          if (-not $styles.Contains('html[data-theme="light"] .hero-value{color:var(--text)!important}')) { throw 'Light theme total value contrast fix missing' }
+
+          if (-not $worker.Contains('ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L')) { throw 'Native 6-hour news guard missing' }
+          if (-not $worker.Contains('ministerStatement')) { throw 'Native minister breaking rule missing' }
+          if (-not $worker.Contains('financialContext && enforcementAction')) { throw 'Native financial enforcement rule missing' }
+          if (-not $worker.Contains('federal reserve')) { throw 'Native global rate rule missing' }
+          if (-not $helper.Contains('NEWS_LAST_DELIVERED_AT')) { throw 'Shared delivered-news timestamp missing' }
+
+          if (-not $cloudNews.Contains('ROUTINE_NEWS_INTERVAL_MS = 6 * 60 * 60_000')) { throw 'Cloud 6-hour news guard missing' }
+          if (-not $cloudNews.Contains('ministerStatement')) { throw 'Cloud minister breaking rule missing' }
+          if (-not $cloudNews.Contains('Math.max(explicit, scored)')) { throw 'Feed importance can downgrade critical rule' }
+
+      - name: Recheck market core after overlays
+        shell: powershell
+        run: |
+          function Get-GitBlobSha([string]$path) {
+            $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n")
+            $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+            $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
+            $all = New-Object byte[] ($header.Length + $bytes.Length)
+            [Array]::Copy($header, 0, $all, 0, $header.Length)
+            [Array]::Copy($bytes, 0, $all, $header.Length, $bytes.Length)
+            $sha = [Security.Cryptography.SHA1]::Create()
+            try { return ([BitConverter]::ToString($sha.ComputeHash($all))).Replace('-', '').ToLowerInvariant() }
+            finally { $sha.Dispose() }
+          }
+          $expected = @{
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java' = '7d911722cdbd0f7fd1a96317752399c232a6e5e3'
+            'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java' = '5474484163e63853e9b6639199cc92b9467f11ef'
+            'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java' = '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b'
+          }
+          foreach ($entry in $expected.GetEnumerator()) {
+            $actual = Get-GitBlobSha $entry.Key
+            if ($actual -cne $entry.Value) { throw "LIVE MARKET CORE MUTATED: $($entry.Key)" }
+          }
+          Write-Host 'LIVE_MARKET_CORE_POST_OVERLAY_LOCK=PASS'
+
+      - name: Restore production Firebase config privately
+        shell: powershell
+        run: |
+          $line = Get-Content '.github/workflows/code35-final-play-aab.yml' |
+            Where-Object { $_ -like '*$firebaseJson*' -and $_ -like '*package_name*com.innative.halkaarz*' } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($line)) { throw 'Production Firebase template not found in guarded workflow' }
+
+          $equals = $line.IndexOf('=')
+          if ($equals -lt 0) { throw 'Production Firebase template assignment is invalid' }
+          $firebaseJson = $line.Substring($equals + 1).Trim()
+          if ($firebaseJson.Length -lt 2 -or -not $firebaseJson.StartsWith("'") -or -not $firebaseJson.EndsWith("'")) {
+            throw 'Production Firebase template quoting is invalid'
+          }
+          $firebaseJson = $firebaseJson.Substring(1, $firebaseJson.Length - 2)
+
+          if (-not $firebaseJson.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
+          if ($firebaseJson.Contains('.graphtest') -or $firebaseJson.Contains('"package_name":"com.innative.halkaarz.test"')) {
+            throw 'Test Firebase identity leaked into production'
+          }
+          [IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object Text.UTF8Encoding($false)))
+          Write-Host 'PRODUCTION_FIREBASE_CONFIG=RESTORED'
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') { $sdk = 'C:\actions-runner\android-sdk' }
+            elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile production release
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify compiled BuildConfig contains production push backend
+        shell: powershell
+        run: |
+          $expected = 'https://halka-arz-portfoy-push.grass-airboat.workers.dev'
+          $buildConfig = Get-ChildItem -Path 'android/app/build/generated' -Filter BuildConfig.java -Recurse |
+            Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+            Select-Object -First 1
+          if ($null -eq $buildConfig) { throw 'Release BuildConfig.java not found' }
+          $text = Get-Content -Raw $buildConfig.FullName
+          if (-not $text.Contains('PUSH_BACKEND_URL')) { throw 'PUSH_BACKEND_URL missing from compiled BuildConfig' }
+          if (-not $text.Contains($expected)) { throw 'Production push backend was not embedded into release BuildConfig' }
+          if ($text.Contains('PUSH_BACKEND_URL = ""')) { throw 'Empty push backend embedded into release BuildConfig' }
+          Write-Host 'RELEASE_PUSH_BACKEND_EMBEDDED=PASS'
+
+      - name: Build production AAB
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon bundleRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package guarded unsigned Code39 AAB
+        shell: powershell
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          New-Item -ItemType Directory -Force unsigned-dist | Out-Null
+          Copy-Item $unsigned 'unsigned-dist/Hisse-Portfoyum-v2.5.6-Code39-unsigned.aab' -Force
+          $sha = (Get-FileHash 'unsigned-dist/Hisse-Portfoyum-v2.5.6-Code39-unsigned.aab' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-v2.5.6-Code39-unsigned.aab" | Set-Content -Encoding ascii 'unsigned-dist/SHA256SUMS-UNSIGNED.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code39-guarded-unsigned-aab
+          path: |
+            unsigned-dist/Hisse-Portfoyum-v2.5.6-Code39-unsigned.aab
+            unsigned-dist/SHA256SUMS-UNSIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Detect and verify Play upload signing key
+        shell: powershell
+        env:
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          $missing = @('PLAY_UPLOAD_KEYSTORE_BASE64','PLAY_UPLOAD_KEYSTORE_PASSWORD','PLAY_UPLOAD_KEY_PASSWORD') |
+            Where-Object { [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_)) }
+          if ($missing.Count -gt 0) {
+            Write-Warning ('Play signing secrets are not configured: ' + ($missing -join ', '))
+            "CAN_SIGN_PLAY=false" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            exit 0
+          }
+
+          $key = Join-Path $env:RUNNER_TEMP 'hisse-portfoyum-upload.jks'
+          [System.IO.File]::WriteAllBytes($key, [Convert]::FromBase64String($env:PLAY_UPLOAD_KEYSTORE_BASE64))
+          $alias = if ([string]::IsNullOrWhiteSpace($env:PLAY_UPLOAD_KEY_ALIAS)) { 'halkaarz-upload' } else { $env:PLAY_UPLOAD_KEY_ALIAS }
+
+          $certInfo = (& keytool -list -v -keystore $key -alias $alias '-storepass:env' PLAY_UPLOAD_KEYSTORE_PASSWORD 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to read configured Play upload certificate' }
+          $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
+          $expected = '02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272'
+          if (-not $normalized.Contains($expected)) { throw 'Configured upload certificate does not match previous Play release' }
+
+          "PLAY_UPLOAD_KEYSTORE_PATH=$key" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PLAY_UPLOAD_KEY_ALIAS_RESOLVED=$alias" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CAN_SIGN_PLAY=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Sign and verify final Play AAB
+        if: env.CAN_SIGN_PLAY == 'true'
+        shell: powershell
+        env:
+          PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          if ((Get-Item $unsigned).Length -lt 100000) { throw 'AAB unexpectedly small' }
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $signed = 'dist/Hisse-Portfoyum-v2.5.6-Code39-Play.aab'
+
+          & jarsigner -keystore $env:PLAY_UPLOAD_KEYSTORE_PATH '-storepass:env' PLAY_UPLOAD_KEYSTORE_PASSWORD '-keypass:env' PLAY_UPLOAD_KEY_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 -signedjar $signed $unsigned $env:PLAY_UPLOAD_KEY_ALIAS_RESOLVED
+          if ($LASTEXITCODE -ne 0) { throw 'AAB signing failed' }
+
+          & jarsigner -verify -verbose -certs $signed | Out-File -Encoding utf8 dist/jarsigner-verification.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Signed AAB verification failed' }
+
+          $certInfo = (& keytool -printcert -jarfile $signed 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect signed AAB certificate' }
+          $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
+          $expected = '02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272'
+          if (-not $normalized.Contains($expected)) { throw 'Signed AAB certificate mismatch' }
+
+          $sha = (Get-FileHash $signed -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  Hisse-Portfoyum-v2.5.6-Code39-Play.aab" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          @(
+            'package=com.innative.halkaarz',
+            'appName=Hisse Portföyüm',
+            'versionName=2.5.4',
+            'versionCode=39',
+            "sourceCommit=$env:GITHUB_SHA",
+            "backend=$env:PUSH_BACKEND_URL",
+            'firebase=production',
+            'playUploadCertificateSha256=02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272',
+            'liveMarketCoreByteLock=PASS',
+            'edgeToEdgeDeprecatedApiGuard=PASS',
+            'walletWidget=true',
+            'fakeNewsPreviewProduction=false',
+            'testExperiencePromoted=true'
+          ) | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        if: env.CAN_SIGN_PLAY == 'true'
+        with:
+          name: code39-final-play-aab
+          path: |
+            dist/Hisse-Portfoyum-v2.5.6-Code39-Play.aab
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/jarsigner-verification.txt
+          if-no-files-found: error
+          retention-days: 30
