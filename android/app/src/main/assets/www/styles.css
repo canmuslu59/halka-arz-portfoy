@@ -371,6 +371,17 @@ html[data-theme="light"] .history-summary-item.total{background:#f0fbfc;border-c
 html[data-theme="light"] .history-summary-item.external{background:#f1f5ff;border-color:#dce5ff}
 html[data-theme="light"] .history-summary-item.natural{background:#f0fbf7;border-color:#d8f0e7}
 html[data-theme="light"] .history-summary-item>span,html[data-theme="light"] .history-chart-legend{color:#69788f}
+html[data-theme="light"] .history-summary-item.total strong{color:#0b7480}
+html[data-theme="light"] .history-summary-item.external strong{color:#2f5fd0}
+html[data-theme="light"] .history-summary-item.natural strong.positive{color:#08805b!important}
+html[data-theme="light"] .history-summary-item.natural strong.negative{color:#c23345!important}
+html[data-theme="light"] .history-chart-tooltip strong,html[data-theme="light"] .history-chart-tooltip span b{color:var(--text)}
+html[data-theme="light"] .history-chart-tooltip .tooltip-total b{color:#0b7480}
+html[data-theme="light"] .history-chart-tooltip .tooltip-external b{color:#2f5fd0}
+html[data-theme="light"] .history-chart-tooltip .tooltip-natural.positive b{color:#08805b}
+html[data-theme="light"] .history-chart-tooltip .tooltip-natural.negative b{color:#c23345}
+html[data-theme="light"] .history-chart-tooltip .tooltip-added{border-top-color:rgba(22,37,63,.10)}
+html[data-theme="light"] .history-chart-tooltip .tooltip-added b{color:#3f63d8}
 @media(max-width:430px){
   .history-chart-card{padding:15px 13px 13px}
   .history-summary{gap:5px;margin-top:12px}
