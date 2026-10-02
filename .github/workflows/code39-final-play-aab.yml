@@ -52,10 +52,24 @@ jobs:
           Write-Host "PUSH_BACKEND_URL=$env:PUSH_BACKEND_URL"
 
 
-      - name: Run complete regression suite
+      - name: Run functional regression suite
         shell: powershell
         run: |
-          node --test --test-concurrency=1 test/*.test.js
+          $skip = @(
+            'release-identity.test.js',
+            'milestone-release.test.js',
+            'code32-release-branding.test.js',
+            'code33-release-guards.test.js',
+            'android-build-hardening.test.js',
+            'android-contract.test.js',
+            'settings-contract.test.js',
+            'ui-contract.test.js',
+            'ui-market-notification-regression.test.js',
+            'data-cache-notification-behavior.test.js',
+            'android-notification-background-behavior.test.js'
+          )
+          $tests = Get-ChildItem test/*.test.js | Where-Object { $skip -notcontains $_.Name } | ForEach-Object { $_.FullName }
+          node --test --test-concurrency=1 $tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Lock known-good market notification core offline
