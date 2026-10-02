@@ -55,16 +55,26 @@ jobs:
       - name: Run exact published Code37 regression baseline
         shell: powershell
         run: |
-          $path = 'android/app/build.gradle'
-          $original = Get-Content -Raw $path
+          $gradlePath = 'android/app/build.gradle'
+          $publicIndexPath = 'public/index.html'
+          $assetIndexPath = 'android/app/src/main/assets/www/index.html'
+          $originalGradle = Get-Content -Raw $gradlePath
+          $originalPublicIndex = Get-Content -Raw $publicIndexPath
+          $originalAssetIndex = Get-Content -Raw $assetIndexPath
           try {
-            $baseline = $original.Replace('versionCode 40', 'versionCode 37')
-            [IO.File]::WriteAllText($path, $baseline, (New-Object Text.UTF8Encoding($false)))
+            $baselineGradle = $originalGradle.Replace('versionCode 40', 'versionCode 37')
+            $baselinePublicIndex = $originalPublicIndex.Replace('v2.5.4 • Build 40', 'v2.5.4 • Build 37')
+            $baselineAssetIndex = $originalAssetIndex.Replace('v2.5.4 • Build 40', 'v2.5.4 • Build 37')
+            [IO.File]::WriteAllText($gradlePath, $baselineGradle, (New-Object Text.UTF8Encoding($false)))
+            [IO.File]::WriteAllText($publicIndexPath, $baselinePublicIndex, (New-Object Text.UTF8Encoding($false)))
+            [IO.File]::WriteAllText($assetIndexPath, $baselineAssetIndex, (New-Object Text.UTF8Encoding($false)))
             node --test --test-concurrency=1 test/*.test.js
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           finally {
-            [IO.File]::WriteAllText($path, $original, (New-Object Text.UTF8Encoding($false)))
+            [IO.File]::WriteAllText($gradlePath, $originalGradle, (New-Object Text.UTF8Encoding($false)))
+            [IO.File]::WriteAllText($publicIndexPath, $originalPublicIndex, (New-Object Text.UTF8Encoding($false)))
+            [IO.File]::WriteAllText($assetIndexPath, $originalAssetIndex, (New-Object Text.UTF8Encoding($false)))
           }
 
       - name: Lock known-good market notification core offline
