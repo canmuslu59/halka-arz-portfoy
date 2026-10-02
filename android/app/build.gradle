@@ -14,8 +14,8 @@ android {
         applicationId 'com.innative.halkaarz'
         minSdk 26
         targetSdk 36
-        versionCode 37
-        versionName '2.5.4'
+        versionCode 41
+        versionName '2.5.7'
         buildConfigField 'String', 'PUSH_BACKEND_URL', '"' + (System.getenv('PUSH_BACKEND_URL') ?: '') + '"'
     }
 
@@ -48,4 +48,3 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.10.1'
     implementation 'com.google.firebase:firebase-messaging:24.1.1'
 }
-
