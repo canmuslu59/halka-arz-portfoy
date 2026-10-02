@@ -130,7 +130,7 @@ jobs:
 
           if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
           if (-not $gradle.Contains('versionCode 39')) { throw 'versionCode 39 missing' }
-          if (-not $gradle.Contains("versionName '2.5.4'")) { throw 'versionName 2.5.4 missing' }
+          if (-not $gradle.Contains("versionName '2.5.6'")) { throw 'versionName 2.5.6 missing' }
           if (-not $index.Contains('v2.5.6 • Build 39')) { throw 'Code39 UI identity missing' }
 
           if (-not $activity.Contains('EdgeToEdge.enable(')) { throw 'EdgeToEdge.enable missing' }
@@ -330,7 +330,7 @@ jobs:
           @(
             'package=com.innative.halkaarz',
             'appName=Hisse Portföyüm',
-            'versionName=2.5.4',
+            'versionName=2.5.6',
             'versionCode=39',
             "sourceCommit=$env:GITHUB_SHA",
             "backend=$env:PUSH_BACKEND_URL",
