@@ -50,8 +50,10 @@ Düzeltme:
 ## İmza
 
 - Play upload alias: `halkaarz-upload`
-- Beklenen upload sertifikası SHA-256: `02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72`
-- Durum: imzalı AAB bu kayda eklendiğinde SHA-256 değeri `SHA256SUMS.txt` dosyasına yazılır.
+- Upload sertifikası SHA-256: `02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72` (doğrulandı)
+- İmza: sahibinin bilgisayarında mevcut Play upload anahtarıyla, şifreyi sahibi girerek (jarsigner, SHA256withRSA). `jar verified`.
+- İmzalı ve imzasız paket içeriği imza dosyaları hariç bayt bayt aynı (212/212).
+- Final Play AAB: `Hisse-Portfoyum-v2.5.8-Code42-Play.aab`, SHA-256 `00e06b249e5ba555be997d2eff640d275c7e57fa4ac2f5fb0fa5c6999d9c7c89` (`SHA256SUMS.txt`, ayrıntı `VERIFICATION.txt`).
 - Signing key/keystore ve şifreler repoya eklenmez.
 
 ## Geri dönüş

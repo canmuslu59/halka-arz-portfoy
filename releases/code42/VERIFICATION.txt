@@ -1,0 +1,42 @@
+Hisse Portfoyum v2.5.8 / Code42 - Google Play Upload Verification
+
+Package: com.innative.halkaarz
+Version name: 2.5.8
+Version code: 42
+Source commit: fc84b39406b7f0b5bcca4d4c044b622be396dedf (tag v2.5.8-code42, branch release/v2.5.8-code42)
+CI build: GitHub Actions run 37042107933 (Code42 Final Play AAB, windows-latest) - success
+
+Build checks (CI):
+- Regression suite: 489/489 PASS (includes test/code42-labs-production.test.js).
+- Code41 notification lock: 26 notification files byte-identical to Code41 (git blob SHA).
+- Production push backend embedded in release BuildConfig: PASS.
+- Production Firebase config: restored (com.innative.halkaarz).
+- AAB web payload equals committed android/app/src/main/assets/www: PASS (31 files).
+- Unsigned AAB: Hisse-Portfoyum-v2.5.8-Code42-unsigned.aab
+  SHA-256: 5f4f8aa4329e9d7c5499dad8ee21ff6b85dba921e46831ba0c09a0f92671391a
+
+Notification bytecode check (dexdump, normalized per class):
+- Reference: published Hisse-Portfoyum-v2.5.4-Code37-Play.aab (same DEX as Code41).
+- 33 notification classes compared; 31 identical.
+- NewsTestScheduler / NewsTestPreviewWorker differ only by inlined BuildConfig.VERSION_CODE (37 -> 42),
+  used solely when previewEnabled() (DEBUG build with .graphtest package); not reachable in production.
+- Details: NOTIFICATION-BYTECODE.txt
+
+Signing:
+- Signed locally by the owner with the existing Google Play upload key (password entered by the owner).
+- Upload alias: halkaarz-upload
+- Upload certificate: CN=Halka Arz Portfoyum Upload, OU=Android, O=Halka Arz Portfoyum, C=TR
+- Upload certificate SHA-256: 02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72
+- Signature: SHA256withRSA / SHA-256 digest (jarsigner)
+- jarsigner -verify: jar verified (standard warnings: self-signed upload certificate, no timestamp)
+- Unsigned-to-signed payload equality (META-INF signature files excluded): PASS (212/212 entries, 0 diffs)
+
+Final signed AAB:
+Hisse-Portfoyum-v2.5.8-Code42-Play.aab
+SHA-256: 00e06b249e5ba555be997d2eff640d275c7e57fa4ac2f5fb0fa5c6999d9c7c89
+
+Rollback:
+- Last Known Good remains Code41 / v2.5.7 (safe/v2.5.7-code41-last-known-good, tag v2.5.7-code41). See SAFE_RELEASES.md.
+
+Security:
+- No keystore, private key or password is stored in this repository release record.
