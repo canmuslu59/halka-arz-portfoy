@@ -1,0 +1,45 @@
+# Code43 bildirim sınıfları bayt kodu karşılaştırması
+# Referans: yayınlanmış Hisse-Portfoyum-v2.5.4-Code37-Play.aab (Code41 ile aynı DEX)
+# Aday: CI run 37141421469 imzasız Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab
+# Yöntem: dexdump -d; adres/indeks/satır bilgileri normalize edilerek sınıf başına SHA-256
+# Bilerek değişenler (haber bildirimi gösterimi): NotificationHelper, NewsNotificationFormatter, NewsTestWorker (+ lambda sınıfları).
+#   Yeni sınıf: BreakingNewsRules (referansta yok; son dakika seçimi ve sıklık sınırı).
+# NewsTestScheduler / NewsTestPreviewWorker farkı yalnız BuildConfig.VERSION_CODE (37 -> 43) sabitidir;
+#   bu değer yalnız previewEnabled() (DEBUG + .graphtest) yolunda kullanılır, üretimde çalışmaz.
+# Gönderim/kayıt yolu aynı: PushMessagingService, PushConfigSync, BackgroundAlert*, PortfolioAlertRules, AlertDiagnostics, WalletWidgetProvider.
+
+SAME  196F63EC3555D255  196F63EC3555D255  AlertDiagnostics
+SAME  9934B0BE07637842  9934B0BE07637842  BackgroundAlertScheduler
+SAME  1F7285279FCBE854  1F7285279FCBE854  BackgroundAlertWorker$$ExternalSyntheticLambda0
+SAME  52BB06CC0A7D1CD0  52BB06CC0A7D1CD0  BackgroundAlertWorker$$ExternalSyntheticLambda1
+SAME  411AB950E6E26593  411AB950E6E26593  BackgroundAlertWorker$MarketReference
+SAME  89012933EA66E4F7  89012933EA66E4F7  BackgroundAlertWorker$Quote
+SAME  81ABAB0308AED642  81ABAB0308AED642  BackgroundAlertWorker
+SAME  34B645947F49823A  34B645947F49823A  BackgroundRetryPolicy$HttpStatusException
+SAME  0E0F4F91A763D6A3  0E0F4F91A763D6A3  BackgroundRetryPolicy
+SAME  05FD1C31ACA394FF  05FD1C31ACA394FF  IpoCalendarParser$Entry
+SAME  AB5AAE739658D0C1  AB5AAE739658D0C1  IpoCalendarParser$Link
+SAME  A1A00E91FEC2444E  A1A00E91FEC2444E  IpoCalendarParser
+SAME  3F1AE9118F914463  3F1AE9118F914463  NativeHttpPolicy
+DIFF  C6804C57BE9E0ADF  0D5816AD5CD3ACB4  NewsNotificationFormatter
+DIFF  E68A3EB6D0F566BA  B31A1A860168E6A5  NewsTestPreviewWorker
+DIFF  B33E3D0C99A59A79  E23DD7536A5038F7  NewsTestScheduler
+DIFF  44ACB16581DA8A95  11604324673B1FF9  NewsTestWorker$$ExternalSyntheticLambda0
+DIFF  BA7D2D04990C692D  5D38BCA9B096D6E5  NewsTestWorker$$ExternalSyntheticLambda1
+DIFF  00EDB5C1F4643BA4  BD5AE81558CBCC95  NewsTestWorker$$ExternalSyntheticLambda2
+DIFF  6210353FE75BD45D  25375EC939CE2C9E  NewsTestWorker$$ExternalSyntheticLambda3
+DIFF  71BC8F144E5D05C2  missing  NewsTestWorker$$ExternalSyntheticLambda4
+DIFF  E60E785FD3069BE2  missing  NewsTestWorker$$ExternalSyntheticLambda5
+SAME  16D473257F35BDE6  16D473257F35BDE6  NewsTestWorker$ArticleMetadata
+SAME  329D1DFFD82DA3E9  329D1DFFD82DA3E9  NewsTestWorker$NewsItem
+DIFF  C9C8DF028F47C124  1859F045EFEE8560  NewsTestWorker
+DIFF  BB086155F46C9AD1  1D4C29DF043BA18D  NotificationHelper
+SAME  5BD8B383E20AA6E1  5BD8B383E20AA6E1  PortfolioAlertRules
+SAME  CF64D0D8C2C4E35C  CF64D0D8C2C4E35C  PushConfigSync$$ExternalSyntheticLambda0
+SAME  D942B3D399BF6CD8  D942B3D399BF6CD8  PushConfigSync$$ExternalSyntheticLambda1
+SAME  34F237BC4DE4FCDC  34F237BC4DE4FCDC  PushConfigSync
+SAME  C8DA0012AD114A18  C8DA0012AD114A18  PushMessagingService$$ExternalSyntheticLambda0
+SAME  7166368980D3DF81  7166368980D3DF81  PushMessagingService
+SAME  BA3E66C71C30D2B7  BA3E66C71C30D2B7  WalletWidgetProvider
+
+notification classes compared: 33, differing: 11

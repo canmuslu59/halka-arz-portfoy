@@ -1,0 +1,14 @@
+<tr-TR>
+• Haber bildirimine dokununca artık doğrudan haberin kendisi açılıyor
+• Bildirim başlıkları sadeleşti; yalnız son dakika haberlerinde 🔴 işareti kalıyor
+• Daha akıllı son dakika: faiz kararları, borsa ve kur şokları, düzenleyici kararlar ve portföyünüzdeki şirketlerle ilgili kritik gelişmeler
+• Bildirim yağmurunu önleyen sıklık sınırları
+• Kararlılık iyileştirmeleri
+</tr-TR>
+<en-US>
+• Tapping a news notification now opens the article itself
+• Cleaner notification titles; only breaking news keeps the 🔴 marker
+• Smarter breaking news: rate decisions, market and FX shocks, regulator actions and critical news about companies in your portfolio
+• Frequency limits to prevent notification overload
+• Stability improvements
+</en-US>

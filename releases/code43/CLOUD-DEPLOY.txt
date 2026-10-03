@@ -1,0 +1,36 @@
+Hisse Portfoyum Code43 - Cloudflare push Worker haber kurallari yayini
+
+Worker: halka-arz-portfoy-push
+Degisen kaynak: yalniz cloudflare/news-notifications.js (son dakika secimi, siklik siniri, haber linki).
+Kilitli kalan gonderim altyapisi (git blob SHA ile dogrulandi):
+  cloudflare/worker.js         a2bda1e178d7804626f98ce4e84667293113632d
+  cloudflare/durable-store.js  308e9f23c32858ef992c34a0fa715e3323243f91
+  cloudflare/fcm-sender.js     b2ee9cdac98fdf0787257d8cab92ba48381d5ea6
+Workflow: .github/workflows/code43-news-cloud-deploy.yml (wrangler 4.131.1, --keep-vars)
+
+Deneme 1 - run 37141874153 (commit cd5a8a9) - GERI ALINDI
+  2026-10-03 17:49:20Z yuklendi, gecici surum 9d704ba1-4d4e-46e5-9ad5-73f94e065a58
+  Dogrulama yanlis alarm verdi: Worker'da cron yok (zamanlama Durable Object alarmiyla); Windows runner'da
+  bos PREVIOUS_CRONS ortam degiskeni tanimsiz sayildi ve '' ile null karsilastirildi. Baglantilar ayniydi.
+  17:49:53Z otomatik geri donus: b89a6b0e-f367-470c-86e4-40cd771f152e %100 (basarili).
+  Geri donus sonrasi 17:51Z alarm turu calisti; saglik ok, 7 kayit.
+  Duzeltme: bos cron listesi 'none' olarak saklanip karsilastiriliyor (commit 507bcb3).
+
+Deneme 2 - run 37142096881 (commit 507bcb3) - BASARILI
+  Regresyon testleri: 502/502 PASS
+  Onceki surum (geri donus noktasi): b89a6b0e-f367-470c-86e4-40cd771f152e
+  Yeni surum (canli):                486c22bd-32a9-4c6f-8a3a-05745c078ff0
+  Baglantilar oncesi/sonrasi ayni: FIREBASE_SERVICE_ACCOUNT_JSON:secret_text, NEWS_FEED_URL:secret_text,
+    NEWS_NOTIFICATIONS_ENABLED:secret_text, PUSH_STATE:durable_object_namespace
+  Zamanlayicilar: none (degismedi)
+  Yayin: 2026-10-03 17:53:46Z
+  Yayin sonrasi ilk tur: 2026-10-03 17:55:00Z, runtime market_closed (Cumartesi), haber kontrolu 'checked',
+    akis 11 haber; fcmConfigured true, newsNotificationsEnabled true, kayitli cihaz 7 (once 7).
+
+Canli Worker'i geri almak gerekirse:
+  Cloudflare panel > Workers > halka-arz-portfoy-push > Deployments > b89a6b0e... > Deploy (rollback)
+  veya API: POST /accounts/{account}/workers/scripts/halka-arz-portfoy-push/deployments
+    {"strategy":"percentage","versions":[{"version_id":"b89a6b0e-f367-470c-86e4-40cd771f152e","percentage":100}]}
+  Geri alma bildirim gonderimini bozmaz; son dakika secimi eski kurala (onem 5/5) doner ve buluttan gelen
+  ozet/rutin bildirimlerde news_url alani olmaz (Code43 uygulamasi bu durumda Haberler ekranini acar).
+  Eski uygulamalar (Code41/Code42) yeni alanlari (news_url, breaking_reason, ticker) yok sayar.
