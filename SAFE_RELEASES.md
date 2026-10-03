@@ -45,6 +45,18 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 - Tag: `v2.5.8-code42` (kaynak commit `fc84b39406b7f0b5bcca4d4c044b622be396dedf`)
 - Final Play AAB: `Hisse-Portfoyum-v2.5.8-Code42-Play.aab`, SHA-256 `00e06b249e5ba555be997d2eff640d275c7e57fa4ac2f5fb0fa5c6999d9c7c89`; upload sertifikası `02:D9:…:A2:72` doğrulandı.
 - Sorun çıkarsa: Code41'e dön (yukarıdaki adımlar). Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
+
+## Code43 / v2.5.9 — Aday (henüz Last Known Good değil)
+
+- Branch: `release/v2.5.9-code43`
+- Tag: `v2.5.9-code43` (derleme commit'i `69d2b206e4df66bd08bc9cdb98bbf01ac29d6cea`)
+- Release kaydı: `releases/code43/` (README.md, SHA256SUMS-UNSIGNED.txt, NOTIFICATION-BYTECODE.txt, CLOUD-DEPLOY.txt, PLAY-RELEASE-NOTES.txt)
+- İçerik: Code42 + haber bildirimine dokununca haberin kendisinin açılması + emojisiz özet başlıkları (🔴 yalnız son dakikada) + dört kategorili son dakika seçimi ve sıklık sınırı.
+- Bildirim gönderme mekanizması: Cloudflare gönderim altyapısı (`worker.js`, `durable-store.js`, `fcm-sender.js`) ile Android kayıt/alma/zamanlama sınıfları değişmedi. Yalnız haber bildiriminin seçimi ve gösterimi değişti (`NOTIFICATION-BYTECODE.txt`).
+- İmzasız AAB SHA-256: `9680568c38f2d24fd35f798247487d325d5f925d3f96be1b8e1d8393212304fe` (CI run 37141421469, 502/502 test).
+- Cloudflare: haber kuralları canlıda, Worker sürümü `486c22bd-32a9-4c6f-8a3a-05745c078ff0`. Geri dönüş: `b89a6b0e-f367-470c-86e4-40cd771f152e` (`releases/code43/CLOUD-DEPLOY.txt`).
+- Sorun çıkarsa: uygulamada Code41'e dön (yukarıdaki adımlar), Cloudflare'de Worker'ı `b89a6b0e…` sürümüne al. Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
+
 ## Önceki güvenli nokta — Code32 / v2.4.9
 
 - Durum: **GÜVENLİ GERİ DÖNÜŞ NOKTASI — SİLME**
@@ -73,4 +85,4 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 
 ## Kural
 
-Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
+Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42, Code43 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
