@@ -96,6 +96,9 @@ jobs:
           $bindings = (@($version.result.resources.bindings) | ForEach-Object { "$($_.name):$($_.type)" } | Sort-Object) -join ','
           $schedules = Invoke-RestMethod -Uri "$api/schedules" -Headers $headers -TimeoutSec 30
           $crons = (@($schedules.result.schedules) | ForEach-Object { $_.cron } | Sort-Object) -join ','
+          # Bu Worker zamanlamayı Durable Object alarmıyla yapar; cron listesi boştur. Windows'ta boş ortam
+          # değişkeni hiç tanımlanmamış sayıldığı için boş liste açıkça 'none' olarak saklanır.
+          if ([string]::IsNullOrEmpty($crons)) { $crons = 'none' }
           "PREVIOUS_VERSION_ID=$versionId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PREVIOUS_BINDINGS=$bindings" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PREVIOUS_CRONS=$crons" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -128,7 +131,8 @@ jobs:
             if ($bindings -cne $env:PREVIOUS_BINDINGS) { throw "Worker bindings changed: $bindings" }
             $schedules = Invoke-RestMethod -Uri "$api/schedules" -Headers $headers -TimeoutSec 30
             $crons = (@($schedules.result.schedules) | ForEach-Object { $_.cron } | Sort-Object) -join ','
-            if ($crons -cne $env:PREVIOUS_CRONS) { throw "Worker schedules changed: $crons" }
+            if ([string]::IsNullOrEmpty($crons)) { $crons = 'none' }
+            if ($crons -cne [string]$env:PREVIOUS_CRONS) { throw "Worker schedules changed: '$crons' (was '$env:PREVIOUS_CRONS')" }
 
             $deadline = (Get-Date).AddMinutes(6)
             $started = [DateTime]::Parse($env:DEPLOY_STARTED_AT).ToUniversalTime()
