@@ -1,0 +1,157 @@
+name: Code43 News Cloud Deploy
+
+# Yalnız haber son dakika seçimini (cloudflare/news-notifications.js) canlı push Worker'ına alır.
+# Gönderme altyapısı (worker.js, durable-store.js, fcm-sender.js) kilitlidir; yayın sonrası doğrulama
+# başarısız olursa önceki Worker sürümüne otomatik dönülür.
+
+on:
+  push:
+    branches:
+      - release/v2.5.9-code43
+    paths:
+      - cloudflare/deploy-code43-approved.txt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-push-worker
+  cancel-in-progress: false
+
+env:
+  WORKER_NAME: halka-arz-portfoy-push
+  HEALTH_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev/api/health
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Keep committed LF line endings
+        shell: powershell
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Require approval marker, unchanged push transport and credentials
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $approval = (Get-Content cloudflare/deploy-code43-approved.txt -TotalCount 1).Trim()
+          if ($approval -cne 'APPROVE_CODE43_NEWS_DEPLOY') { throw 'News deployment approval marker missing' }
+          $lock = @{
+            'cloudflare/worker.js' = 'a2bda1e178d7804626f98ce4e84667293113632d'
+            'cloudflare/durable-store.js' = '308e9f23c32858ef992c34a0fa715e3323243f91'
+            'cloudflare/fcm-sender.js' = 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6'
+          }
+          foreach ($path in $lock.Keys) {
+            $actual = (git rev-parse "HEAD:$path").Trim()
+            if ($actual -cne $lock[$path]) { throw "Push transport changed: $path" }
+          }
+          $config = Get-Content wrangler.jsonc -Raw | ConvertFrom-Json
+          if ($config.name -cne $env:WORKER_NAME -or $config.keep_vars -ne $true) { throw 'wrangler.jsonc must target the production worker and keep remote variables' }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN) -or [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+            throw 'Cloudflare credentials missing'
+          }
+          Write-Host 'Approval, push transport lock and credentials verified'
+
+      - name: Run complete regression suite
+        shell: powershell
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Record current production state
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $health = Invoke-RestMethod -Uri $env:HEALTH_URL -TimeoutSec 30
+          if ($health.ok -ne $true -or $health.push.fcmConfigured -ne $true -or $health.push.newsNotificationsEnabled -ne $true -or $health.push.installationCount -lt 1) {
+            throw 'Production push service is not in its expected healthy state; refusing to deploy'
+          }
+          $api = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/workers/scripts/$env:WORKER_NAME"
+          $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          $deployments = Invoke-RestMethod -Uri "$api/deployments" -Headers $headers -TimeoutSec 30
+          $current = @($deployments.result.deployments | Sort-Object { [DateTime]$_.created_on } -Descending)[0]
+          if ($null -eq $current -or @($current.versions).Count -ne 1 -or [int]$current.versions[0].percentage -ne 100) {
+            throw 'Production is not on a single 100% version; refusing to deploy'
+          }
+          $versionId = $current.versions[0].version_id
+          $version = Invoke-RestMethod -Uri "$api/versions/$versionId" -Headers $headers -TimeoutSec 30
+          $bindings = (@($version.result.resources.bindings) | ForEach-Object { "$($_.name):$($_.type)" } | Sort-Object) -join ','
+          $schedules = Invoke-RestMethod -Uri "$api/schedules" -Headers $headers -TimeoutSec 30
+          $crons = (@($schedules.result.schedules) | ForEach-Object { $_.cron } | Sort-Object) -join ','
+          "PREVIOUS_VERSION_ID=$versionId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PREVIOUS_BINDINGS=$bindings" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PREVIOUS_CRONS=$crons" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PREVIOUS_INSTALLATIONS=$($health.push.installationCount)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "DEPLOY_STARTED_AT=$((Get-Date).ToUniversalTime().ToString('o'))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Previous version: $versionId"
+          Write-Host "Bindings: $bindings"
+          Write-Host "Crons: $crons"
+          Write-Host "Installations: $($health.push.installationCount)"
+
+      - name: Deploy news rules to the existing production worker
+        shell: powershell
+        run: |
+          npx -y wrangler@4.131.1 deploy --config wrangler.jsonc --keep-vars
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify production after deploy (automatic rollback on failure)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $api = "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/workers/scripts/$env:WORKER_NAME"
+          $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+          try {
+            $deployments = Invoke-RestMethod -Uri "$api/deployments" -Headers $headers -TimeoutSec 30
+            $current = @($deployments.result.deployments | Sort-Object { [DateTime]$_.created_on } -Descending)[0]
+            $newVersionId = $current.versions[0].version_id
+            if ($newVersionId -ceq $env:PREVIOUS_VERSION_ID) { throw 'No new Worker version became active' }
+            $version = Invoke-RestMethod -Uri "$api/versions/$newVersionId" -Headers $headers -TimeoutSec 30
+            $bindings = (@($version.result.resources.bindings) | ForEach-Object { "$($_.name):$($_.type)" } | Sort-Object) -join ','
+            if ($bindings -cne $env:PREVIOUS_BINDINGS) { throw "Worker bindings changed: $bindings" }
+            $schedules = Invoke-RestMethod -Uri "$api/schedules" -Headers $headers -TimeoutSec 30
+            $crons = (@($schedules.result.schedules) | ForEach-Object { $_.cron } | Sort-Object) -join ','
+            if ($crons -cne $env:PREVIOUS_CRONS) { throw "Worker schedules changed: $crons" }
+
+            $deadline = (Get-Date).AddMinutes(6)
+            $started = [DateTime]::Parse($env:DEPLOY_STARTED_AT).ToUniversalTime()
+            do {
+              Start-Sleep -Seconds 20
+              $health = Invoke-RestMethod -Uri $env:HEALTH_URL -TimeoutSec 30
+              $finished = $health.push.runtime.finishedAt
+              $ran = $finished -and ([DateTime]::Parse($finished).ToUniversalTime() -gt $started)
+            } while (-not $ran -and (Get-Date) -lt $deadline)
+            if ($health.ok -ne $true -or $health.push.fcmConfigured -ne $true -or $health.push.newsNotificationsEnabled -ne $true) { throw 'Production health check failed after deploy' }
+            if ([int]$health.push.installationCount -lt [int]$env:PREVIOUS_INSTALLATIONS) { throw 'Registered installations dropped after deploy' }
+            if (-not $ran) { throw 'No scheduled push/news check completed within six minutes after deploy' }
+            if ($health.push.runtime.status -eq 'error') { throw "Scheduled check failed: $($health.push.runtime.result.error)" }
+            if ($health.push.runtime.result.news.status -ne 'checked') { throw "News check did not complete: $($health.push.runtime.result.news.status) $($health.push.runtime.result.news.error)" }
+            Write-Host "Deploy verified. New version: $newVersionId (previous: $env:PREVIOUS_VERSION_ID)"
+            Write-Host "Runtime: $($health.push.runtime.status), news feed items: $($health.push.runtime.result.news.feedCount)"
+            "## Code43 haber kuralları canlıda`n`n- Yeni Worker sürümü: ``$newVersionId```n- Önceki sürüm (geri dönüş): ``$env:PREVIOUS_VERSION_ID```n- Ayarlar ve zamanlayıcılar değişmedi; yayın sonrası haber kontrolü başarılı." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          } catch {
+            Write-Host "::error::Post-deploy verification failed: $($_.Exception.Message). Rolling back to $env:PREVIOUS_VERSION_ID"
+            $body = @{ strategy = 'percentage'; versions = @(@{ version_id = $env:PREVIOUS_VERSION_ID; percentage = 100 }) } | ConvertTo-Json -Depth 4 -Compress
+            $rollback = Invoke-RestMethod -Method Post -Uri "$api/deployments" -Headers $headers -ContentType 'application/json' -Body $body -TimeoutSec 30
+            if ($rollback.success -ne $true) { Write-Host '::error::Automatic rollback request failed; restore the previous version from the Cloudflare dashboard' }
+            else { Write-Host "Rolled back to $env:PREVIOUS_VERSION_ID" }
+            "## Code43 haber kuralları geri alındı`n`nDoğrulama başarısız: $($_.Exception.Message)`n`nÖnceki sürüme dönüldü: ``$env:PREVIOUS_VERSION_ID``" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            exit 1
+          }

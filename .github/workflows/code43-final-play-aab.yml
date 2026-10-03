@@ -1,0 +1,275 @@
+name: Code43 Final Play AAB
+
+# Code43 = Code42 + dokununca haberi açma, emojisiz özet başlıkları ve akıllı son dakika seçimi.
+# Paket, commit'lenen android/ kaynağından doğrudan üretilir: android:sync ve overlay çalıştırılmaz.
+
+on:
+  push:
+    branches:
+      - release/v2.5.9-code43
+    paths:
+      - .github/workflows/code43-final-play-aab.yml
+      - android/**
+      - test/*.test.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code43-final-play-aab
+  cancel-in-progress: true
+
+env:
+  PUSH_BACKEND_URL: https://halka-arz-portfoy-push.grass-airboat.workers.dev
+  PLAY_UPLOAD_CERT_SHA256: 02d9f298a56b63ec9067b911fc898907b6fdfc4e059143d88f0b9df24022a272
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PLAY_SIGNING_AVAILABLE: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 != '' }}
+    steps:
+      - name: Keep committed LF line endings
+        shell: powershell
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Verify production push build inputs
+        shell: powershell
+        run: |
+          $expected = 'https://halka-arz-portfoy-push.grass-airboat.workers.dev'
+          if ($env:PUSH_BACKEND_URL -cne $expected) {
+            throw "PUSH_BACKEND_URL must be production backend; got '$env:PUSH_BACKEND_URL'"
+          }
+          Write-Host "PUSH_BACKEND_URL=$env:PUSH_BACKEND_URL"
+
+      - name: Run complete regression suite (includes Code41 notification lock)
+        shell: powershell
+        run: |
+          node --test --test-concurrency=1 test/*.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Code43 identity and committed payload
+        shell: powershell
+        run: |
+          $gradle = [IO.File]::ReadAllText('android/app/build.gradle')
+          if (-not $gradle.Contains("applicationId 'com.innative.halkaarz'")) { throw 'Production package missing' }
+          if (-not $gradle.Contains('versionCode 43')) { throw 'versionCode 43 missing' }
+          if (-not $gradle.Contains("versionName '2.5.9'")) { throw 'versionName 2.5.9 missing' }
+          git diff --quiet --exit-code
+          if ($LASTEXITCODE -ne 0) { throw 'Working tree differs from the committed source' }
+          $crlf = Get-ChildItem android/app/src/main/assets/www -Recurse -File -Include *.js,*.html,*.css,*.svg,*.webmanifest |
+            Where-Object { [IO.File]::ReadAllText($_.FullName).Contains("`r") }
+          if ($crlf) { throw ('CRLF in packaged web payload: ' + ($crlf.FullName -join ', ')) }
+          Write-Host 'CODE43_IDENTITY_AND_PAYLOAD_GUARDS=PASS'
+
+      - name: Restore production Firebase config privately
+        shell: powershell
+        run: |
+          $line = Get-Content '.github/workflows/code35-final-play-aab.yml' |
+            Where-Object { $_ -like '*$firebaseJson*' -and $_ -like '*package_name*com.innative.halkaarz*' } |
+            Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($line)) { throw 'Production Firebase template not found in guarded workflow' }
+
+          $equals = $line.IndexOf('=')
+          if ($equals -lt 0) { throw 'Production Firebase template assignment is invalid' }
+          $firebaseJson = $line.Substring($equals + 1).Trim()
+          if ($firebaseJson.Length -lt 2 -or -not $firebaseJson.StartsWith("'") -or -not $firebaseJson.EndsWith("'")) {
+            throw 'Production Firebase template quoting is invalid'
+          }
+          $firebaseJson = $firebaseJson.Substring(1, $firebaseJson.Length - 2)
+
+          if (-not $firebaseJson.Contains('"package_name":"com.innative.halkaarz"')) { throw 'Production Firebase package mismatch' }
+          if ($firebaseJson.Contains('.graphtest') -or $firebaseJson.Contains('"package_name":"com.innative.halkaarz.test"')) {
+            throw 'Test Firebase identity leaked into production'
+          }
+          [IO.File]::WriteAllText('android/app/google-services.json', $firebaseJson, (New-Object Text.UTF8Encoding($false)))
+          Write-Host 'PRODUCTION_FIREBASE_CONFIG=RESTORED'
+
+      - name: Configure Android SDK 36
+        shell: powershell
+        run: |
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Compile production release
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon compileReleaseJavaWithJavac
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify compiled BuildConfig contains production push backend
+        shell: powershell
+        run: |
+          $expected = 'https://halka-arz-portfoy-push.grass-airboat.workers.dev'
+          $buildConfig = Get-ChildItem -Path 'android/app/build/generated' -Filter BuildConfig.java -Recurse |
+            Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+            Select-Object -First 1
+          if ($null -eq $buildConfig) { throw 'Release BuildConfig.java not found' }
+          $text = Get-Content -Raw $buildConfig.FullName
+          if (-not $text.Contains('PUSH_BACKEND_URL')) { throw 'PUSH_BACKEND_URL missing from compiled BuildConfig' }
+          if (-not $text.Contains($expected)) { throw 'Production push backend was not embedded into release BuildConfig' }
+          if ($text.Contains('PUSH_BACKEND_URL = ""')) { throw 'Empty push backend embedded into release BuildConfig' }
+          Write-Host 'RELEASE_PUSH_BACKEND_EMBEDDED=PASS'
+
+      - name: Build production AAB
+        shell: powershell
+        run: |
+          gradle -p android --no-daemon bundleRelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify AAB web payload and package unsigned Code43 AAB
+        shell: powershell
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          if (-not (Test-Path $unsigned)) { throw 'Unsigned AAB not produced' }
+          if ((Get-Item $unsigned).Length -lt 100000) { throw 'AAB unexpectedly small' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $root = (Resolve-Path 'android/app/src/main/assets/www').Path
+          $sha = [Security.Cryptography.SHA256]::Create()
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $unsigned).Path)
+          try {
+            $count = 0
+            foreach ($file in Get-ChildItem $root -Recurse -File) {
+              $rel = $file.FullName.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
+              $entry = $zip.GetEntry('base/assets/www/' + $rel)
+              if ($null -eq $entry) { throw "Missing in AAB: $rel" }
+              $stream = $entry.Open(); $buffer = New-Object IO.MemoryStream; $stream.CopyTo($buffer); $stream.Dispose()
+              $packaged = [BitConverter]::ToString($sha.ComputeHash($buffer.ToArray()))
+              $committed = [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($file.FullName)))
+              if ($packaged -ne $committed) { throw "AAB web payload differs from commit: $rel" }
+              $count++
+            }
+            Write-Host "AAB_WEB_PAYLOAD_MATCHES_COMMIT=PASS ($count files)"
+          } finally { $zip.Dispose() }
+          New-Item -ItemType Directory -Force unsigned-dist | Out-Null
+          Copy-Item $unsigned 'unsigned-dist/Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab' -Force
+          $hash = (Get-FileHash 'unsigned-dist/Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab" | Set-Content -Encoding ascii 'unsigned-dist/SHA256SUMS-UNSIGNED.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code43-unsigned-aab
+          path: |
+            unsigned-dist/Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab
+            unsigned-dist/SHA256SUMS-UNSIGNED.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Signing key status
+        if: env.PLAY_SIGNING_AVAILABLE != 'true'
+        shell: powershell
+        run: Write-Host '::notice title=Code43 imzasiz::PLAY_UPLOAD_* gizli degerleri tanimli degil; yalniz imzasiz AAB uretildi.'
+
+      - name: Require and verify Play upload signing key
+        if: env.PLAY_SIGNING_AVAILABLE == 'true'
+        shell: powershell
+        env:
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_UPLOAD_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          foreach ($name in @('PLAY_UPLOAD_KEYSTORE_BASE64','PLAY_UPLOAD_KEYSTORE_PASSWORD','PLAY_UPLOAD_KEY_PASSWORD')) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name").Value)) { throw "Missing required signing secret: $name" }
+          }
+
+          $key = Join-Path $env:RUNNER_TEMP 'hisse-portfoyum-upload.jks'
+          [System.IO.File]::WriteAllBytes($key, [Convert]::FromBase64String($env:PLAY_UPLOAD_KEYSTORE_BASE64))
+          $alias = if ([string]::IsNullOrWhiteSpace($env:PLAY_UPLOAD_KEY_ALIAS)) { 'halkaarz-upload' } else { $env:PLAY_UPLOAD_KEY_ALIAS }
+
+          $certInfo = (& keytool -list -v -keystore $key -alias $alias '-storepass:env' PLAY_UPLOAD_KEYSTORE_PASSWORD 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to read configured Play upload certificate' }
+          $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
+          if (-not $normalized.Contains($env:PLAY_UPLOAD_CERT_SHA256)) { throw 'Configured upload certificate does not match previous Play release' }
+
+          "PLAY_UPLOAD_KEYSTORE_PATH=$key" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PLAY_UPLOAD_KEY_ALIAS_RESOLVED=$alias" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Sign and verify final Play AAB
+        if: env.PLAY_SIGNING_AVAILABLE == 'true'
+        shell: powershell
+        env:
+          PLAY_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEYSTORE_PASSWORD }}
+          PLAY_UPLOAD_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          $unsigned = 'android/app/build/outputs/bundle/release/app-release.aab'
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $signed = 'dist/Hisse-Portfoyum-v2.5.9-Code43-Play.aab'
+
+          & jarsigner -keystore $env:PLAY_UPLOAD_KEYSTORE_PATH '-storepass:env' PLAY_UPLOAD_KEYSTORE_PASSWORD '-keypass:env' PLAY_UPLOAD_KEY_PASSWORD -sigalg SHA256withRSA -digestalg SHA-256 -signedjar $signed $unsigned $env:PLAY_UPLOAD_KEY_ALIAS_RESOLVED
+          if ($LASTEXITCODE -ne 0) { throw 'AAB signing failed' }
+
+          & jarsigner -verify -verbose -certs $signed | Out-File -Encoding utf8 dist/jarsigner-verification.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Signed AAB verification failed' }
+
+          $certInfo = (& keytool -printcert -jarfile $signed 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect signed AAB certificate' }
+          $normalized = ($certInfo -replace '[^0-9A-Fa-f]','').ToLowerInvariant()
+          if (-not $normalized.Contains($env:PLAY_UPLOAD_CERT_SHA256)) { throw 'Signed AAB certificate mismatch' }
+
+          $hash = (Get-FileHash $signed -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Hisse-Portfoyum-v2.5.9-Code43-Play.aab" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          @(
+            'package=com.innative.halkaarz',
+            'appName=Hisse Portföyüm',
+            'versionName=2.5.9',
+            'versionCode=43',
+            "sourceCommit=$env:GITHUB_SHA",
+            "backend=$env:PUSH_BACKEND_URL",
+            'firebase=production',
+            "playUploadCertificateSha256=$env:PLAY_UPLOAD_CERT_SHA256",
+            'code41NotificationLock=PASS',
+            'labsFeatures=news,privacy,theme,backup,settings',
+            'breakingRules=rate,market,fx,regulation,enforcement,portfolio',
+            'lightModePerformanceContrast=PASS'
+          ) | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        if: env.PLAY_SIGNING_AVAILABLE == 'true'
+        with:
+          name: code43-final-play-aab
+          path: |
+            dist/Hisse-Portfoyum-v2.5.9-Code43-Play.aab
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/jarsigner-verification.txt
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Remove signing key from runner
+        if: always()
+        shell: powershell
+        run: |
+          $key = Join-Path $env:RUNNER_TEMP 'hisse-portfoyum-upload.jks'
+          if (Test-Path $key) { Remove-Item -Force $key }
