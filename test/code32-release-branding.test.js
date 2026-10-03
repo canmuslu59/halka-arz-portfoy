@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('Code42 production identity uses Hisse Portföyüm and a higher Play version', () => {
+test('Code43 production identity uses Hisse Portföyüm and a higher Play version', () => {
   const gradle = read('../android/app/build.gradle');
   const strings = read('../android/app/src/main/res/values/strings.xml');
   assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
-  assert.match(gradle, /versionCode\s+42\b/);
-  assert.match(gradle, /versionName ['"]2\.5\.8['"]/);
+  assert.match(gradle, /versionCode\s+43\b/);
+  assert.match(gradle, /versionName ['"]2\.5\.9['"]/);
   assert.match(strings, /<string name="app_name">Hisse Portföyüm<\/string>/);
 });
 
@@ -31,10 +31,10 @@ test('functional halka arz feature names remain available after the brand rename
   assert.match(index, /Halka Arz Pro/);
 });
 
-test('about screen advertises the exact Code42 release identity', () => {
+test('about screen advertises the exact Code43 release identity', () => {
   const index = read('../public/index.html');
   assert.match(index, /<h2>Hisse Portföyüm<\/h2>/);
-  assert.match(index, /Hisse Portföyüm<br \/>v2\.5\.8 • Build 42/);
+  assert.match(index, /Hisse Portföyüm<br \/>v2\.5\.9 • Build 43/);
 });
 
 test('web manifest reflects the general stock-portfolio brand', () => {

@@ -9,12 +9,12 @@ const ROOT = path.resolve('.');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const { evaluateDailyAlerts } = notificationRules;
 
-test('Android shell and bundled UI follow the Milestone Code42 release identity', () => {
+test('Android shell and bundled UI follow the Milestone Code43 release identity', () => {
   const gradle = read('android/app/build.gradle');
   const java = read('android/app/src/main/java/com/innative/halkaarz/MainActivity.java');
   const html = read('android/app/src/main/assets/www/index.html');
-  assert.match(gradle, /versionCode 42/);
-  assert.match(gradle, /versionName '2\.5\.8'/);
+  assert.match(gradle, /versionCode 43/);
+  assert.match(gradle, /versionName '2\.5\.9'/);
   assert.match(gradle, /targetSdk 36/);
   assert.match(gradle, /androidx\.core:core:1\.17\.0/);
   assert.match(gradle, /androidx\.activity:activity:1\.13\.0/);
@@ -27,7 +27,7 @@ test('Android shell and bundled UI follow the Milestone Code42 release identity'
   assert.match(java, /WindowInsetsCompat\.Type\.systemBars\(\) \| WindowInsetsCompat\.Type\.displayCutout\(\)/);
   assert.match(java, /safeTopCssPx = Math\.round\(bars\.top \/ density\)/);
   assert.match(java, /safeBottomCssPx = Math\.round\(bars\.bottom \/ density\)/);
-  assert.match(html, /v2\.5\.8 • Build 42/);
+  assert.match(html, /v2\.5\.9 • Build 43/);
 });
 
 test('BIST daily upper/lower limits use valid price-step rounding', () => {
