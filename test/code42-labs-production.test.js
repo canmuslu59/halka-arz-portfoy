@@ -15,20 +15,21 @@ function gitBlobSha(rel) {
   return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 }
 
-// Code41 (Play'de aktif, Last Known Good) bildirim mekanizmasının dosyaları.
-// Kaynak: release/v2.5.7-code41 + onaylı overlay'ler (commit 8f2fc2b). Bu dosyalar Code42'de değişmez.
+// Code41 (Last Known Good) bildirim iletim dosyaları. Kaynak: release/v2.5.7-code41 + onaylı overlay'ler
+// (commit 8f2fc2b). Code43'te bilerek değişenler (son dakika seçimi, emojisiz özet başlıkları, dokununca
+// haberi açma): NotificationHelper, NewsNotificationFormatter, NewsTestWorker — aşağıdaki ayrı testte denetlenir.
 const CODE41_NOTIFICATION_LOCK = Object.freeze({
+  'cloudflare/worker.js': 'a2bda1e178d7804626f98ce4e84667293113632d',
+  'cloudflare/durable-store.js': '308e9f23c32858ef992c34a0fa715e3323243f91',
+  'cloudflare/fcm-sender.js': 'b2ee9cdac98fdf0787257d8cab92ba48381d5ea6',
   'android/app/src/main/java/com/innative/halkaarz/AlertDiagnostics.java': '250dce7f61cc7551bef5701b82d468d0e2963546',
   'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertScheduler.java': '7d911722cdbd0f7fd1a96317752399c232a6e5e3',
   'android/app/src/main/java/com/innative/halkaarz/BackgroundAlertWorker.java': '5474484163e63853e9b6639199cc92b9467f11ef',
   'android/app/src/main/java/com/innative/halkaarz/BackgroundRetryPolicy.java': 'f2193e55c752243517aa63d504c802ddf6078619',
   'android/app/src/main/java/com/innative/halkaarz/IpoCalendarParser.java': '2cbad3107ec067644a3b906828946e6ce05b50aa',
   'android/app/src/main/java/com/innative/halkaarz/NativeHttpPolicy.java': '59495d1253dcb742bc72cc25e59bb06c3c78d918',
-  'android/app/src/main/java/com/innative/halkaarz/NewsNotificationFormatter.java': 'f2a0a5f62a2d13078fe107c0dc71fb7db7b47d74',
   'android/app/src/main/java/com/innative/halkaarz/NewsTestPreviewWorker.java': 'f6598b56cd62e3c29762f3923ea202768e17a4a0',
   'android/app/src/main/java/com/innative/halkaarz/NewsTestScheduler.java': 'bb34294b9280b92de1c18e08304517cd2439f07a',
-  'android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java': 'f3ebd22c431576b1ef97c50ef35172ea899f56a2',
-  'android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java': '794c9b3577c3f11dc2a20dd59105bc4d8ef8f94f',
   'android/app/src/main/java/com/innative/halkaarz/PortfolioAlertRules.java': 'c72d08ce80c472896107117428beece1d2f6beca',
   'android/app/src/main/java/com/innative/halkaarz/PushConfigSync.java': '2636caca40f5eb5ed44bfb80bc2f9e8fe539f25b',
   'android/app/src/main/java/com/innative/halkaarz/PushMessagingService.java': '635f9119993d1767698194f57b266ebb9a15d80e',
@@ -53,10 +54,31 @@ const activity = text('android/app/src/main/java/com/innative/halkaarz/MainActiv
 const manifest = text('android/app/src/main/AndroidManifest.xml');
 const gradle = text('android/app/build.gradle');
 
-test('Code42 keeps every Code41 notification file byte-identical', () => {
+test('Code41 notification transport files stay byte-identical', () => {
   for (const [rel, expected] of Object.entries(CODE41_NOTIFICATION_LOCK)) {
     assert.equal(gitBlobSha(rel), expected, `${rel} Code41 bildirim referansından farklı`);
   }
+});
+
+test('changed notification display files keep the Code41 delivery rules', () => {
+  const helper = text('android/app/src/main/java/com/innative/halkaarz/NotificationHelper.java');
+  const worker = text('android/app/src/main/java/com/innative/halkaarz/NewsTestWorker.java');
+  for (const rule of [
+    'ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED',
+    'if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false;',
+    'if (day.equals(delivered.getString("day", "")) && delivered.getBoolean(eventKey, false)) return true;',
+    'notificationChannel.getImportance() == NotificationManager.IMPORTANCE_NONE',
+    'manager.notify(requestCode, builder.build());',
+    'delivery.putLong(NEWS_LAST_DELIVERED_AT, System.currentTimeMillis());',
+    'else if ("news_digest".equals(kind)) eventKey = kind + ":" + digestSlot + ":" + digestDay;',
+  ]) assert.ok(helper.includes(rule), rule);
+  for (const channel of ['market_moves_v2', 'market_rise_v1', 'portfolio_fall_v1', 'market_ceiling_coin_v1', 'market_floor_v1', 'new_ipos', 'news_breaking_v1', 'news_digest_v1']) {
+    assert.ok(helper.includes(`"${channel}"`), channel);
+  }
+  for (const rule of ['FEED_URL = "https://halka-arz-portfoy-news-test.grass-airboat.workers.dev/v1/news?limit=60"', 'BREAKING_MAX_AGE_MINUTES = 90L', 'ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L', 'NewsTestScheduler.scheduleDailyTargets(app);']) {
+    assert.ok(worker.includes(rule), rule);
+  }
+  assert.doesNotMatch(helper + worker, /[☀🌙🏦📊📈💱🔔🪙🏢📰]/u);
 });
 
 test('Code42 keeps Code41 push wiring in the shell', () => {

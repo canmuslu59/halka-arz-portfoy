@@ -319,6 +319,8 @@ public class MainActivity extends ComponentActivity {
             JSONObject route = new JSONObject();
             route.put("kind", intent.getStringExtra("push_kind"));
             route.put("ticker", intent.getStringExtra("push_ticker"));
+            String newsUrl = intent.getStringExtra("push_news_url");
+            if (newsUrl != null && newsUrl.startsWith("https://")) route.put("newsUrl", newsUrl);
             pendingPushRoute = route;
         } catch (Exception ignored) {}
     }

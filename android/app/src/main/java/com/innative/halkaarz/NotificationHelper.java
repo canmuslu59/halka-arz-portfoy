@@ -29,6 +29,8 @@ final class NotificationHelper {
     private static final String CHANNEL_NEWS_BREAKING = "news_breaking_v1";
     private static final String CHANNEL_NEWS_DIGEST = "news_digest_v1";
     private static final String NEWS_LAST_DELIVERED_AT = "news_last_delivered_at";
+    private static final String BREAKING_LOG_PREFS = "news_breaking_log_v1";
+    private static final String BREAKING_LOG_KEY = "entries";
 
     private NotificationHelper() {}
 
@@ -46,7 +48,7 @@ final class NotificationHelper {
         NotificationChannel ipo = new NotificationChannel(CHANNEL_IPO, "Yeni halka arzlar", NotificationManager.IMPORTANCE_DEFAULT);
         ipo.setDescription("Yeni açıklanan halka arz bildirimleri");
         NotificationChannel newsBreaking = new NotificationChannel(CHANNEL_NEWS_BREAKING, "Son dakika haberleri", NotificationManager.IMPORTANCE_HIGH);
-        newsBreaking.setDescription("5/5 önem derecesindeki kritik finans haberleri");
+        newsBreaking.setDescription("Faiz kararları, borsa ve kur şokları, düzenleyici kararlar ve portföyünüzdeki şirketlerle ilgili kritik haberler");
         NotificationChannel newsDigest = new NotificationChannel(CHANNEL_NEWS_DIGEST, "Haber özetleri", NotificationManager.IMPORTANCE_DEFAULT);
         newsDigest.setDescription("Öne çıkan finans haberleri ve altı saatlik haber akışı");
         manager.createNotificationChannel(market);
@@ -142,6 +144,10 @@ final class NotificationHelper {
         String digestDay = value(data, "digest_day", "");
         String title = value(data, "title", "Halka Arz Portföyüm");
         String body = value(data, "body", "Portföyünüzde yeni bir hareket var.");
+        boolean news = "news_breaking".equals(kind) || "news_digest".equals(kind);
+        // Bildirime dokununca haberin kendisi açılır: bulut news_url gönderir, yerel işçi adresi news_id'de taşır.
+        String newsUrl = news ? httpsUrl(value(data, "news_url", "")) : "";
+        if (newsUrl.isEmpty() && "news_breaking".equals(kind)) newsUrl = httpsUrl(newsId);
         if ("news_digest".equals(kind)) {
             title = NewsNotificationFormatter.digestTitle(title, body, digestSlot);
             body = NewsNotificationFormatter.digestBody(body);
@@ -151,7 +157,7 @@ final class NotificationHelper {
         String day = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).toString();
         String eventKey;
         if ("ipo".equals(kind)) eventKey = kind + ":" + ticker;
-        else if ("news_breaking".equals(kind)) eventKey = kind + ":" + newsId;
+        else if ("news_breaking".equals(kind)) eventKey = kind + ":" + (newsUrl.isEmpty() ? newsId : newsUrl);
         else if ("news_digest".equals(kind)) eventKey = kind + ":" + digestSlot + ":" + digestDay;
         else eventKey = kind + ":" + ticker + ":" + body.replace(',', '.');
         if (day.equals(delivered.getString("day", "")) && delivered.getBoolean(eventKey, false)) return true;
@@ -179,6 +185,7 @@ final class NotificationHelper {
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 .putExtra("push_kind", kind)
                 .putExtra("push_ticker", ticker);
+        if (!newsUrl.isEmpty()) intent.putExtra("push_news_url", newsUrl);
         int requestCode = ("news_breaking".equals(kind) || "news_digest".equals(kind))
                 ? eventKey.hashCode()
                 : (kind + ":" + ticker + ":" + body).hashCode();
@@ -205,6 +212,7 @@ final class NotificationHelper {
                 delivery.putLong(NEWS_LAST_DELIVERED_AT, System.currentTimeMillis());
             }
             delivery.commit();
+            if ("news_breaking".equals(kind)) recordBreaking(context, value(data, "breaking_reason", "legacy"), ticker);
             return true;
         } catch (RuntimeException error) {
             return false;
@@ -214,6 +222,42 @@ final class NotificationHelper {
     static long lastNewsDeliveredAt(Context context) {
         return context.getSharedPreferences("notification_delivery_v2", Context.MODE_PRIVATE)
                 .getLong(NEWS_LAST_DELIVERED_AT, 0L);
+    }
+
+    // Gösterilen son dakikalar (bulut ve yerel işçi) yerel işçinin aralık/konu sınırları için tutulur.
+    private static void recordBreaking(Context context, String reason, String ticker) {
+        try {
+            android.content.SharedPreferences prefs = context.getSharedPreferences(BREAKING_LOG_PREFS, Context.MODE_PRIVATE);
+            org.json.JSONArray log = new org.json.JSONArray(prefs.getString(BREAKING_LOG_KEY, "[]"));
+            org.json.JSONArray next = new org.json.JSONArray();
+            for (int i = Math.max(0, log.length() - 49); i < log.length(); i++) next.put(log.get(i));
+            String key = "portfolio".equals(reason) && !ticker.isEmpty() ? "portfolio:" + ticker : reason;
+            next.put(new JSONObject().put("key", key).put("at", System.currentTimeMillis()));
+            prefs.edit().putString(BREAKING_LOG_KEY, next.toString()).apply();
+        } catch (Exception ignored) {}
+    }
+
+    static java.util.List<BreakingNewsRules.LogEntry> breakingLog(Context context) {
+        java.util.List<BreakingNewsRules.LogEntry> entries = new java.util.ArrayList<>();
+        try {
+            org.json.JSONArray log = new org.json.JSONArray(context.getSharedPreferences(BREAKING_LOG_PREFS, Context.MODE_PRIVATE)
+                    .getString(BREAKING_LOG_KEY, "[]"));
+            for (int i = 0; i < log.length(); i++) {
+                JSONObject entry = log.optJSONObject(i);
+                if (entry != null) entries.add(new BreakingNewsRules.LogEntry(entry.optString("key", ""), entry.optLong("at", 0L)));
+            }
+        } catch (Exception ignored) {}
+        return entries;
+    }
+
+    private static String httpsUrl(String value) {
+        String text = value == null ? "" : value.trim();
+        try {
+            Uri uri = Uri.parse(text);
+            return "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null && !uri.getHost().isEmpty() ? text : "";
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     private static String value(Map<String, String> data, String key, String fallback) {

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 final class NewsNotificationFormatter {
-    private static final String GENERIC_TITLE = "📰 Ekonomi ve Finans Gündemi";
+    private static final String GENERIC_TITLE = "Ekonomi ve Finans Gündemi";
     private static final String[] DESCRIPTION_MARKERS = new String[] {
             " Türkiye Cumhuriyet Merkez Bankası",
             " Türkiye Cumhuriyet Merk",
@@ -21,14 +21,26 @@ final class NewsNotificationFormatter {
     private NewsNotificationFormatter() {}
 
     static String digestTitle(String originalTitle, String rawBody, String slot) {
-        if ("morning".equals(slot)) return "☀️ Sabah Finans Özeti";
-        if ("evening".equals(slot)) return "🌙 Akşam Finans Özeti";
+        if ("morning".equals(slot)) return "Sabah Finans Özeti";
+        if ("evening".equals(slot)) return "Akşam Finans Özeti";
         return digestTitle(originalTitle, rawBody);
+    }
+
+    // Haber özeti başlıkları emojisiz gösterilir; kırmızı nokta yalnız son dakikaya aittir.
+    static String plainTitle(String value) {
+        String text = cleanText(value);
+        int index = 0;
+        while (index < text.length()) {
+            int codePoint = text.codePointAt(index);
+            if (Character.isLetterOrDigit(codePoint)) break;
+            index += Character.charCount(codePoint);
+        }
+        return text.substring(index).trim();
     }
 
     static String digestTitle(String originalTitle, String rawBody) {
         List<String> headlines = digestHeadlines(rawBody);
-        if (headlines.isEmpty()) return nonEmpty(originalTitle, GENERIC_TITLE);
+        if (headlines.isEmpty()) return nonEmpty(plainTitle(originalTitle), GENERIC_TITLE);
 
         int rateCount = 0;
         int economyDataCount = 0;
@@ -43,10 +55,10 @@ final class NewsNotificationFormatter {
         }
 
         int required = headlines.size() <= 1 ? 1 : Math.max(2, (headlines.size() + 1) / 2);
-        if (rateCount >= required) return "🏦 Faiz ve Piyasa Gündemi";
-        if (economyDataCount >= required) return "📊 Ekonomi Verileri Gündemde";
+        if (rateCount >= required) return "Faiz ve Piyasa Gündemi";
+        if (economyDataCount >= required) return "Ekonomi Verileri Gündemde";
 
-        String original = nonEmpty(originalTitle, "");
+        String original = nonEmpty(plainTitle(originalTitle), "");
         if (original.contains("Faiz ve Piyasa Gündemi") || original.contains("Ekonomi Verileri Gündemde")) {
             return GENERIC_TITLE;
         }

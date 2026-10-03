@@ -36,6 +36,7 @@ public final class NewsTestWorker extends Worker {
     private static final int MAX_ARTICLES_TO_VERIFY = 12;
     private static final long BREAKING_MAX_AGE_MINUTES = 90L;
     private static final long ROUTINE_NEWS_INTERVAL_MS = 6L * 60L * 60L * 1000L;
+    private static final String BREAKING_SEEN_KEY = "breaking_seen_v1";
 
     private static final Pattern BLOOMBERG_ARTICLE_PATH = Pattern.compile("-\\d{6,}/?$");
     private static final Pattern META_TAG = Pattern.compile("(?is)<meta\\b[^>]*>");
@@ -80,24 +81,86 @@ public final class NewsTestWorker extends Worker {
         }
     }
 
+    // Son dakika kuralları ve aralık/konu sınırları bulutla aynıdır (BreakingNewsRules).
+    // Gösterilen son dakikalar (buluttan gelenler dahil) NotificationHelper kaydından okunur.
     private void sendBreakingIfNeeded(List<NewsItem> items, ZonedDateTime now) {
+        Context app = getApplicationContext();
         Instant nowInstant = now.toInstant();
-        items.stream()
-                .filter(item -> item.importance == 5 && item.publishedAt != null)
-                .filter(item -> {
-                    long age = Duration.between(item.publishedAt, nowInstant).toMinutes();
-                    return age >= -5 && age <= BREAKING_MAX_AGE_MINUTES;
-                })
-                .sorted(Comparator.comparing((NewsItem item) -> item.publishedAt).reversed())
-                .limit(1)
-                .forEach(item -> {
-                    Map<String, String> data = new HashMap<>();
-                    data.put("kind", "news_breaking");
-                    data.put("news_id", item.url);
-                    data.put("title", "🔴 Son Dakika");
-                    data.put("body", shorten(item.title, 120));
-                    NotificationHelper.show(getApplicationContext(), data);
-                });
+        long nowMs = nowInstant.toEpochMilli();
+        List<BreakingNewsRules.Holding> holdings = loadHoldings(app);
+        List<BreakingNewsRules.LogEntry> log = NotificationHelper.breakingLog(app);
+        SharedPreferences prefs = app.getSharedPreferences(NewsTestScheduler.PREFS, Context.MODE_PRIVATE);
+        List<String> seen = readSeen(prefs);
+
+        List<NewsItem> fresh = new ArrayList<>();
+        Map<NewsItem, BreakingNewsRules.Classification> classified = new HashMap<>();
+        for (NewsItem item : items) {
+            if (item.publishedAt == null || seen.contains(item.url)) continue;
+            long age = Duration.between(item.publishedAt, nowInstant).toMinutes();
+            if (age < -5 || age > BREAKING_MAX_AGE_MINUTES) continue;
+            BreakingNewsRules.Classification classification = BreakingNewsRules.classify(item.title, "", holdings);
+            if (classification == null) continue;
+            fresh.add(item);
+            classified.put(item, classification);
+        }
+        fresh.sort(Comparator.comparingInt((NewsItem item) -> classified.get(item).priority)
+                .thenComparing((NewsItem item) -> item.publishedAt, Comparator.reverseOrder()));
+
+        for (NewsItem item : fresh) {
+            BreakingNewsRules.Classification classification = classified.get(item);
+            String decision = BreakingNewsRules.guard(log, classification, nowMs, false);
+            if ("defer".equals(decision)) continue;
+            seen.add(item.url);
+            if ("drop".equals(decision)) continue;
+            Map<String, String> data = new HashMap<>();
+            data.put("kind", "news_breaking");
+            data.put("news_id", item.url);
+            data.put("news_url", item.url);
+            data.put("title", classification.title());
+            data.put("body", shorten(item.title, 120));
+            data.put("breaking_reason", classification.reason);
+            if (!classification.ticker.isEmpty()) data.put("ticker", classification.ticker);
+            NotificationHelper.show(app, data);
+            break;
+        }
+        writeSeen(prefs, seen);
+    }
+
+    private static List<String> readSeen(SharedPreferences prefs) {
+        List<String> seen = new ArrayList<>();
+        try {
+            JSONArray stored = new JSONArray(prefs.getString(BREAKING_SEEN_KEY, "[]"));
+            for (int i = 0; i < stored.length(); i++) seen.add(stored.optString(i, ""));
+        } catch (Exception ignored) {}
+        return seen;
+    }
+
+    private static void writeSeen(SharedPreferences prefs, List<String> seen) {
+        JSONArray stored = new JSONArray();
+        for (int i = Math.max(0, seen.size() - 100); i < seen.size(); i++) stored.put(seen.get(i));
+        prefs.edit().putString(BREAKING_SEEN_KEY, stored.toString()).apply();
+    }
+
+    // Uygulamanın kendi portföy kaydı (MainActivity PREFS / PORTFOLIO_KEY); yalnız eldeki hisseler.
+    private static List<BreakingNewsRules.Holding> loadHoldings(Context context) {
+        List<BreakingNewsRules.Holding> result = new ArrayList<>();
+        try {
+            SharedPreferences prefs = context.getSharedPreferences("halka_arz_portfoy", Context.MODE_PRIVATE);
+            String raw = prefs.getString("portfolio_json_v1", "");
+            if (raw == null || raw.trim().isEmpty()) raw = prefs.getString("portfolio_json_v1_backup", "");
+            JSONArray holdings = new JSONObject(raw == null || raw.trim().isEmpty() ? "{}" : raw).optJSONArray("holdings");
+            if (holdings == null) return result;
+            for (int i = 0; i < holdings.length(); i++) {
+                JSONObject holding = holdings.optJSONObject(i);
+                if (holding == null || holding.optDouble("currentLots", 0d) <= 0d) continue;
+                JSONObject ipo = holding.optJSONObject("ipoSnapshot");
+                String company = ipo != null && !ipo.optString("company", "").trim().isEmpty()
+                        ? ipo.optString("company", "")
+                        : holding.optString("company", "");
+                result.add(new BreakingNewsRules.Holding(holding.optString("ticker", ""), company));
+            }
+        } catch (Exception ignored) {}
+        return result;
     }
 
     private void sendDigestIfDue(List<NewsItem> items, ZonedDateTime now) {
@@ -165,8 +228,9 @@ public final class NewsTestWorker extends Worker {
         data.put("digest_slot", slot);
         data.put("digest_day", now.toLocalDate().toString());
         String digestBody = body.toString();
-        data.put("title", "morning".equals(slot) ? "☀️ Sabah Finans Özeti" : "🌙 Akşam Finans Özeti");
+        data.put("title", "morning".equals(slot) ? "Sabah Finans Özeti" : "Akşam Finans Özeti");
         data.put("body", digestBody);
+        if (selected.size() == 1) data.put("news_url", selected.get(0).url);
         boolean delivered = NotificationHelper.show(getApplicationContext(), data);
         prefs.edit()
                 .putBoolean(NewsTestScheduler.LAST_DIGEST_DELIVERED, delivered)
@@ -202,8 +266,9 @@ public final class NewsTestWorker extends Worker {
         data.put("digest_slot", slot);
         data.put("digest_day", now.toLocalDate().toString());
         data.put("routine_interval_hours", "6");
-        data.put("title", NewsNotificationFormatter.digestTitle("📰 Finans Gündemi", body));
+        data.put("title", NewsNotificationFormatter.digestTitle("Finans Gündemi", body));
         data.put("body", body);
+        data.put("news_url", selected.url);
         NotificationHelper.show(getApplicationContext(), data);
     }
 
@@ -429,33 +494,6 @@ public final class NewsTestWorker extends Worker {
         if (containsAny(title, "halka arz", "sermaye artır", "temettü", "bilanço", "kredi not", "enflasyon", "işsizlik", "büyüme", "döviz rezerv")) return 3;
         if (containsAny(title, "dolar", "euro", "altın", "borsa", "endeks", "hisse")) return 2;
         return 1;
-    }
-
-    private static String digestTitle(List<NewsItem> items) {
-        StringBuilder joined = new StringBuilder();
-        boolean borsa = false, altin = false, doviz = false, sirket = false, halkaArz = false;
-        String firstCategory = "";
-        for (NewsItem item : items) {
-            joined.append(' ').append(lower(item.title));
-            if (firstCategory.isEmpty()) firstCategory = item.category;
-            if ("borsa".equals(item.category)) borsa = true;
-            if ("altin".equals(item.category)) altin = true;
-            if ("doviz".equals(item.category)) doviz = true;
-            if ("sirketler".equals(item.category)) sirket = true;
-            if ("halka-arz".equals(item.category)) halkaArz = true;
-        }
-        String text = joined.toString();
-        if (containsAny(text, "tcmb", "politika faizi", "faiz kararı")) return "🏦 Faiz ve Piyasa Gündemi";
-        if (containsAny(text, "enflasyon", "büyüme", "işsizlik", "üretici fiyat", "tüketici fiyat")) return "📊 Ekonomi Verileri Gündemde";
-        if (borsa && altin) return "📈 Borsa ve Altın Gündemi";
-        if (altin && doviz) return "💱 Altın ve Döviz Gündemi";
-        if (borsa && sirket) return "📈 Borsa ve Şirketler Gündemi";
-        if (halkaArz) return "🔔 Halka Arz ve Piyasa Gündemi";
-        if ("borsa".equals(firstCategory)) return "📈 Borsada Öne Çıkan Gelişmeler";
-        if ("altin".equals(firstCategory)) return "🪙 Altın Piyasasında Öne Çıkanlar";
-        if ("doviz".equals(firstCategory)) return "💱 Döviz Piyasasında Öne Çıkanlar";
-        if ("sirketler".equals(firstCategory)) return "🏢 Şirketler Gündeminde Öne Çıkanlar";
-        return "📰 Finans Gündeminde Öne Çıkanlar";
     }
 
     private static boolean containsAny(String value, String... needles) {

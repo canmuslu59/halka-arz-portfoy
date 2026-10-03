@@ -162,6 +162,164 @@ export function scoreNewsImportance(item) {
   return 1;
 }
 
+// ---------------------------------------------------------------------------
+// Son dakika seçimi. 1-5 önem puanı (yukarıda) yalnız özet sıralamasında kullanılır;
+// son dakika kararı aşağıdaki kurallarla verilir. Kalıp metinleri
+// android/.../BreakingNewsRules.java ile birebir aynıdır (test/news-breaking-rules.test.js).
+// ---------------------------------------------------------------------------
+export const BREAKING_PATTERNS = Object.freeze({
+  explainer:"(?<![a-z0-9çğıöşüâîû])(nedir|kimdir|nasıl|ne zaman|ne kadar|hangi|nerede|kaç)(?![a-z0-9çğıöşüâîû])[^?]*\\?",
+  centralBank:"(tcmb|para politikası kurulu|(?<![a-z0-9çğıöşüâîû])(ppk|fed|amb|ecb|boe|boj|snb|pboc|pbc)(?![a-z0-9çğıöşüâîû])|merkez bankası|federal reserve|fomc|bank of england|bank of japan|people'?s bank of china|bank of canada|reserve bank)",
+  rateWord:"(politika faiz|faiz karar|faiz oran|faizini|faizi|faizleri|faiz indirim|faiz artırım|zorunlu karşılık|rezerv opsiyon|kur korumalı|likidite)",
+  rateDecision:"(artırdı|artirdi|indirdi|düşürdü|sabit tuttu|sabit bıraktı|değiştirmedi|kararını açıkladı|kararini acikladi|değiştirdi|degistirdi|karar verdi|indirime gitti|indirimine gitti|artırıma gitti|artırımına gitti|indirim yaptı|artırım yaptı|beklentilere paralel|sürpriz)",
+  emergency:"(olağanüstü|olaganustu|plan dışı|ara toplantı|acil toplan)",
+  meetingOrRate:"(toplan|karar|faiz)",
+  marketWide:"(borsa [iı]stanbul|(?<![a-z0-9çğıöşüâîû])b[iı]st(?![a-z])|piyasa genelinde|piyasa geneli|pay piyasası|pay piyasasında|tüm piyasada|tum piyasada)",
+  marketHalt:"(işlemler(i)?( geçici olarak)? durdur|işlemlere ara ver|işlem durdur|devre kesici)",
+  indexContext:"(borsa [iı]stanbul|(?<![a-z0-9çğıöşüâîû])b[iı]st(?![a-z])|(?<![a-z0-9çğıöşüâîû])borsa|nasdaq|dow jones|s&p ?500|(?<![a-z0-9çğıöşüâîû])dax(?![a-z]))",
+  indexPercent:"(borsa [iı]stanbul|(?<![a-z0-9çğıöşüâîû])b[iı]st(?![a-z])|(?<![a-z0-9çğıöşüâîû])borsa|nasdaq|dow jones|s&p ?500|(?<![a-z0-9çğıöşüâîû])dax(?![a-z]))[^.?!]{0,50}?(yüzde|%) ?(\\d+([.,]\\d+)?)",
+  indexCrash:"(borsa [iı]stanbul|(?<![a-z0-9çğıöşüâîû])b[iı]st(?![a-z])|(?<![a-z0-9çğıöşüâîû])borsa)[^.?!]{0,50}?(çöktü|çöküş|tarihi düşüş|kara pazartesi|panik satış|sert satış)",
+  move:"(düş|geriled|kaybet|çök|eridi|sert|yüksel|arttı|artış|tırman|uçtu|değer kazan|çakıldı|sıçra)",
+  fund:"(?<![a-z0-9çğıöşüâîû])fon(lar|ların|larında|larda|unda|un|u)?(?![a-z0-9çğıöşüâîû])",
+  fundFreeze:"(işlemler(i)?( geçici olarak)? durdur|askıya al|satışlar(ı)? durdur|alım satım(ı)? durdur|geri ödeme(ler(i)?)? durdur)",
+  currency:"(dolar|(?<![a-z0-9çğıöşüâîû])euro(?! ?bölge)|avro|sterlin|döviz kuru|(?<![a-z0-9çğıöşüâîû])kur(?![a-z0-9çğıöşüâîû]))",
+  currencyPercent:"(dolar|(?<![a-z0-9çğıöşüâîû])euro(?! ?bölge)|avro|sterlin|(?<![a-z0-9çğıöşüâîû])kur(?![a-z0-9çğıöşüâîû])|kurlar)[^.?!]{0,40}?(yüzde|%) ?(\\d+([.,]\\d+)?)",
+  sharp:"(sert|ani |tarihi|şok)",
+  sharpMove:"(yüksel|düş|değer kaybet|çakıldı|uçtu|tırman|sıçra)",
+  record:"(rekor|tüm zamanların en yüksek|tarihi zirve)",
+  gold:"(gram altın|ons altın|altının onsu|(?<![a-z0-9çğıöşüâîû])altın|(?<![a-z0-9çğıöşüâîû])ons(?![a-z0-9çğıöşüâîû]))",
+  goldPercent:"((?<![a-z0-9çğıöşüâîû])altın|(?<![a-z0-9çğıöşüâîû])ons(?![a-z0-9çğıöşüâîû]))[^.?!]{0,40}?(yüzde|%) ?(\\d+([.,]\\d+)?)",
+  regulator:"((?<![a-z0-9çğıöşüâîû])spk(?![a-z0-9çğıöşüâîû])|sermaye piyasası kurulu|(?<![a-z0-9çğıöşüâîû])bddk(?![a-z0-9çğıöşüâîû])|bankacılık düzenleme|hazine ve maliye|resm[iî] gazete|(?<![a-z0-9çğıöşüâîû])masak(?![a-z0-9çğıöşüâîû])|tcmb)",
+  systemic:"(açığa satış|olağanüstü tedbir|sermaye kontrol|vergi oran|stopaj|kdv oran|(?<![a-z0-9çğıöşüâîû])ötv|harç|kredi kart|taksit|kredi büyüme|kredi sınır|mevduat|zorunlu karşılık|kripto|döviz alım|döviz satış|yatırım fon|(?<![a-z0-9çğıöşüâîû])fon(lar)?a (yönelik|ilişkin))",
+  regulationAction:"(yasak|kısıtla|sınırla|tedbir|düzenleme|değişiklik|değişti|değiştir|yürürlüğe|kaldırıl|getirildi|getirdi|artırıldı|indirildi|zorunlu hale|uygulama başla)",
+  financialContext:"(finans|(?<![a-z0-9çğıöşüâîû])fon|borsa|hisse|yatırım|yatirim|banka|bankacılık|bankacilik|piyasa|sermaye|(?<![a-z0-9çğıöşüâîû])spk(?![a-z0-9çğıöşüâîû])|şirket|sirket|holding|portföy|portfoy|kripto|döviz|doviz|aracı kurum)",
+  enforcement:"(gözalt|tutuklan|yakalama kararı|operasyon|malvarlığ.*dondur|(tutar|hesap|varlık|varlik|milyon|milyar).*dondur|el koy|kayyum|(?<![a-z0-9çğıöşüâîû])tmsf)",
+  minister:"(bakan|cumhurbaşkanı yardımcısı)",
+  policyTopic:"(vergi|stopaj|(?<![a-z0-9çğıöşüâîû])kdv|(?<![a-z0-9çğıöşüâîû])ötv|harç|asgari ücret|emekli|memur maaş|(?<![a-z0-9çğıöşüâîû])zam(?![a-z0-9çğıöşüâîû])|zammı|zam oran|faiz|enflasyon|(?<![a-z0-9çğıöşüâîû])kur(?![a-z0-9çğıöşüâîû])|döviz|borsa|piyasa|yatırımcı|teşvik|destek paket|ekonomik paket|ekonomi program|bütçe|tasarruf|kredi|ihracat|ithalat|gümrük|(?<![a-z0-9çğıöşüâîû])fon)",
+  announce:"(açıkl|duyur|bildir|müjde|yürürlüğe|karar|onaylandı|yasalaştı)",
+  future:"(açıklayacak|duyuracak|bekleniyor|yarın|gelecek hafta)",
+  corporateEvent:"(sermaye artırım|bedelsiz|bedelli|temettü|kâr payı|kar payı|geri alım|birleşme|devral|devir|satın al|iflas|konkordato|işlem yasağı|tedbir|işlemler(i)?( geçici olarak)? durdur|işlemlerine ara|işlem sırası|(?<![a-z0-9çğıöşüâîû])kap(?![a-z0-9çğıöşüâîû])|bilanço|net kâr|net kar|net zarar|finansal sonuç|kâr açıkla|kar açıkla|zarar açıkla|halka arz|kredi not|ihale|sözleşme|anlaşma|sipariş|iş ilişkisi|yatırım|kapasite|vazgeçti|soruşturma|ceza|dava|onay|pay satış|blok satış|ortaklık|genel kurul|hisse satış)",
+});
+
+const BREAKING_REGEX = Object.freeze(Object.fromEntries(
+  Object.entries(BREAKING_PATTERNS).map(([key, source]) => [key, new RegExp(source)])
+));
+
+export const BREAKING_PRIORITY = Object.freeze({ rate:1, market:1, portfolio:2, regulation:2, enforcement:2, fx:3 });
+export const BREAKING_COOLDOWN_MS = Object.freeze({
+  rate:60 * 60_000,
+  market:30 * 60_000,
+  portfolio:2 * 60 * 60_000,
+  regulation:60 * 60_000,
+  enforcement:60 * 60_000,
+  fx:6 * 60 * 60_000,
+});
+export const BREAKING_DAILY_CAP = 8;
+export const BREAKING_MIN_GAP_MS = 10 * 60_000;
+
+function has(key, text) {
+  return BREAKING_REGEX[key].test(text);
+}
+
+// Kalıbın eşleştiği metnin sonundaki yüzde değeri ("yüzde 3,2" -> 3.2); eşleşme yoksa 0.
+function proximityPercent(key, text) {
+  const match = BREAKING_REGEX[key].exec(text);
+  if (!match) return 0;
+  const number = /(\d+([.,]\d+)?)$/.exec(match[0]);
+  return number ? Number(number[1].replace(',', '.')) : 0;
+}
+
+function isExplainerHeadline(text) {
+  return (text.match(/\?/g) || []).length >= 2 || has('explainer', text);
+}
+
+export function holdingTickers(registration) {
+  const tickers = [];
+  for (const holding of Array.isArray(registration?.holdings) ? registration.holdings : []) {
+    const ticker = cleanText(holding?.ticker).toUpperCase();
+    if (!/^[A-Z0-9]{3,6}$/.test(ticker) || !(Number(holding?.lots) > 0) || tickers.includes(ticker)) continue;
+    tickers.push(ticker);
+  }
+  return tickers;
+}
+
+// Hisse kodu yalnız büyük harfle ve tam kelime olarak geçtiğinde eşleşir ("ASELS'te", "(ASELS)").
+function mentionedTicker(original, tickers) {
+  for (const ticker of tickers) {
+    if (new RegExp(`(^|[^A-Za-z0-9ÇĞİÖŞÜçğıöşüÂâÎîÛû])${ticker}(?=$|[^A-Za-z0-9ÇĞİÖŞÜçğıöşüÂâÎîÛû])`).test(original)) return ticker;
+  }
+  return '';
+}
+
+function breaking(reason, ticker = '') {
+  return { reason, priority:BREAKING_PRIORITY[reason], ticker };
+}
+
+export function classifyBreakingNews(item, { tickers = [] } = {}) {
+  const title = cleanNotificationHeadline(item?.title);
+  if (!title) return null;
+  const summary = cleanText(item?.summary);
+  const text = title.toLocaleLowerCase('tr-TR');
+  if (isExplainerHeadline(text)) return null;
+
+  const ticker = mentionedTicker(`${title} ${summary}`, Array.isArray(tickers) ? tickers : []);
+  if (ticker && has('corporateEvent', `${text} ${summary.toLocaleLowerCase('tr-TR')}`)) return breaking('portfolio', ticker);
+
+  if (has('centralBank', text)
+    && ((has('rateWord', text) && has('rateDecision', text)) || (has('emergency', text) && has('meetingOrRate', text)))) {
+    return breaking('rate');
+  }
+
+  if ((has('marketWide', text) && has('marketHalt', text))
+    || (text.includes('devre kesici') && has('indexContext', text))
+    || (has('move', text) && proximityPercent('indexPercent', text) >= 3)
+    || has('indexCrash', text)
+    || (has('fund', text) && has('fundFreeze', text))) {
+    return breaking('market');
+  }
+
+  if (has('regulator', text) && has('systemic', text) && has('regulationAction', text)) return breaking('regulation');
+  if (has('financialContext', text) && has('enforcement', text)) return breaking('enforcement');
+  if (has('minister', text) && has('policyTopic', text) && has('announce', text) && !has('future', text)) {
+    return breaking('regulation');
+  }
+
+  if (has('gold', text) && (has('record', text) || (has('move', text) && proximityPercent('goldPercent', text) >= 3))) {
+    return breaking('fx');
+  }
+  if (has('currency', text) && ((has('move', text) && proximityPercent('currencyPercent', text) >= 2)
+    || (has('sharp', text) && has('sharpMove', text)))) {
+    return breaking('fx');
+  }
+  return null;
+}
+
+export function breakingKey(classification) {
+  return classification?.reason === 'portfolio' ? `portfolio:${classification.ticker}` : String(classification?.reason || '');
+}
+
+export function breakingTitle(classification) {
+  return classification?.reason === 'portfolio' && classification.ticker
+    ? `🔴 Son Dakika · ${classification.ticker}`
+    : '🔴 Son Dakika';
+}
+
+// 'send': gönder, 'defer': sonraki turda tekrar dene, 'drop': bu haberi atla.
+export function breakingGuard(log, classification, nowMs, { sentThisRun = false } = {}) {
+  if (sentThisRun) return 'defer';
+  const entries = (Array.isArray(log) ? log : [])
+    .map(entry => ({ key:String(entry?.key || ''), at:Date.parse(entry?.at) }))
+    .filter(entry => entry.key && Number.isFinite(entry.at));
+  const today = istanbulParts(nowMs)?.day;
+  if (entries.filter(entry => istanbulParts(entry.at)?.day === today).length >= BREAKING_DAILY_CAP) return 'drop';
+  const key = breakingKey(classification);
+  const cooldown = BREAKING_COOLDOWN_MS[classification?.reason] ?? 60 * 60_000;
+  if (entries.some(entry => entry.key === key && nowMs - entry.at < cooldown)) return 'drop';
+  const lastAt = entries.reduce((latest, entry) => Math.max(latest, entry.at), 0);
+  if (lastAt && nowMs - lastAt < BREAKING_MIN_GAP_MS) return 'defer';
+  return 'send';
+}
+
 export function selectDigestItems(items, { slot, now = new Date() } = {}) {
   const nowParts = istanbulParts(now);
   if (!nowParts || (slot !== 'morning' && slot !== 'evening')) return [];
@@ -321,8 +479,7 @@ export function createNewsNotificationEngine({
       let digestSent = 0;
       let routineSent = 0;
 
-      const breakingCandidates = feed.filter((item) => {
-        if (Number(item.importance) !== 5) return false;
+      const freshItems = feed.filter((item) => {
         const publishedAt = parseDate(item.publishedAt);
         if (!publishedAt) return false;
         const age = checkedAt.getTime() - publishedAt.getTime();
@@ -333,26 +490,45 @@ export function createNewsNotificationEngine({
         if (!registration?.fcmToken || registration.newsEnabled === false) continue;
         let localState = newsStateOf(registration);
         let breakingSeen = Array.isArray(localState.breakingSeen) ? [...localState.breakingSeen] : [];
+        let breakingLog = Array.isArray(localState.breakingLog) ? [...localState.breakingLog] : [];
+        const tickers = holdingTickers(registration);
+        const breakingCandidates = freshItems
+          .map(item => ({ item, classification:classifyBreakingNews(item, { tickers }) }))
+          .filter(candidate => candidate.classification)
+          .sort((a, b) => (a.classification.priority - b.classification.priority)
+            || (parseDate(b.item.publishedAt).getTime() - parseDate(a.item.publishedAt).getTime()));
+        let sentThisRun = false;
 
-        for (const item of breakingCandidates) {
+        for (const { item, classification } of breakingCandidates) {
           const identity = newsIdentity(item);
           if (!identity || breakingSeen.includes(identity)) continue;
+          const decision = breakingGuard(breakingLog, classification, checkedAt.getTime(), { sentThisRun });
+          if (decision === 'defer') continue;
+          breakingSeen = [...breakingSeen, identity].slice(-100);
+          if (decision === 'drop') {
+            await updateRegistrationNewsState(store, installKey, { breakingSeen });
+            continue;
+          }
           await sender.send(registration.fcmToken, {
-            title: '🔴 Son Dakika',
+            title: breakingTitle(classification),
             body: shortHeadline(item.title, 120),
             data: {
               kind: 'news_breaking',
               news_id: identity,
               news_url: cleanText(item.url),
               importance: '5',
+              breaking_reason: classification.reason,
+              ...(classification.ticker ? { ticker:classification.ticker } : {}),
             },
           });
-          breakingSeen = [...breakingSeen, identity].slice(-100);
+          breakingLog = [...breakingLog, { at:checkedAt.toISOString(), key:breakingKey(classification) }].slice(-50);
           await updateRegistrationNewsState(store, installKey, {
             breakingSeen,
+            breakingLog,
             lastNotificationAt:checkedAt.toISOString(),
           });
           breakingSent += 1;
+          sentThisRun = true;
         }
 
         const slot = currentDigestSlot(checkedAt);
@@ -377,6 +553,7 @@ export function createNewsNotificationEngine({
             digest_slot: slot,
             digest_day: day,
             news_count: String(digestItems.length),
+            ...(digestItems.length === 1 && cleanText(digestItems[0]?.url) ? { news_url:cleanText(digestItems[0].url) } : {}),
           },
         });
         await updateRegistrationNewsState(store, installKey, {
@@ -407,6 +584,7 @@ export function createNewsNotificationEngine({
             digest_day:routineDay,
             news_count:'1',
             routine_interval_hours:'6',
+            ...(cleanText(routineItem.url) ? { news_url:cleanText(routineItem.url) } : {}),
           },
         });
         await updateRegistrationNewsState(store, installKey, {

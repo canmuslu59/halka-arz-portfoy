@@ -65,10 +65,20 @@ test('daily news targets remain pending across periodic checks and summaries hav
   assert.match(worker, /Akşam Finans Özeti/);
 });
 
-test('local breaking path keeps critical threshold at 5 of 5 and ninety-minute age', () => {
+test('local breaking path uses the shared breaking rules, ninety-minute age and the shared guard', () => {
   assert.match(worker, /BREAKING_MAX_AGE_MINUTES = 90L/);
-  assert.match(worker, /item\.importance == 5/);
+  assert.match(worker, /BreakingNewsRules\.classify\(item\.title, "", holdings\)/);
+  assert.match(worker, /BreakingNewsRules\.guard\(log, classification, nowMs, false\)/);
+  assert.match(worker, /NotificationHelper\.breakingLog\(app\)/);
+  assert.doesNotMatch(worker, /item\.importance == 5/);
   assert.match(worker, /news_breaking/);
+  assert.match(worker, /data\.put\("news_url", item\.url\)/);
+});
+
+test('notification tap opens the article itself when the push carries its address', () => {
+  assert.match(helper, /intent\.putExtra\("push_news_url", newsUrl\)/);
+  assert.match(helper, /eventKey = kind \+ ":" \+ \(newsUrl\.isEmpty\(\) \? newsId : newsUrl\)/);
+  assert.match(activity, /route\.put\("newsUrl", newsUrl\)/);
 });
 
 
