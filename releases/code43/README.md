@@ -53,7 +53,9 @@ Code43 = Code42 / v2.5.8 + haber bildirimi iyileştirmeleri:
 
 - Play upload alias: `halkaarz-upload`
 - Upload sertifikası SHA-256: `02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72`
-- İmza: sahibinin bilgisayarındaki Play upload anahtarıyla, şifreyi sahibi girerek (jarsigner). Ayrıntı: `VERIFICATION.txt`.
+- İmza: sahibinin bilgisayarındaki Play upload anahtarıyla, şifreyi sahibi girerek (jarsigner, SHA384withRSA). `jar verified`, sertifika doğrulandı.
+- İmzalı ve imzasız paket içeriği imza dosyaları hariç bayt bayt aynı (212/212).
+- Final Play AAB: `Hisse-Portfoyum-v2.5.9-Code43-Play.aab`, SHA-256 `86d1fed3eb000939334fabac88f49d190414291524022bf2ddf2f18eb9fc9835` (`SHA256SUMS.txt`, ayrıntı `VERIFICATION.txt`, `jarsigner-verification.txt`).
 - Signing key/keystore ve şifreler repoya eklenmez.
 
 ## Geri dönüş

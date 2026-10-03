@@ -1,0 +1,53 @@
+Hisse Portfoyum v2.5.9 / Code43 - Google Play Upload Verification
+
+Package: com.innative.halkaarz
+Version name: 2.5.9
+Version code: 43
+Source commit: 69d2b206e4df66bd08bc9cdb98bbf01ac29d6cea (tag v2.5.9-code43, branch release/v2.5.9-code43)
+CI build: GitHub Actions run 37141421469 (Code43 Final Play AAB, windows-latest) - success
+
+Build checks (CI):
+- Regression suite: 502/502 PASS (includes test/news-breaking-rules.test.js and test/code42-labs-production.test.js).
+- Push transport lock: cloudflare/worker.js, durable-store.js, fcm-sender.js unchanged (git blob SHA).
+- JS/Java breaking-news rule parity: identical pattern strings, same classify/guard results on shared fixtures.
+- Production push backend embedded in release BuildConfig: PASS.
+- Production Firebase config: restored (com.innative.halkaarz).
+- AAB web payload equals committed android/app/src/main/assets/www: PASS.
+- Unsigned AAB: Hisse-Portfoyum-v2.5.9-Code43-unsigned.aab
+  SHA-256: 9680568c38f2d24fd35f798247487d325d5f925d3f96be1b8e1d8393212304fe
+
+Notification bytecode check (dexdump, normalized per class):
+- Reference: published Hisse-Portfoyum-v2.5.4-Code37-Play.aab (same DEX as Code41).
+- 33 notification classes compared. Unchanged: registration, FCM receive, scheduling and portfolio alerts
+  (PushConfigSync, PushMessagingService, BackgroundAlert*, PortfolioAlertRules, AlertDiagnostics, ...).
+- Intentionally changed (news notification selection/display): NotificationHelper, NewsNotificationFormatter,
+  NewsTestWorker (+ lambdas); new class BreakingNewsRules.
+- NewsTestScheduler / NewsTestPreviewWorker differ only by inlined BuildConfig.VERSION_CODE (37 -> 43),
+  used solely when previewEnabled() (DEBUG build with .graphtest package); not reachable in production.
+- Details: NOTIFICATION-BYTECODE.txt
+
+Cloud (production push worker halka-arz-portfoy-push):
+- News rules live on version 486c22bd-32a9-4c6f-8a3a-05745c078ff0; rollback point b89a6b0e-f367-470c-86e4-40cd771f152e.
+- Details: CLOUD-DEPLOY.txt
+
+Signing:
+- Signed locally by the owner with the existing Google Play upload key (password entered by the owner).
+- Upload alias: halkaarz-upload
+- Upload certificate: CN=Halka Arz Portfoyum Upload, OU=Android, O=Halka Arz Portfoyum, C=TR
+- Upload certificate SHA-256: 02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72
+- Signature: SHA384withRSA (jarsigner default for the 4096-bit key) / SHA-256 entry digests.
+  Code42 was signed with SHA256withRSA; both use the same upload certificate.
+- jarsigner -verify: jar verified (standard warnings: self-signed upload certificate, no timestamp)
+- Unsigned-to-signed payload equality (META-INF signature files excluded): PASS (212/212 entries, 0 diffs)
+- Full output: jarsigner-verification.txt
+
+Final signed AAB:
+Hisse-Portfoyum-v2.5.9-Code43-Play.aab
+SHA-256: 86d1fed3eb000939334fabac88f49d190414291524022bf2ddf2f18eb9fc9835
+
+Rollback:
+- Last Known Good remains Code41 / v2.5.7 (safe/v2.5.7-code41-last-known-good, tag v2.5.7-code41). See SAFE_RELEASES.md.
+- Cloud: deploy Worker version b89a6b0e-f367-470c-86e4-40cd771f152e at 100%.
+
+Security:
+- No keystore, private key or password is stored in this repository release record.
