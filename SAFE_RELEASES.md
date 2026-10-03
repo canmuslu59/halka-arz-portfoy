@@ -50,10 +50,11 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 
 - Branch: `release/v2.5.9-code43`
 - Tag: `v2.5.9-code43` (derleme commit'i `69d2b206e4df66bd08bc9cdb98bbf01ac29d6cea`)
-- Release kaydı: `releases/code43/` (README.md, SHA256SUMS-UNSIGNED.txt, NOTIFICATION-BYTECODE.txt, CLOUD-DEPLOY.txt, PLAY-RELEASE-NOTES.txt)
+- Release kaydı: `releases/code43/` (README.md, VERIFICATION.txt, SHA256SUMS.txt, SHA256SUMS-UNSIGNED.txt, NOTIFICATION-BYTECODE.txt, CLOUD-DEPLOY.txt, PLAY-RELEASE-NOTES.txt)
 - İçerik: Code42 + haber bildirimine dokununca haberin kendisinin açılması + emojisiz özet başlıkları (🔴 yalnız son dakikada) + dört kategorili son dakika seçimi ve sıklık sınırı.
 - Bildirim gönderme mekanizması: Cloudflare gönderim altyapısı (`worker.js`, `durable-store.js`, `fcm-sender.js`) ile Android kayıt/alma/zamanlama sınıfları değişmedi. Yalnız haber bildiriminin seçimi ve gösterimi değişti (`NOTIFICATION-BYTECODE.txt`).
 - İmzasız AAB SHA-256: `9680568c38f2d24fd35f798247487d325d5f925d3f96be1b8e1d8393212304fe` (CI run 37141421469, 502/502 test).
+- Final Play AAB: `Hisse-Portfoyum-v2.5.9-Code43-Play.aab`, SHA-256 `86d1fed3eb000939334fabac88f49d190414291524022bf2ddf2f18eb9fc9835`; upload sertifikası `02:D9:…:A2:72` doğrulandı, içerik imzasız paketle 212/212 aynı.
 - Cloudflare: haber kuralları canlıda, Worker sürümü `486c22bd-32a9-4c6f-8a3a-05745c078ff0`. Geri dönüş: `b89a6b0e-f367-470c-86e4-40cd771f152e` (`releases/code43/CLOUD-DEPLOY.txt`).
 - Sorun çıkarsa: uygulamada Code41'e dön (yukarıdaki adımlar), Cloudflare'de Worker'ı `b89a6b0e…` sürümüne al. Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
 
