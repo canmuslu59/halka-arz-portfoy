@@ -97,16 +97,6 @@ jobs:
           npm run android:sync
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          node scripts/apply-test-share-ui.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/apply-test-wallet-metrics-nav.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/apply-test-portfolio-app-navigation.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/apply-performance-history-data-fix.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/apply-fixed-bottom-dock-test.mjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $sdk = $env:ANDROID_SDK_ROOT
           if (-not $sdk -or -not (Test-Path $sdk)) {
