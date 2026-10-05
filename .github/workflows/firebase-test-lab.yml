@@ -160,8 +160,8 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'physical-other-single'
-          $scenario = 'instrumentation'
+          $profile = 'physical-google-single'
+          $scenario = 'permissions'
           $timeout = '2m'
           $versions = '36,37'
           $locale = 'tr'
