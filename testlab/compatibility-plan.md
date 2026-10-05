@@ -25,9 +25,18 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 8 / 48 (16.7%)
+- Virtual completed: 10 / 48 (20.8%)
 - Physical completed: 0
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
 - Instrumentation APIs 28,29 — PASS — matrix `matrix-h9sy0hnhshpva`
-- Current action: crawl APIs 30,31
+- Crawl APIs 30,31 — PASS — matrix `matrix-2xnkj0hag70eb`
+- 2026-10-05 virtual executions used for Code43: 10
+- Current action: crawl APIs 32,33 (next quota window)
+
+
+## Harness note
+- Initial harness-only build failure was caused by legacy `apply-*` test mutation scripts re-adding methods already present in Code43.
+- Those legacy mutation steps were removed from the Code43 workflow.
+- This failure is not counted as an application compatibility failure.
+- Code43 is tested source-pure after `npm run android:sync`, with only isolated test runner/dependencies added.
