@@ -25,8 +25,9 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 6 / 48 (12.5%)
+- Virtual completed: 8 / 48 (16.7%)
 - Physical completed: 0
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
-- Current action: instrumentation APIs 28,29
+- Instrumentation APIs 28,29 — PASS — matrix `matrix-h9sy0hnhshpva`
+- Current action: crawl APIs 30,31
