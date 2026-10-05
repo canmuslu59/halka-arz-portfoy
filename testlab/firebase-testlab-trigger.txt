@@ -13,3 +13,4 @@ trigger physical other permissions 2026-10-01
 trigger physical samsung permissions 2026-10-02
 trigger physical google resilience 2026-10-05
 trigger physical other instrumentation 2026-10-05
+trigger physical google permissions 2026-10-05
