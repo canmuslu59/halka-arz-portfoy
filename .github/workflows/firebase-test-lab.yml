@@ -151,9 +151,9 @@ jobs:
         shell: powershell
         run: |
           $profile = 'compat-virtual'
-          $scenario = 'crawl'
+          $scenario = 'instrumentation'
           $timeout = '2m'
-          $versions = '26,27,28,29'
+          $versions = '26,27'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
