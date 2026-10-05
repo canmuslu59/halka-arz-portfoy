@@ -90,7 +90,9 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 6. Samsung permissions follow-up on 2026-10-02 — PASS — matrix `matrix-v9ltcvx643d4a`.
 7. Google Pixel 11 / API 37 resilience follow-up on 2026-10-05 — PASS — matrix `matrix-2j2f6goghrtn4`.
 8. Nothing Phone (4a) / API 36 instrumentation follow-up on 2026-10-05 — PASS — matrix `matrix-3juoajqoz6c04`.
-9. Next physical follow-up: Google Pixel 11 permissions. Stop after this run today and keep two physical slots for diagnosis/retry.
+9. Google Pixel 11 / API 37 permissions follow-up on 2026-10-05 — PASS — matrix `matrix-9gum4jqrv1rra`.
+10. Physical-device usage for 2026-10-05: 3 runs. Keep 2 physical slots unused for diagnosis/retry.
+11. Next useful physical gap: Nothing Phone (4a) resilience. Defer unless explicitly continuing on another quota window/day.
 
 ## Physical-device follow-up
 
@@ -98,6 +100,7 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 - [x] Samsung Galaxy S22 / API 36 — permissions PASS — matrix `matrix-v9ltcvx643d4a`
 - [x] Google Pixel 11 / API 37 — instrumentation PASS — matrix `matrix-3gf0ub8wqo0nv`
 - [x] Google Pixel 11 / API 37 — resilience PASS — matrix `matrix-2j2f6goghrtn4`
+- [x] Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-9gum4jqrv1rra`
 - [x] Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-3jo99dpsw0l2h`
 - [x] Nothing Phone (4a) / API 36 — instrumentation PASS — matrix `matrix-3juoajqoz6c04`
 
