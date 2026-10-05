@@ -89,7 +89,8 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 5. Physical-device usage for 2026-10-01: 3 runs. Keep 2 physical runs available for diagnosis/retry.
 6. Samsung permissions follow-up on 2026-10-02 — PASS — matrix `matrix-v9ltcvx643d4a`.
 7. Google Pixel 11 / API 37 resilience follow-up on 2026-10-05 — PASS — matrix `matrix-2j2f6goghrtn4`.
-8. Next physical follow-up: Nothing Phone (4a) instrumentation.
+8. Nothing Phone (4a) / API 36 instrumentation follow-up on 2026-10-05 — PASS — matrix `matrix-3juoajqoz6c04`.
+9. Next physical follow-up: Google Pixel 11 permissions. Stop after this run today and keep two physical slots for diagnosis/retry.
 
 ## Physical-device follow-up
 
@@ -98,6 +99,7 @@ If an API level is not present in the current Firebase Test Lab catalog, record 
 - [x] Google Pixel 11 / API 37 — instrumentation PASS — matrix `matrix-3gf0ub8wqo0nv`
 - [x] Google Pixel 11 / API 37 — resilience PASS — matrix `matrix-2j2f6goghrtn4`
 - [x] Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-3jo99dpsw0l2h`
+- [x] Nothing Phone (4a) / API 36 — instrumentation PASS — matrix `matrix-3juoajqoz6c04`
 
 After the six virtual batches pass, use remaining physical quota for manufacturer-specific checks:
 - Samsung first
