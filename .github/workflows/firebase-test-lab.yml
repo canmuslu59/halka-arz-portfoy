@@ -1,0 +1,359 @@
+name: Firebase Test Lab Matrix
+# REST network retry enabled
+
+on:
+  push:
+    branches:
+      - ci/firebase-test-lab-code43-20261005
+    paths:
+      - testlab/firebase-testlab-trigger.txt
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Test matrix profile
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - single
+          - smoke
+          - compat-virtual
+          - physical-single
+          - physical-samsung-single
+          - physical-google-single
+          - physical-other-single
+          - physical
+          - full
+      scenario:
+        description: Test scenario
+        required: true
+        default: crawl
+        type: choice
+        options:
+          - crawl
+          - resilience
+          - permissions
+          - instrumentation
+      timeout:
+        description: Test timeout per device
+        required: true
+        default: 2m
+        type: choice
+        options:
+          - 1m
+          - 2m
+          - 3m
+          - 5m
+      android_versions:
+        description: API levels for compat-virtual, comma separated (example 26,27,28,29)
+        required: false
+        default: ''
+        type: string
+      locale:
+        description: Android locale
+        required: true
+        default: tr
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-test-lab-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+env:
+  FIREBASE_PROJECT_ID: halka-arz-portfoyum
+  NODE_OPTIONS: --tls-max-v1.2 --dns-result-order=ipv4first
+
+jobs:
+  testlab:
+    name: Build and run Firebase Test Lab
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        shell: powershell
+        run: npm ci
+
+      - name: Prepare isolated test build
+        shell: powershell
+        run: |
+          Remove-Item 'android/app/google-services.json' -Force -ErrorAction SilentlyContinue
+          npm run android:sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          node scripts/apply-test-share-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-wallet-metrics-nav.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-test-portfolio-app-navigation.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-performance-history-data-fix.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/apply-fixed-bottom-dock-test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if (Test-Path 'C:\actions-runner\android-sdk') { $sdk = 'C:\actions-runner\android-sdk' }
+            elseif ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $platform36 = Join-Path $sdk 'platforms\android-36'
+          $buildTools36 = Join-Path $sdk 'build-tools\36.0.0'
+          if ((Test-Path $platform36) -and (Test-Path $buildTools36)) {
+            Write-Host 'ANDROID_SDK_36_ALREADY_INSTALLED=PASS'
+          } else {
+            $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+            & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Build app and instrumentation APKs
+        shell: powershell
+        env:
+          PUSH_BACKEND_URL: ''
+        run: |
+          gradle -p android --no-daemon assembleDebug assembleDebugAndroidTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          if (-not (Test-Path $apk)) { throw 'Debug APK not produced' }
+          if ((Get-Item $apk).Length -lt 100000) { throw 'Debug APK unexpectedly small' }
+
+          $testApk = Get-ChildItem 'android/app/build/outputs/apk/androidTest' -Recurse -Filter '*androidTest.apk' |
+            Select-Object -First 1
+          if ($null -eq $testApk) { throw 'Instrumentation test APK not produced' }
+
+          $aapt = Join-Path $env:ANDROID_SDK_ROOT 'build-tools\36.0.0\aapt.exe'
+          $badging = (& $aapt dump badging $apk | Out-String)
+          if (-not $badging.Contains("package: name='com.innative.halkaarz.test'")) {
+            throw 'Test Lab APK must use isolated com.innative.halkaarz.test package'
+          }
+
+          Write-Host 'ISOLATED_TEST_BUILD=PASS'
+
+      - name: Resolve test inputs
+        id: inputs
+        shell: powershell
+        run: |
+          $profile = 'compat-virtual'
+          $scenario = 'crawl'
+          $timeout = '2m'
+          $versions = '26,27,28,29'
+          $locale = 'tr'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.scenario }}')) { $scenario = '${{ inputs.scenario }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.timeout }}')) { $timeout = '${{ inputs.timeout }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.android_versions }}')) { $versions = '${{ inputs.android_versions }}' }
+            if (-not [string]::IsNullOrWhiteSpace('${{ inputs.locale }}')) { $locale = '${{ inputs.locale }}' }
+          }
+          "profile=$profile" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "scenario=$scenario" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "timeout=$timeout" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "versions=$versions" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "locale=$locale" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "profile=$profile scenario=$scenario timeout=$timeout versions=$versions locale=$locale"
+
+      - name: Validate test assets
+        shell: powershell
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('testlab/robo-resilience.json','utf8')); JSON.parse(require('fs').readFileSync('testlab/robo-permissions.json','utf8')); console.log('ROBO_SCRIPTS_JSON=PASS')"
+          if (-not (Test-Path 'scripts/run-firebase-testlab-rest.mjs')) { throw 'REST runner missing' }
+
+      - id: manual_auth
+        name: Authenticate to Google Cloud with PowerShell OIDC
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          function Invoke-WithRetry {
+            param(
+              [Parameter(Mandatory=$true)][scriptblock]$Operation,
+              [Parameter(Mandatory=$true)][string]$Name,
+              [int]$Attempts = 8
+            )
+            for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+              try {
+                return & $Operation
+              } catch {
+                Write-Host "AUTH_RETRY name=$Name attempt=$attempt/$Attempts error=$($_.Exception.Message)"
+                if ($attempt -eq $Attempts) { throw }
+                Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 10))
+              }
+            }
+          }
+
+          $provider = 'projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github'
+          $oidcAudience = "https://iam.googleapis.com/$provider"
+          $stsAudience = "//iam.googleapis.com/$provider"
+          $serviceAccount = 'github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com'
+
+          if ([string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_URL) -or
+              [string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)) {
+            throw 'GitHub OIDC request environment is unavailable'
+          }
+
+          $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
+          $oidcUrl = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$([uri]::EscapeDataString($oidcAudience))"
+          $oidcHeaders = @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
+
+          $oidc = Invoke-WithRetry -Name 'github-oidc' -Operation {
+            Invoke-RestMethod -Uri $oidcUrl -Headers $oidcHeaders -Method Get -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($oidc.value)) { throw 'GitHub OIDC token response is empty' }
+
+          $stsBody = @{
+            audience = $stsAudience
+            grantType = 'urn:ietf:params:oauth:grant-type:token-exchange'
+            requestedTokenType = 'urn:ietf:params:oauth:token-type:access_token'
+            scope = 'https://www.googleapis.com/auth/cloud-platform'
+            subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+            subjectToken = $oidc.value
+          } | ConvertTo-Json -Compress
+
+          $sts = Invoke-WithRetry -Name 'google-sts' -Operation {
+            Invoke-RestMethod -Uri 'https://sts.googleapis.com/v1/token' -Method Post -ContentType 'application/json' -Body $stsBody -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($sts.access_token)) { throw 'Google STS access token response is empty' }
+
+          $iamHeaders = @{ Authorization = "Bearer $($sts.access_token)" }
+          $iamBody = @{
+            scope = @('https://www.googleapis.com/auth/cloud-platform')
+            lifetime = '3600s'
+          } | ConvertTo-Json -Compress
+          $iamUrl = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$($serviceAccount):generateAccessToken"
+
+          $iam = Invoke-WithRetry -Name 'iam-generate-access-token' -Operation {
+            Invoke-RestMethod -Uri $iamUrl -Headers $iamHeaders -Method Post -ContentType 'application/json' -Body $iamBody -TimeoutSec 30
+          }
+          if ([string]::IsNullOrWhiteSpace($iam.accessToken)) { throw 'Service account access token response is empty' }
+
+          "access_token=$($iam.accessToken)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host 'GOOGLE_CLOUD_POWERSHELL_OIDC=PASS'
+
+      - name: Validate Google Cloud auth
+        shell: powershell
+        env:
+          TESTLAB_ACCESS_TOKEN: ${{ steps.manual_auth.outputs.access_token }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TESTLAB_ACCESS_TOKEN)) { throw 'Google Cloud access token is missing' }
+          Write-Host 'GOOGLE_CLOUD_AUTH=PASS'
+
+      - name: Run Firebase Test Lab via REST
+        shell: powershell
+        env:
+          TESTLAB_ACCESS_TOKEN: ${{ steps.manual_auth.outputs.access_token }}
+          TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
+          TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
+          TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
+          TEST_ANDROID_VERSIONS: ${{ steps.inputs.outputs.versions }}
+          TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:RECOVER_MATRIX_ID)) {
+            $headers = @{ Authorization = "Bearer $env:TESTLAB_ACCESS_TOKEN" }
+            $url = "https://testing.googleapis.com/v1/projects/$env:FIREBASE_PROJECT_ID/testMatrices/$env:RECOVER_MATRIX_ID"
+            $deadline = (Get-Date).AddMinutes(20)
+
+            while ($true) {
+              $matrix = $null
+              for ($attempt = 1; $attempt -le 10; $attempt++) {
+                try {
+                  $matrix = Invoke-RestMethod -Uri $url -Headers $headers -Method Get -TimeoutSec 30
+                  break
+                } catch {
+                  Write-Host "MATRIX_RECOVERY_RETRY attempt=$attempt/10 error=$($_.Exception.Message)"
+                  if ($attempt -eq 10) { throw }
+                  Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 10))
+                }
+              }
+
+              if ($null -eq $matrix) { throw 'Matrix recovery returned no response' }
+
+              $executionSummary = @()
+              foreach ($execution in @($matrix.testExecutions)) {
+                $device = $execution.environment.androidDevice
+                $executionSummary += [PSCustomObject]@{
+                  id = $execution.id
+                  state = $execution.state
+                  model = $device.androidModelId
+                  version = $device.androidVersionId
+                  error = $execution.testDetails.errorMessage
+                }
+              }
+              Write-Host ("RECOVER_MATRIX_POLL state={0} outcome={1} executions={2}" -f $matrix.state, $matrix.outcomeSummary, ($executionSummary | ConvertTo-Json -Compress))
+
+              if (@('FINISHED','ERROR','INVALID','CANCELLED') -contains $matrix.state) { break }
+              if ((Get-Date) -gt $deadline) { throw "Timed out recovering matrix $env:RECOVER_MATRIX_ID" }
+              Start-Sleep -Seconds 15
+            }
+
+            New-Item -ItemType Directory -Path 'testlab' -Force | Out-Null
+            $matrix | ConvertTo-Json -Depth 50 | Out-File 'testlab/test-run.json' -Encoding utf8
+            @(
+              "matrixId=$($matrix.testMatrixId)"
+              "state=$($matrix.state)"
+              "outcome=$($matrix.outcomeSummary)"
+              "resultsUrl=$($matrix.resultStorage.resultsUrl)"
+              foreach ($execution in @($matrix.testExecutions)) {
+                $device = $execution.environment.androidDevice
+                "execution=$($execution.id) state=$($execution.state) model=$($device.androidModelId) version=$($device.androidVersionId) error=$($execution.testDetails.errorMessage)"
+              }
+            ) | Out-File 'testlab/test-run.txt' -Encoding utf8
+
+            Write-Host "RECOVERED_MATRIX_ID=$($matrix.testMatrixId)"
+            Write-Host "RECOVERED_MATRIX_STATE=$($matrix.state)"
+            Write-Host "RECOVERED_MATRIX_OUTCOME=$($matrix.outcomeSummary)"
+            Get-Content 'testlab/test-run.txt'
+
+            if ($matrix.state -ne 'FINISHED') { exit 15 }
+            if ($matrix.outcomeSummary -ne 'SUCCESS') { exit 10 }
+          } else {
+            node scripts/run-firebase-testlab-rest.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Upload Test Lab run metadata
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-test-lab-${{ steps.inputs.outputs.profile }}-${{ steps.inputs.outputs.scenario }}-${{ github.run_number }}
+          path: |
+            testlab/device-catalog.json
+            testlab/selected-devices.json
+            testlab/selected-devices.txt
+            testlab/matrix-request.json
+            testlab/matrix-created.json
+            testlab/test-run.json
+            testlab/test-run.txt
+            testlab/toolresults-summary.json
+            testlab/toolresults-*.json
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/androidTest/**/*.apk
+          if-no-files-found: warn
+          retention-days: 14
