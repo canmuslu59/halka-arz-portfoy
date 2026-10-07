@@ -150,10 +150,10 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'compat-virtual'
+          $profile = 'physical-samsung-single'
           $scenario = 'instrumentation'
           $timeout = '2m'
-          $versions = '34,35,36,37'
+          $versions = '36,37'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
@@ -230,6 +230,7 @@ jobs:
             Invoke-RestMethod -Uri 'https://sts.googleapis.com/v1/token' -Method Post -ContentType 'application/json' -Body $stsBody -TimeoutSec 30
           }
           if ([string]::IsNullOrWhiteSpace($sts.access_token)) { throw 'Google STS access token response is empty' }
+          Write-Output "::add-mask::$($sts.access_token)"
 
           $iamHeaders = @{ Authorization = "Bearer $($sts.access_token)" }
           $iamBody = @{
@@ -242,6 +243,7 @@ jobs:
             Invoke-RestMethod -Uri $iamUrl -Headers $iamHeaders -Method Post -ContentType 'application/json' -Body $iamBody -TimeoutSec 30
           }
           if ([string]::IsNullOrWhiteSpace($iam.accessToken)) { throw 'Service account access token response is empty' }
+          Write-Output "::add-mask::$($iam.accessToken)"
 
           "access_token=$($iam.accessToken)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host 'GOOGLE_CLOUD_POWERSHELL_OIDC=PASS'
