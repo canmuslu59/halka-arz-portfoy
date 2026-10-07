@@ -7,3 +7,4 @@ trigger code43 crawl api30-31
 trigger code43 crawl api32-33 2026-10-07
 trigger code43 crawl api34-37 2026-10-07
 trigger code43 instrumentation api30-33 2026-10-07
+trigger code43 instrumentation api34-37 2026-10-07
