@@ -48,7 +48,9 @@ After virtual coverage is healthy:
 - Resilience physical coverage complete across Samsung / Pixel / Nothing.
 - Samsung Galaxy S22 / API 36 — permissions PASS — matrix `matrix-1sd405e2vdhkc`
 - Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-1sg9vhulja26z`
-- Current action: Code43 physical Nothing permissions
+- Nothing Phone (4a) / API 36 — permissions BLOCKED before execution by Firebase physical quota (`TEST_QUOTA_EXCEEDED`), matrix `matrix-3l34zbm8b2i38`.
+- Physical PASS remains 8 / 9; quota failure is not an app failure.
+- Current action: resume remaining virtual + Nothing permissions when Firebase quota resets.
 
 
 ## Harness note
@@ -56,3 +58,12 @@ After virtual coverage is healthy:
 - Those legacy mutation steps were removed from the Code43 workflow.
 - This failure is not counted as an application compatibility failure.
 - Code43 is tested source-pure after `npm run android:sync`, with only isolated test runner/dependencies added.
+
+
+## 2026-10-07 quota checkpoint
+- Virtual PASS: 20 / 48 (41.7%).
+- Physical PASS: 8 / 9 (88.9%).
+- Remaining virtual checks: 28.
+- Remaining physical checks: 1 (Nothing Phone (4a) permissions).
+- Both remaining paths are currently blocked by Firebase Test Lab `TEST_QUOTA_EXCEEDED`.
+- Resume from this checkpoint when quota is available; do not count quota-invalid matrices as app failures.
