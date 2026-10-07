@@ -150,7 +150,7 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'physical-google-single'
+          $profile = 'physical-other-single'
           $scenario = 'resilience'
           $timeout = '2m'
           $versions = '36,37'
