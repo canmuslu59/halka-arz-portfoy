@@ -26,7 +26,7 @@ After virtual coverage is healthy:
 
 ## Code43 checkpoint
 - Virtual completed: 20 / 48 (41.7%)
-- Physical completed: 7 / 9
+- Physical completed: 8 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
 - Instrumentation APIs 28,29 — PASS — matrix `matrix-h9sy0hnhshpva`
@@ -47,7 +47,8 @@ After virtual coverage is healthy:
 - Nothing Phone (4a) / API 36 — resilience PASS — matrix `matrix-3ve0qjk8r99g1`
 - Resilience physical coverage complete across Samsung / Pixel / Nothing.
 - Samsung Galaxy S22 / API 36 — permissions PASS — matrix `matrix-1sd405e2vdhkc`
-- Current action: Code43 physical Pixel permissions
+- Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-1sg9vhulja26z`
+- Current action: Code43 physical Nothing permissions
 
 
 ## Harness note
