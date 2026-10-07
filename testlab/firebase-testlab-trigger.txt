@@ -11,3 +11,4 @@ trigger code43 instrumentation api34-37 2026-10-07
 trigger code43 physical samsung instrumentation 2026-10-07
 trigger code43 physical pixel instrumentation 2026-10-07
 trigger code43 physical nothing instrumentation 2026-10-07
+trigger code43 physical samsung resilience 2026-10-07
