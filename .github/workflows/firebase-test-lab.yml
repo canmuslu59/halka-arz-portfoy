@@ -150,7 +150,7 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'physical-samsung-single'
+          $profile = 'physical-google-single'
           $scenario = 'resilience'
           $timeout = '2m'
           $versions = '36,37'
