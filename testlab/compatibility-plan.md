@@ -36,7 +36,9 @@ After virtual coverage is healthy:
 - Crawl APIs 34,35,36,37 — PASS — matrix `matrix-2rm81xekzz3hl`
 - Crawl scenario complete across APIs 26–37.
 - Instrumentation APIs 30,31,32,33 — PASS — matrix `matrix-1s851gfgz4nyy`
-- Current action: instrumentation APIs 34,35,36,37
+- Instrumentation APIs 34,35,36,37 — BLOCKED before execution by Firebase daily virtual quota (`TEST_QUOTA_EXCEEDED`), matrix `matrix-mujfpnibcikga`.
+- Virtual PASS remains 20 / 48; quota failure is not an app failure.
+- Current action: Code43 physical Samsung instrumentation
 
 
 ## Harness note
