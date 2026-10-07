@@ -150,8 +150,8 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'physical-other-single'
-          $scenario = 'instrumentation'
+          $profile = 'physical-samsung-single'
+          $scenario = 'resilience'
           $timeout = '2m'
           $versions = '36,37'
           $locale = 'tr'
