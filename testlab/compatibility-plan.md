@@ -26,7 +26,7 @@ After virtual coverage is healthy:
 
 ## Code43 checkpoint
 - Virtual completed: 20 / 48 (41.7%)
-- Physical completed: 1 / 9
+- Physical completed: 2 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
 - Instrumentation APIs 28,29 — PASS — matrix `matrix-h9sy0hnhshpva`
@@ -39,7 +39,8 @@ After virtual coverage is healthy:
 - Instrumentation APIs 34,35,36,37 — BLOCKED before execution by Firebase daily virtual quota (`TEST_QUOTA_EXCEEDED`), matrix `matrix-mujfpnibcikga`.
 - Virtual PASS remains 20 / 48; quota failure is not an app failure.
 - Samsung Galaxy S22 / API 36 — instrumentation PASS — matrix `matrix-1tv8cr4w1v21k`
-- Current action: Code43 physical Pixel instrumentation
+- Google Pixel 11 / API 37 — instrumentation PASS — matrix `matrix-3ljuezftila5b`
+- Current action: Code43 physical Nothing instrumentation
 
 
 ## Harness note
