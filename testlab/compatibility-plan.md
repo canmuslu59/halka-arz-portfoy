@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 20 / 48 (41.7%)
+- Virtual completed: 24 / 48 (50.0%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -36,8 +36,8 @@ After virtual coverage is healthy:
 - Crawl APIs 34,35,36,37 — PASS — matrix `matrix-2rm81xekzz3hl`
 - Crawl scenario complete across APIs 26–37.
 - Instrumentation APIs 30,31,32,33 — PASS — matrix `matrix-1s851gfgz4nyy`
-- Instrumentation APIs 34,35,36,37 — BLOCKED before execution by Firebase daily virtual quota (`TEST_QUOTA_EXCEEDED`), matrix `matrix-mujfpnibcikga`.
-- Virtual PASS remains 20 / 48; quota failure is not an app failure.
+- Instrumentation APIs 34,35,36,37 — PASS — matrix `matrix-2d0k8kockkga3`.
+- Instrumentation scenario complete across APIs 26–37.
 - Samsung Galaxy S22 / API 36 — instrumentation PASS — matrix `matrix-1tv8cr4w1v21k`
 - Google Pixel 11 / API 37 — instrumentation PASS — matrix `matrix-3ljuezftila5b`
 - Nothing Phone (4a) / API 36 — instrumentation PASS — matrix `matrix-3vniwesnaiix7`
@@ -50,7 +50,7 @@ After virtual coverage is healthy:
 - Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-1sg9vhulja26z`
 - Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-1f008x5mdiern`.
 - Physical coverage complete: 9 / 9 PASS across Samsung / Pixel / Nothing.
-- Current action: resume remaining virtual checks.
+- Current action: resilience APIs 26,27,28,29,30,31.
 
 
 ## Harness note
