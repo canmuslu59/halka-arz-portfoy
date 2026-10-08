@@ -150,10 +150,10 @@ jobs:
         id: inputs
         shell: powershell
         run: |
-          $profile = 'physical-other-single'
-          $scenario = 'permissions'
+          $profile = 'compat-virtual'
+          $scenario = 'instrumentation'
           $timeout = '2m'
-          $versions = '36,37'
+          $versions = '34,35,36,37'
           $locale = 'tr'
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             if (-not [string]::IsNullOrWhiteSpace('${{ inputs.profile }}')) { $profile = '${{ inputs.profile }}' }
