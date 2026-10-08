@@ -26,7 +26,7 @@ After virtual coverage is healthy:
 
 ## Code43 checkpoint
 - Virtual completed: 20 / 48 (41.7%)
-- Physical completed: 8 / 9
+- Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
 - Instrumentation APIs 28,29 — PASS — matrix `matrix-h9sy0hnhshpva`
@@ -48,9 +48,9 @@ After virtual coverage is healthy:
 - Resilience physical coverage complete across Samsung / Pixel / Nothing.
 - Samsung Galaxy S22 / API 36 — permissions PASS — matrix `matrix-1sd405e2vdhkc`
 - Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-1sg9vhulja26z`
-- Nothing Phone (4a) / API 36 — permissions BLOCKED before execution by Firebase physical quota (`TEST_QUOTA_EXCEEDED`), matrix `matrix-3l34zbm8b2i38`.
-- Physical PASS remains 8 / 9; quota failure is not an app failure.
-- Current action: resume remaining virtual + Nothing permissions when Firebase quota resets.
+- Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-1f008x5mdiern`.
+- Physical coverage complete: 9 / 9 PASS across Samsung / Pixel / Nothing.
+- Current action: resume remaining virtual checks.
 
 
 ## Harness note
@@ -62,8 +62,8 @@ After virtual coverage is healthy:
 
 ## 2026-10-07 quota checkpoint
 - Virtual PASS: 20 / 48 (41.7%).
-- Physical PASS: 8 / 9 (88.9%).
+- Physical PASS: 9 / 9 (100%).
 - Remaining virtual checks: 28.
-- Remaining physical checks: 1 (Nothing Phone (4a) permissions).
-- Both remaining paths are currently blocked by Firebase Test Lab `TEST_QUOTA_EXCEEDED`.
+- Remaining physical checks: 0.
+- Physical quota reset on 2026-10-08 and final Nothing permissions passed. Virtual checks remain.
 - Resume from this checkpoint when quota is available; do not count quota-invalid matrices as app failures.
