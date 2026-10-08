@@ -68,3 +68,15 @@ After virtual coverage is healthy:
 - Remaining physical checks: 0.
 - Physical quota reset on 2026-10-08 and final Nothing permissions passed. Virtual checks remain.
 - Resume from this checkpoint when quota is available; do not count quota-invalid matrices as app failures.
+
+
+## 2026-10-08 quota checkpoint
+- Virtual PASS: 30 / 48 (62.5%).
+- Physical PASS: 9 / 9 (100%).
+- Completed today: instrumentation APIs 34–37 and resilience APIs 26–31.
+- Remaining virtual checks: 18.
+  - Resilience APIs 32–37: 6 checks.
+  - Permissions APIs 26–37: 12 checks.
+- Firebase accepted 10 virtual-device executions today; the next batch returned `TEST_QUOTA_EXCEEDED`.
+- Test workflow now runs on GitHub-hosted `windows-latest`, so the local self-hosted runner is no longer required.
+- Resume automatically when Firebase virtual quota resets.
