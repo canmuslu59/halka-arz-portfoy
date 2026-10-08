@@ -19,3 +19,4 @@ trigger code43 physical pixel permissions 2026-10-07
 trigger code43 physical nothing permissions 2026-10-07
 trigger code43 physical nothing permissions 2026-10-07
 retry code43 physical nothing permissions 2026-10-07
+trigger code43 hosted nothing permissions 2026-10-08
