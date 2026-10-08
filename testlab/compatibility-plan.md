@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 24 / 48 (50.0%)
+- Virtual completed: 30 / 48 (62.5%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -50,7 +50,8 @@ After virtual coverage is healthy:
 - Google Pixel 11 / API 37 — permissions PASS — matrix `matrix-1sg9vhulja26z`
 - Nothing Phone (4a) / API 36 — permissions PASS — matrix `matrix-1f008x5mdiern`.
 - Physical coverage complete: 9 / 9 PASS across Samsung / Pixel / Nothing.
-- Current action: resilience APIs 26,27,28,29,30,31.
+- Resilience APIs 26,27,28,29,30,31 — PASS — matrix `matrix-1f98n36losw12`
+- Current action: resilience APIs 32,33.
 
 
 ## Harness note
