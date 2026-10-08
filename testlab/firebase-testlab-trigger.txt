@@ -22,3 +22,4 @@ retry code43 physical nothing permissions 2026-10-07
 trigger code43 hosted nothing permissions 2026-10-08
 trigger code43 hosted instrumentation api34-37 2026-10-08
 trigger code43 hosted resilience api26-31 2026-10-08
+trigger code43 hosted resilience api32-33 2026-10-08
