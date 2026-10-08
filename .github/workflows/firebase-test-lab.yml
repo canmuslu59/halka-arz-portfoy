@@ -70,7 +70,7 @@ env:
 jobs:
   testlab:
     name: Build and run Firebase Test Lab
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 45
 
     steps:
