@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 34 / 48 (70.8%)
+- Virtual completed: 35 / 48 (72.9%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -52,8 +52,9 @@ After virtual coverage is healthy:
 - Physical coverage complete: 9 / 9 PASS across Samsung / Pixel / Nothing.
 - Resilience APIs 26,27,28,29,30,31 — PASS — matrix `matrix-1f98n36losw12`
 - Resilience APIs 33,34,35,37 — PASS — matrix `matrix-2wffsjj28euqb`.
-- Resilience APIs 32,36 — FAILED Robo-script completion in matrix `matrix-2wffsjj28euqb`; targeted retry required.
-- Current action: targeted resilience retry APIs 32,36.
+- Resilience API 32 — PASS on targeted retry — matrix `matrix-14fs6fb0vzdal`.
+- Resilience API 36 — FAILED Robo-script completion again — matrix `matrix-14fs6fb0vzdal`; run duration 132s suggests 2m timeout is too tight.
+- Current action: targeted resilience API 36 retry with 3m timeout.
 
 
 ## Harness note
