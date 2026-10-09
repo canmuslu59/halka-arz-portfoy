@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 36 / 48 (75.0%)
+- Virtual completed: 37 / 48 (77.1%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -55,7 +55,8 @@ After virtual coverage is healthy:
 - Resilience API 32 — PASS on targeted retry — matrix `matrix-14fs6fb0vzdal`.
 - Resilience API 36 — PASS with 3m timeout — matrix `matrix-3siarzf6v6wye`.
 - Resilience scenario complete across APIs 26–37.
-- Current action: permissions API 26.
+- Permissions API 26 — PASS — matrix `matrix-c3fk2rlpm200a`.
+- Current action: permissions APIs 27–37 (11 checks remaining).
 
 
 ## Harness note
@@ -84,3 +85,13 @@ After virtual coverage is healthy:
 - Firebase accepted 10 virtual-device executions today; the next batch returned `TEST_QUOTA_EXCEEDED`.
 - Test workflow now runs on GitHub-hosted `windows-latest`, so the local self-hosted runner is no longer required.
 - Resume automatically when Firebase virtual quota resets.
+
+
+## 2026-10-09 checkpoint
+- Virtual PASS: 37 / 48 (77.1%).
+- Physical PASS: 9 / 9 (100%).
+- Resilience APIs 26–37 complete.
+- Permissions API 26 PASS.
+- Remaining virtual checks: permissions APIs 27–37 (11).
+- 2026-10-09 virtual executions used: 10.
+- API 36 resilience required 3m timeout; with 3m it passed.
