@@ -193,12 +193,16 @@ function durationText(ms) {
 }
 
 function proAccessCard(access) {
-  const label = access.status === 'trial'
+  const label = access.status === 'lab_premium'
+    ? 'Lab Premium · Test modu'
+    : access.status === 'trial'
     ? '7 günlük ücretsiz deneme'
     : access.status === 'not_started'
       ? '7 günlük ücretsiz deneme'
       : 'Deneme sona erdi';
-  const detail = access.status === 'trial'
+  const detail = access.status === 'lab_premium'
+    ? 'Premium simülasyonu açık; gerçek ödeme alınmadı.'
+    : access.status === 'trial'
     ? `Kalan süre: ${durationText(access.remainingMs)}`
     : access.status === 'not_started'
       ? 'Deneme henüz başlatılmadı.'
