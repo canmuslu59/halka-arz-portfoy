@@ -10,6 +10,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 
+  <link rel="stylesheet" href="./lab.css" />
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -211,6 +212,10 @@
           </div>
         </article>
 
+        <article id="labSettingsCard" class="settings-card lab-settings-card" hidden>
+          <div><span class="eyebrow">PORTFÖY YÖNETİMİ LAB</span><h2>Yeni özellikleri deneyin</h2><p>Premium • Yedekleme • İşlem muhasebesi</p></div>
+          <button id="labOpen" class="primary-btn" type="button">Lab merkezini aç</button>
+        </article>
         <article class="settings-card about-card">
           <div><span class="eyebrow">HAKKINDA</span><h2>Hisse Portföyüm</h2></div>
           <div class="about-links">
@@ -317,6 +322,65 @@
     <div id="detailContent"></div>
   </section>
 
+  <div id="labOverlay" class="lab-overlay" hidden>
+    <div class="lab-dialog" role="dialog" aria-modal="true" aria-labelledby="labTitle">
+      <header class="lab-heading">
+        <div><span class="lab-kicker">2.5.9 · CODE 43 · LAB</span><h2 id="labTitle">Portföy Yönetimi</h2>
+          <p>Premium testleri, güvenli yedek ve işlem defteri</p></div>
+        <button id="labClose" class="lab-close" aria-label="Kapat" type="button">×</button>
+      </header>
+      <div id="labNotice" role="status" class="lab-note" hidden></div>
+      <section class="lab-panel">
+        <div class="lab-section-head"><h3>Premium deneme</h3><span class="lab-tag">Gerçek ödeme yok</span></div>
+        <p>Google Play üzerinden ücret tahsil edilmez. Erişim seviyelerini ve Pro ekranlarını deneyebilirsiniz.</p>
+        <div class="lab-modes">
+          <button data-lab-mode="free" type="button">Ücretsiz</button>
+          <button data-lab-mode="trial" type="button">7 gün deneme</button>
+          <button data-lab-mode="premium" type="button">Premium test</button>
+        </div>
+        <p id="labEntitlement" class="lab-explain"></p>
+      </section>
+      <section class="lab-panel">
+        <div class="lab-section-head"><h3>Yedekleme</h3><span class="lab-tag">Yerel JSON</span></div>
+        <p>Portföyünüz ve bu Lab işlem defteri bir dosyada saklanır. Geri yükleme dosya doğrulaması ve onay ister.</p>
+        <div class="lab-actions">
+          <button id="labBackupSave" class="lab-primary" type="button">Yedek oluştur</button>
+          <button id="labBackupRestore" type="button">Geri yükle</button>
+          <button id="labBackupShare" type="button">Paylaş</button>
+        </div>
+        <small>Yedek şifreli değildir. Hassas yatırım verilerinizi güvenilir bir konumda saklayın.</small>
+      </section>
+      <section class="lab-panel">
+        <div class="lab-section-head"><h3>İşlem muhasebesi</h3><span class="lab-tag">Ortalama maliyet</span></div>
+        <p>Alım, satım, temettü, bölünme ve komisyon kayıtları. Bu ayrı Lab defteri ana portföyünüzün hesaplamalarını değiştirmez.</p>
+        <div id="labSummary" class="lab-summary"></div>
+        <form id="labJournalForm" class="lab-form">
+          <label>Hisse kodu<input name="ticker" placeholder="Örn. TUPRS" autocomplete="off" maxlength="8" required></label>
+          <label>İşlem<select id="labType" name="type"><option value="BUY">Alım</option><option value="SELL">Satım</option><option value="DIVIDEND">Temettü</option><option value="SPLIT">Bölünme</option><option value="FEE">Diğer masraf</option></select></label>
+          <label>Tarih<input name="date" type="date" required></label>
+          <div id="labTradeFields" class="lab-form-pair">
+            <label>Lot<input name="lots" type="number" min="1" step="1" placeholder="Lot"></label>
+            <label>Birim fiyat (₺)<input name="price" type="number" min="0.01" step="0.01" placeholder="Fiyat"></label>
+            <label>Komisyon (₺)<input name="fee" type="number" min="0" step="0.01" value="0"></label>
+          </div>
+          <div id="labAmountFields" class="lab-form-pair" hidden>
+            <label>Tutar (₺)<input name="amount" type="number" min="0.01" step="0.01"></label>
+          </div>
+          <div id="labSplitFields" class="lab-form-pair" hidden>
+            <label>Yeni pay<input name="numerator" type="number" min="1" step="1" value="2"></label>
+            <label>Eski pay<input name="denominator" type="number" min="1" step="1" value="1"></label>
+          </div>
+          <label class="lab-full">Not (isteğe bağlı)<input name="note" maxlength="200" placeholder="Açıklama"></label>
+          <button class="lab-primary lab-full" type="submit">İşlemi kaydet</button>
+        </form>
+        <h4>Açık pozisyonlar ve gerçekleşen kâr</h4>
+        <div id="labPositions" class="lab-positions"></div>
+        <div class="lab-section-head"><h4>İşlem kayıtları</h4><button id="labDemo" type="button">Örnek ekle</button></div>
+        <div id="labEntries" class="lab-entries"></div>
+      </section>
+      <footer class="lab-footer">Test paketi · Satın alma yok · Yatırım tavsiyesi değildir</footer>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <template id="holdingTemplate">
@@ -346,6 +410,7 @@
   </template>
 
   <script type="module" src="./app.js"></script>
+  <script type="module" src="./lab.js"></script>
   <script type="module" src="./notification-recovery.js"></script>
 </body>
 </html>
