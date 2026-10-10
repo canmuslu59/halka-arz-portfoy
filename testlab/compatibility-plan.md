@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 47 / 48 (97.9%)
+- Virtual completed: 48 / 48 (100%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -57,7 +57,9 @@ After virtual coverage is healthy:
 - Resilience scenario complete across APIs 26–37.
 - Permissions API 26 — PASS — matrix `matrix-c3fk2rlpm200a`.
 - Permissions APIs 27–36 — PASS — matrix `matrix-21chm0dfwf1v3`.
-- Current action: permissions API 37 (final virtual check).
+- Permissions API 37 — PASS — matrix `matrix-1ma6zbfu8gkpq`.
+- Permissions scenario complete across APIs 26–37.
+- Code43 compatibility plan complete: virtual 48/48 PASS, physical 9/9 PASS.
 
 
 ## Harness note
@@ -104,3 +106,12 @@ After virtual coverage is healthy:
 - Permissions APIs 27–36 PASS — matrix `matrix-21chm0dfwf1v3`.
 - Remaining virtual check: permissions API 37 only.
 - 2026-10-10 virtual executions used so far: 10.
+
+
+## 2026-10-10 completion
+- Virtual PASS: 48 / 48 (100%).
+- Physical PASS: 9 / 9 (100%).
+- Final permissions API 37 PASS — matrix `matrix-1ma6zbfu8gkpq`.
+- Crawl, instrumentation, resilience, and permissions all complete across APIs 26–37.
+- Physical manufacturer coverage complete across Samsung Galaxy S22, Google Pixel 11, and Nothing Phone (4a).
+- Code43 / 2.5.9 compatibility campaign complete.
