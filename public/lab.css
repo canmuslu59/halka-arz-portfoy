@@ -1,0 +1,52 @@
+/* Portfolio Management Lab: isolated, mobile-first workspace */
+#labSettingsCard[hidden],#labOverlay[hidden],#labTradeFields[hidden],#labAmountFields[hidden],#labSplitFields[hidden],#labNotice[hidden]{display:none!important}
+.lab-settings-card{background:linear-gradient(130deg,rgba(61,87,175,.26),rgba(15,19,37,.8));border-color:rgba(109,141,255,.5)}
+.lab-settings-card p{color:var(--muted,#95a0b9);font-size:13px;margin:7px 0}
+.lab-modal-open{overflow:hidden!important}
+.lab-overlay{position:fixed;inset:0;z-index:99999;background:rgba(2,6,20,.79);backdrop-filter:blur(12px);display:flex;justify-content:center;align-items:flex-start;padding:14px 12px calc(env(safe-area-inset-bottom) + 14px);overflow-y:auto;overscroll-behavior:contain}
+.lab-dialog{width:min(640px,100%);border:1px solid rgba(143,159,209,.25);border-radius:25px;background:#11192c;color:#f2f5ff;box-shadow:0 28px 80px rgba(0,0,0,.52);padding:18px;display:grid;gap:14px}
+.lab-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:6px 2px 2px}
+.lab-heading h2{font-size:25px;letter-spacing:-.04em;margin:5px 0}
+.lab-heading p{color:#aab7d3;font-size:12px;margin:5px 0}
+.lab-kicker{color:#96aeff;font-size:10px;font-weight:900;letter-spacing:.15em}
+.lab-close{border:1px solid #3b496c!important;background:#1b2844;color:#e9efff;border-radius:14px;width:40px;height:40px;flex:0 0 auto;font-size:25px;cursor:pointer}
+.lab-panel{border:1px solid rgba(138,161,217,.17);border-radius:19px;background:linear-gradient(150deg,#1c2944,#151f35);padding:15px;display:grid;gap:13px}
+.lab-panel h3{font-size:17px;margin:0;letter-spacing:-.025em;color:#fff}
+.lab-panel h4{font-size:14px;margin:3px 0;color:#dce8ff}
+.lab-panel p,.lab-panel small{font-size:12px;line-height:1.55;color:#aab8d4;margin:0}
+.lab-section-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lab-tag{white-space:nowrap;border:1px solid #425783;color:#bbccff;border-radius:99px;padding:5px 9px;font-weight:700;font-size:10px}
+.lab-modes,.lab-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.lab-modes button,.lab-actions button,.lab-entry button,.lab-section-head button{border:1px solid #465677;background:#263652;color:#dbe5fa;border-radius:12px;padding:10px 8px;font-size:11px;font-weight:800;cursor:pointer;min-height:42px}
+.lab-modes .lab-selected{background:#486dec;border-color:#8caaed;color:white;box-shadow:0 0 0 1px rgba(198,215,255,.18) inset}
+.lab-actions .lab-primary,.lab-form .lab-primary{background:linear-gradient(120deg,#5778f6,#3c58d8);color:white;border:0}
+.lab-note{border:1px solid rgba(113,162,244,.4);background:#223559;color:#e7f0ff;border-radius:13px;padding:11px 13px;font-size:12px}
+.lab-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.lab-summary>div{display:grid;gap:6px;background:rgba(13,25,52,.9);border:1px solid #38496c;padding:12px;border-radius:12px}
+.lab-summary span{font-size:10px;color:#9eafd0}
+.lab-summary strong{font-size:17px;color:#f4f8ff;letter-spacing:-.02em}
+.lab-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lab-form label{font-size:11px;color:#b8c9e8;font-weight:700;min-width:0;display:grid;gap:6px}
+.lab-form label input,.lab-form label select{width:100%;min-width:0;border:1px solid #4a5d82;border-radius:10px;background:#121d34;color:white;padding:11px 10px;min-height:44px;font-size:14px}
+.lab-form label input:focus,.lab-form label select:focus{outline:2px solid #668fff;outline-offset:1px}
+.lab-form-pair{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.lab-form .lab-full{grid-column:1/-1}
+.lab-form button{padding:14px;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer}
+.lab-position,.lab-entry{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 10px;border:1px solid rgba(124,148,198,.19);background:#13223b;border-radius:12px}
+.lab-positions,.lab-entries{display:grid;gap:7px}
+.lab-position strong,.lab-entry b{font-size:12px;color:#f1f5ff}
+.lab-position span{font-size:11px;color:#aab8d1}
+.lab-position>b{font-size:12px;color:#98e6bc;text-align:right}
+.lab-entry>div{display:grid;gap:6px}
+.lab-entry small{color:#9eb2d1;font-size:11px}
+.lab-entry button{min-width:48px;flex-shrink:0}
+.lab-footer{font-size:10px;text-align:center;color:#8396b9;padding:5px}
+@media(max-width:420px){
+  .lab-dialog{padding:12px;border-radius:20px}
+  .lab-panel{padding:12px}
+  .lab-modes button{font-size:10px;padding:8px 5px}
+  .lab-form{grid-template-columns:1fr 1fr}
+  .lab-heading h2{font-size:22px}
+  .lab-summary strong{font-size:15px}
+  .lab-position{flex-wrap:wrap}
+}
