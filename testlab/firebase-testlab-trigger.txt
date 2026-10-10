@@ -28,3 +28,4 @@ trigger code43 hosted resilience api32-37 2026-10-09
 retry code43 resilience api32-36 targeted 2026-10-09
 retry code43 resilience api36 timeout3m 2026-10-09
 trigger code43 permissions api26 2026-10-09
+trigger code43 permissions api27-36 2026-10-10
