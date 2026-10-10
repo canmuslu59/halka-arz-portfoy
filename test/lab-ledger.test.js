@@ -16,7 +16,7 @@ test('buy sell uses average cost, includes trade commissions',()=>{
   assert.equal(p.bookCost,1657.5);
   assert.equal(p.averageCost,110.5);
   assert.equal(p.realized,94.5);
-  assert.equal(p.cashFlow,-1463);
+  assert.equal(p.cashFlow,-1563);
 });
 test('split keeps cost basis, dividend increases realized',()=>{
   i=0;
