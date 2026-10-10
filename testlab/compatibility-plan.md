@@ -25,7 +25,7 @@ After virtual coverage is healthy:
 - Do not exceed 5 physical runs in a day; preserve retry capacity.
 
 ## Code43 checkpoint
-- Virtual completed: 37 / 48 (77.1%)
+- Virtual completed: 47 / 48 (97.9%)
 - Physical completed: 9 / 9
 - Crawl APIs 26,27,28,29 — PASS — matrix `matrix-3hb8nncaaf718`
 - Instrumentation APIs 26,27 — PASS — matrix `matrix-1h977m8iv06pw`
@@ -56,7 +56,8 @@ After virtual coverage is healthy:
 - Resilience API 36 — PASS with 3m timeout — matrix `matrix-3siarzf6v6wye`.
 - Resilience scenario complete across APIs 26–37.
 - Permissions API 26 — PASS — matrix `matrix-c3fk2rlpm200a`.
-- Current action: permissions APIs 27–37 (11 checks remaining).
+- Permissions APIs 27–36 — PASS — matrix `matrix-21chm0dfwf1v3`.
+- Current action: permissions API 37 (final virtual check).
 
 
 ## Harness note
@@ -95,3 +96,11 @@ After virtual coverage is healthy:
 - Remaining virtual checks: permissions APIs 27–37 (11).
 - 2026-10-09 virtual executions used: 10.
 - API 36 resilience required 3m timeout; with 3m it passed.
+
+
+## 2026-10-10 checkpoint
+- Virtual PASS: 47 / 48 (97.9%).
+- Physical PASS: 9 / 9 (100%).
+- Permissions APIs 27–36 PASS — matrix `matrix-21chm0dfwf1v3`.
+- Remaining virtual check: permissions API 37 only.
+- 2026-10-10 virtual executions used so far: 10.
