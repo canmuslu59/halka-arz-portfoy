@@ -885,6 +885,8 @@ public class MainActivity extends ComponentActivity {
                 info.put("packageName", activity.getPackageName());
                 info.put("versionName", BuildConfig.VERSION_NAME);
                 info.put("versionCode", BuildConfig.VERSION_CODE);
+                info.put("webViewMajor", LegacyWebView.chromeMajor(activity));
+                info.put("legacyWebView", LegacyWebView.useLegacyAssets(activity));
                 return info.toString();
             } catch (Exception ignored) {
                 return "{}";
@@ -1018,7 +1020,11 @@ public class MainActivity extends ComponentActivity {
 
     private static class LocalAssetClient extends WebViewClient {
         private final Context context;
-        LocalAssetClient(Context context) { this.context = context.getApplicationContext(); }
+        private final boolean legacyAssets;
+        LocalAssetClient(Context context) {
+            this.context = context.getApplicationContext();
+            this.legacyAssets = LegacyWebView.useLegacyAssets(this.context);
+        }
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
@@ -1028,6 +1034,11 @@ public class MainActivity extends ComponentActivity {
         private WebResourceResponse openAsset(String requestPath) {
             String path = requestPath == null || requestPath.equals("/") ? "index.html" : requestPath.replaceFirst("^/", "");
             if (path.contains("..")) return null;
+            if (legacyAssets && (path.endsWith(".js") || path.endsWith(".css"))) {
+                try {
+                    return new WebResourceResponse(mimeType(path), "UTF-8", context.getAssets().open(LegacyWebView.ASSET_DIR + path));
+                } catch (Exception ignored) {}
+            }
             try {
                 InputStream input = context.getAssets().open("www/" + path);
                 return new WebResourceResponse(mimeType(path), "UTF-8", input);
