@@ -1,0 +1,8 @@
+{
+  "profile": "compat-virtual",
+  "scenario": "instrumentation",
+  "timeout": "10m",
+  "versions": "28,33,36",
+  "locale": "tr",
+  "note": "Code44 QA run 1 — virtual API 28/33/36"
+}

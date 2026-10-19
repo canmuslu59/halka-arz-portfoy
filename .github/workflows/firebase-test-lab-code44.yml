@@ -1,0 +1,165 @@
+name: Firebase Test Lab Code44 QA
+
+# Code44 / v2.6.0 açılış ekranı ve temettü QA'sı. android:sync ÇALIŞTIRILMAZ:
+# test edilen web paketi commit edilen android/app/src/main/assets/www'dir.
+# Cihaz/senaryo seçimi testlab/code44-run.json dosyasından okunur.
+
+on:
+  push:
+    branches:
+      - ci/firebase-test-lab-code44-20261019
+    paths:
+      - testlab/code44-run.json
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firebase-test-lab-code44
+  cancel-in-progress: false
+
+env:
+  FIREBASE_PROJECT_ID: halka-arz-portfoyum
+  NODE_OPTIONS: --tls-max-v1.2 --dns-result-order=ipv4first
+
+jobs:
+  testlab:
+    name: Build and run Code44 QA on Firebase Test Lab
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare isolated test build (no asset sync)
+        shell: powershell
+        run: |
+          Remove-Item 'android/app/google-services.json' -Force -ErrorAction SilentlyContinue
+          $sdk = $env:ANDROID_SDK_ROOT
+          if (-not $sdk -or -not (Test-Path $sdk)) {
+            if ($env:ANDROID_HOME -and (Test-Path $env:ANDROID_HOME)) { $sdk = $env:ANDROID_HOME }
+            else { throw 'Android SDK root not found' }
+          }
+          "ANDROID_SDK_ROOT=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ANDROID_HOME=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'android/app/src/main/assets/www/core/dividends.js')) { throw 'Code44 web payload missing' }
+
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        with:
+          gradle-version: '8.11.1'
+          cache-provider: basic
+
+      - name: Build app and instrumentation APKs
+        shell: powershell
+        env:
+          PUSH_BACKEND_URL: ''
+        run: |
+          gradle -p android --no-daemon assembleDebug assembleDebugAndroidTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $apk = 'android/app/build/outputs/apk/debug/app-debug.apk'
+          if (-not (Test-Path $apk)) { throw 'Debug APK not produced' }
+          $aapt = Join-Path $env:ANDROID_SDK_ROOT 'build-tools\36.0.0\aapt.exe'
+          $badging = (& $aapt dump badging $apk | Out-String)
+          if (-not $badging.Contains("package: name='com.innative.halkaarz.test'")) { throw 'Test Lab APK must use isolated com.innative.halkaarz.test package' }
+          Write-Host 'ISOLATED_TEST_BUILD=PASS'
+
+      - name: Resolve test inputs
+        id: inputs
+        shell: powershell
+        run: |
+          $run = Get-Content -Raw 'testlab/code44-run.json' | ConvertFrom-Json
+          "profile=$($run.profile)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "scenario=$($run.scenario)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "timeout=$($run.timeout)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "versions=$($run.versions)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "locale=$($run.locale)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "profile=$($run.profile) scenario=$($run.scenario) timeout=$($run.timeout) versions=$($run.versions) locale=$($run.locale) note=$($run.note)"
+
+      - id: manual_auth
+        name: Authenticate to Google Cloud with PowerShell OIDC
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          function Invoke-WithRetry {
+            param([Parameter(Mandatory=$true)][scriptblock]$Operation, [Parameter(Mandatory=$true)][string]$Name, [int]$Attempts = 8)
+            for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+              try { return & $Operation } catch {
+                Write-Host "AUTH_RETRY name=$Name attempt=$attempt/$Attempts error=$($_.Exception.Message)"
+                if ($attempt -eq $Attempts) { throw }
+                Start-Sleep -Seconds ([Math]::Min(2 * $attempt, 10))
+              }
+            }
+          }
+          $provider = 'projects/968125285231/locations/global/workloadIdentityPools/github-actions/providers/github'
+          $oidcAudience = "https://iam.googleapis.com/$provider"
+          $stsAudience = "//iam.googleapis.com/$provider"
+          $serviceAccount = 'github-testlab@halka-arz-portfoyum.iam.gserviceaccount.com'
+          if ([string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_URL) -or [string]::IsNullOrWhiteSpace($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)) {
+            throw 'GitHub OIDC request environment is unavailable'
+          }
+          $separator = if ($env:ACTIONS_ID_TOKEN_REQUEST_URL.Contains('?')) { '&' } else { '?' }
+          $oidcUrl = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)$separator" + "audience=$([uri]::EscapeDataString($oidcAudience))"
+          $oidcHeaders = @{ Authorization = "Bearer $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN" }
+          $oidc = Invoke-WithRetry -Name 'github-oidc' -Operation { Invoke-RestMethod -Uri $oidcUrl -Headers $oidcHeaders -Method Get -TimeoutSec 30 }
+          if ([string]::IsNullOrWhiteSpace($oidc.value)) { throw 'GitHub OIDC token response is empty' }
+          $stsBody = @{
+            audience = $stsAudience
+            grantType = 'urn:ietf:params:oauth:grant-type:token-exchange'
+            requestedTokenType = 'urn:ietf:params:oauth:token-type:access_token'
+            scope = 'https://www.googleapis.com/auth/cloud-platform'
+            subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+            subjectToken = $oidc.value
+          } | ConvertTo-Json -Compress
+          $sts = Invoke-WithRetry -Name 'google-sts' -Operation { Invoke-RestMethod -Uri 'https://sts.googleapis.com/v1/token' -Method Post -ContentType 'application/json' -Body $stsBody -TimeoutSec 30 }
+          if ([string]::IsNullOrWhiteSpace($sts.access_token)) { throw 'Google STS access token response is empty' }
+          Write-Output "::add-mask::$($sts.access_token)"
+          $iamHeaders = @{ Authorization = "Bearer $($sts.access_token)" }
+          $iamBody = @{ scope = @('https://www.googleapis.com/auth/cloud-platform'); lifetime = '3600s' } | ConvertTo-Json -Compress
+          $iamUrl = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/$($serviceAccount):generateAccessToken"
+          $iam = Invoke-WithRetry -Name 'iam-generate-access-token' -Operation { Invoke-RestMethod -Uri $iamUrl -Headers $iamHeaders -Method Post -ContentType 'application/json' -Body $iamBody -TimeoutSec 30 }
+          if ([string]::IsNullOrWhiteSpace($iam.accessToken)) { throw 'Service account access token response is empty' }
+          Write-Output "::add-mask::$($iam.accessToken)"
+          "access_token=$($iam.accessToken)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host 'GOOGLE_CLOUD_POWERSHELL_OIDC=PASS'
+
+      - name: Run Firebase Test Lab via REST
+        shell: powershell
+        env:
+          TESTLAB_ACCESS_TOKEN: ${{ steps.manual_auth.outputs.access_token }}
+          TEST_PROFILE: ${{ steps.inputs.outputs.profile }}
+          TEST_SCENARIO: ${{ steps.inputs.outputs.scenario }}
+          TEST_TIMEOUT: ${{ steps.inputs.outputs.timeout }}
+          TEST_ANDROID_VERSIONS: ${{ steps.inputs.outputs.versions }}
+          TEST_LOCALE: ${{ steps.inputs.outputs.locale }}
+        run: |
+          node scripts/run-firebase-testlab-rest.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Test Lab results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: code44-qa-${{ steps.inputs.outputs.profile }}-${{ github.run_number }}
+          path: |
+            testlab/selected-devices.txt
+            testlab/matrix-request.json
+            testlab/test-run.txt
+            testlab/toolresults-summary.json
+            testlab/toolresults-*.json
+            testlab/artifacts/**
+          if-no-files-found: warn
+          retention-days: 14
