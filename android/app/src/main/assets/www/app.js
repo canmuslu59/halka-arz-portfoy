@@ -1832,9 +1832,6 @@ function renderDailyHistory() {
 const fmtPerShare = new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', minimumFractionDigits:2, maximumFractionDigits:4 });
 function perShareMoney(v) { return Number.isFinite(Number(v)) ? fmtPerShare.format(Number(v)) : '—'; }
 function yieldText(v) { return v != null && Number.isFinite(Number(v)) ? `%${fmtNum.format(Number(v))}` : '—'; }
-// Bedelsizden önceki ödemelerde tutar bugünkü lot adedine göre düzeltilmiştir; ilan edilen tutar ayrıca gösterilir.
-function splitAdjusted(payment) { return Math.abs(Number(payment?.splitFactor || 1) - 1) > 1e-9; }
-function splitNote(payment) { return splitAdjusted(payment) ? ` · İlan ${perShareMoney(payment.perShare)}/hisse` : ''; }
 
 function dividendSummary(data = state.portfolio) {
   return summarizeDividends(data?.holdings || [], { today:todayIstanbul() });
@@ -1900,7 +1897,7 @@ function renderDividendsView(summary = dividendSummary()) {
   holdingsEl.innerHTML = summary.holdings.length
     ? summary.holdings.map(item => `
       <button class="dividend-holding-row" type="button" data-dividend-holding="${esc(item.id)}">
-        <span class="dividend-holding-id"><strong>${esc(item.ticker)}</strong><small>${item.count ? `${item.count} ödeme · son ${trDate(item.lastPayment.date)}` : 'Son 12 ayda dağıttı · ödeme almadınız'}</small></span>
+        <span class="dividend-holding-id"><strong>${esc(item.ticker)}</strong><small>${item.count ? `${item.count} ödeme · son ${trDate(item.lastPayment.date)}` : 'Henüz ödeme yok'}</small></span>
         <span class="dividend-holding-yield"><small>Verim</small><b>${yieldText(item.ttmYieldPct)}</b></span>
         <span class="dividend-holding-total"><strong>${money(item.totalNet)}</strong><small>${item.expectedAnnualNet > 0 ? `Yıllık ~${money(item.expectedAnnualNet)}` : 'net alınan'}</small></span>
       </button>`).join('')
@@ -1914,7 +1911,7 @@ function renderDividendsView(summary = dividendSummary()) {
     ? summary.payments.map(payment => `
       <div class="dividend-payment-row">
         <div class="dividend-payment-date"><strong>${trDate(payment.date)}</strong><small>${esc(payment.ticker)}${payment.source === 'manual' ? ' · Elle' : ''}</small></div>
-        <div class="dividend-payment-calc"><span>${fmtNum.format(payment.lots)} lot × ${perShareMoney(payment.adjustedPerShare)}</span><small>Brüt ${money(payment.gross)} · Stopaj %${fmtNum.format(payment.taxRate * 100)}${splitNote(payment)}</small></div>
+        <div class="dividend-payment-calc"><span>${fmtNum.format(payment.lots)} lot × ${perShareMoney(payment.adjustedPerShare)}</span><small>Brüt ${money(payment.gross)} · Stopaj %${fmtNum.format(payment.taxRate * 100)}</small></div>
         <strong class="dividend-payment-net positive">${money(payment.net)}</strong>
       </div>`).join('')
     : `<div class="analytics-empty">${emptyText}</div>`;
@@ -1925,12 +1922,11 @@ function dividendDetailHtml(dividend) {
   const summaryParts = [
     dividend.count ? `${dividend.count} ödeme · Brüt ${money(dividend.totalGross)} · Net ${money(dividend.totalNet)}` : 'Bu hisseden henüz temettü kaydı yok.',
     dividend.ttmYieldPct != null ? `Son 12 ay verimi ${yieldText(dividend.ttmYieldPct)}` : '',
-    dividend.payments.some(splitAdjusted) ? 'Bedelsiz öncesi ödemeler bugünkü lot adedine göre düzeltilmiştir' : '',
   ].filter(Boolean);
   const rows = dividend.payments.map(payment =>
     '<div class="dividend-detail-row">' +
       '<span>' + trDate(payment.date) + (payment.source === 'manual' ? ' · Elle' : '') + '</span>' +
-      '<strong' + (splitAdjusted(payment) ? ' title="İlan edilen: ' + perShareMoney(payment.perShare) + '/hisse"' : '') + '>' + fmtNum.format(payment.lots) + ' lot × ' + perShareMoney(payment.adjustedPerShare) + '</strong>' +
+      '<strong>' + fmtNum.format(payment.lots) + ' lot × ' + perShareMoney(payment.adjustedPerShare) + '</strong>' +
       '<b>' + money(payment.net) + '</b>' +
       '<button class="dividend-remove" type="button" data-dividend-remove="' + esc(payment.id) + '" aria-label="' + (payment.source === 'manual' ? 'Elle eklenen kaydı sil' : 'Otomatik kaydı gizle') + '" title="' + (payment.source === 'manual' ? 'Sil' : 'Gizle') + '">×</button>' +
     '</div>'
@@ -1942,10 +1938,9 @@ function dividendDetailHtml(dividend) {
       ${rows ? `<div class="dividend-detail-list">${rows}</div>` : ''}
       <form id="dividendForm" class="mini-form">
         <label class="dividend-field"><span>Hak kullanım tarihi</span><input name="date" type="date" max="${today}" required></label>
-        <label class="dividend-field"><span>Hisse başı brüt (₺, ilan edilen)</span><input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Örn. 6,75" required></label>
+        <label class="dividend-field"><span>Hisse başı brüt (₺)</span><input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Örn. 6,75" required></label>
         <button class="secondary-btn" type="submit">Temettü ekle</button>
       </form>
-      <small class="form-note dividend-form-note">Tarih olarak hak kullanım gününü, tutar olarak o gün ilan edilen hisse başı brüt temettüyü girin. Aynı güne eklediğiniz kayıt otomatik kaydın yerine geçer.</small>
       ${dividend.hiddenCount ? `<button id="dividendRestore" class="dividend-restore" type="button">Gizlenen ${dividend.hiddenCount} otomatik kaydı geri getir</button>` : ''}
     </div>`;
 }
