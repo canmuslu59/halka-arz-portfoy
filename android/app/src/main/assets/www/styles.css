@@ -847,7 +847,6 @@ html[data-theme="light"] .delete-confirm-copy h3{color:#22324e}html[data-theme="
 .dividend-payment-row span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dividend-payment-row small{font-size:9px;color:#6f7d93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dividend-payment-net{text-align:right}
-.dividend-disclaimer{font-size:10px;line-height:1.55;color:#657187;padding:0 4px}
 .dividend-detail-summary{font-size:11px;color:var(--muted);line-height:1.5;margin:-4px 0 10px}
 .dividend-detail-list{display:grid;gap:7px;margin-bottom:10px}
 .dividend-detail-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:9px;padding:9px 6px 9px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.03);font-size:11px;font-variant-numeric:tabular-nums}
@@ -857,7 +856,6 @@ html[data-theme="light"] .delete-confirm-copy h3{color:#22324e}html[data-theme="
 .dividend-remove{width:28px;height:28px;border:0;border-radius:9px;background:rgba(255,255,255,.05);color:#8d99ad;font-size:16px;line-height:1;cursor:pointer}
 .dividend-field{display:grid;gap:5px;min-width:0}
 .dividend-field span{font-size:10px;font-weight:750;color:var(--muted)}
-.dividend-form-note{display:block;margin-top:8px}
 .dividend-restore{margin-top:8px;border:0;background:transparent;color:#8eabff;font:inherit;font-size:11px;font-weight:800;padding:4px 0;cursor:pointer}
 html[data-theme="light"] .dividend-home-card,html[data-theme="light"] .dividend-hero{background:linear-gradient(160deg,#fff,#f8faff);border-color:#dfe5f0;box-shadow:0 10px 28px rgba(52,67,103,.08)}
 html[data-theme="light"] .dividend-home-grid>span,html[data-theme="light"] .dividend-stat-grid>div,html[data-theme="light"] .dividend-holding-row,html[data-theme="light"] .dividend-detail-row{background:#f7f9fc;border-color:#e5e9f0}
