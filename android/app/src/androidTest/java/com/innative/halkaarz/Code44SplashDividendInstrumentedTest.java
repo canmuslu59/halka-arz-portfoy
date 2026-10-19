@@ -117,8 +117,10 @@ public class Code44SplashDividendInstrumentedTest {
             report("home.dividendCard", js(scenario, "$t('#dividendHomeCard')"));
             screenshot("03-home-dividend-card");
 
-            js(scenario, "document.querySelector('#dividendHomeOpen').click();window.scrollTo(0,0);location.hash");
-            SystemClock.sleep(700L);
+            js(scenario, "(()=>{document.querySelector('#dividendHomeOpen').click();window.scrollTo(0,0);return location.hash;})()");
+            SystemClock.sleep(1500L);
+            String dividendsVisible = js(scenario, "String(!document.querySelector('#dividendsView').hidden && document.querySelector('#portfolioView').hidden)");
+            report("dividends.viewVisible", dividendsVisible);
             screenshot("04-dividends-hero");
             js(scenario, "document.querySelector('#dividendHoldings').scrollIntoView({block:'start'});window.scrollBy(0,-90);'ok'");
             SystemClock.sleep(400L);
@@ -129,6 +131,7 @@ public class Code44SplashDividendInstrumentedTest {
             String dividendsText = js(scenario, "$t('#dividendsView')");
             report("dividends.viewText", dividendsText);
             assertTrue("Temettü ekranı boş", dividendsText != null && dividendsText.contains("Temettü Gelirim"));
+            assertTrue("Temettü ekranı açılmadı", "true".equals(dividendsVisible));
 
             String opened = js(scenario, "(()=>{const b=document.querySelector('[data-dividend-holding]');if(!b)return 'none';b.click();return b.dataset.dividendHolding;})()");
             report("detail.openedHolding", opened);

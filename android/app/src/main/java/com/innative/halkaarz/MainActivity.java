@@ -272,6 +272,18 @@ public class MainActivity extends ComponentActivity {
         overlay.postDelayed(splashFailsafe, SPLASH_FAILSAFE_MS);
     }
 
+    // Modül betikleri load olayından önce çalışır. Sayfa bittiğinde web katmanı kurulmamışsa
+    // (ör. çok eski, güncellenmemiş WebView'de sözdizimi hatası) logo 10 sn beklemeden kalkar.
+    private void releaseSplashIfWebAppFailed() {
+        if (!splashVisible) return;
+        WebView current = webView;
+        if (current == null) return;
+        current.postDelayed(() -> evaluateJavascriptIfAlive(
+                "typeof window.__appResumeRefresh === 'function'",
+                value -> { if (!"true".equals(String.valueOf(value))) hideSplash(true); }
+        ), 1500L);
+    }
+
     private void hideSplash(boolean animate) {
         View overlay = splashView;
         if (overlay == null || !splashVisible) return;
@@ -360,11 +372,13 @@ public class MainActivity extends ComponentActivity {
 
     private void deliverSafeInsets() {
         if (webView == null) return;
-        String script = "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
+        // Sayfa yüklenirken documentElement henüz yoksa atlanır; onPageFinished'de yeniden gönderilir.
+        String script = "if(document.documentElement){"
+                + "document.documentElement.style.setProperty('--android-safe-top','" + safeTopCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-bottom','" + safeBottomCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-left','" + safeLeftCssPx + "px');"
                 + "document.documentElement.style.setProperty('--android-safe-right','" + safeRightCssPx + "px');"
-                + "document.documentElement.style.setProperty('--android-ime-bottom','" + imeBottomCssPx + "px');";
+                + "document.documentElement.style.setProperty('--android-ime-bottom','" + imeBottomCssPx + "px');}";
         evaluateJavascriptIfAlive(script);
     }
 
@@ -419,6 +433,7 @@ public class MainActivity extends ComponentActivity {
                 deliverSafeInsets();
                 deliverPendingPushRoute();
                 deliverWalletWidgetPromo();
+                releaseSplashIfWebAppFailed();
             }
         });
     }

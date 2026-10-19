@@ -45,7 +45,7 @@ test('dividend entitlement uses lots held at the end of the day before the ex-da
   close(payment.net, 17);
 });
 
-test('withholding follows the 22.12.2024 rate change and split-adjusted amounts are restored', () => {
+test('withholding follows the 22.12.2024 rate change and split factors count only later splits', () => {
   assert.equal(dividendWithholdingRate('2024-12-21'), 0.10);
   assert.equal(dividendWithholdingRate('2024-12-22'), 0.15);
   const splits = [{ date:'2025-09-01', numerator:2, denominator:1 }, { date:'2026-02-01', numerator:3, denominator:2 }];
@@ -68,16 +68,21 @@ test('portfolio summary totals, yearly rows, trailing yield and expected annual 
     historySnapshot:{ dividends:[{ date:'2026-07-01', amount:3 }], splits:[] },
   }];
   const summary = summarizeDividends(holdings, { today:'2026-10-19' });
-  // 2024-06-10: 0.25×2 = 0.5 brüt/hisse ×100 = 50, %10 → 45 net
-  // 2025-06-10: 0.5×2 = 1 ×100 = 100, %15 → 85 net
+  // Lotlar bugünkü (bedelsiz sonrası) adette; Yahoo tutarı da düzeltilmiş → doğrudan çarpılır.
+  // 2024-06-10: 0.25 ×100 = 25, %10 → 22.5 net (ilan edilen 0.5/hisse)
+  // 2025-06-10: 0.5 ×100 = 50, %15 → 42.5 net (ilan edilen 1/hisse)
   // 2026-06-15: 1 ×100 = 100, %15 → 85 net. BBBB hak gününde lotsuz.
   assert.equal(summary.count, 3);
-  close(summary.totalGross, 250);
-  close(summary.totalTax, 35);
-  close(summary.totalNet, 215);
+  close(summary.totalGross, 175);
+  close(summary.totalTax, 25);
+  close(summary.totalNet, 150);
   close(summary.yearNet, 85);
   close(summary.ttmNet, 85);
-  assert.deepEqual(summary.byYear.map(row => [row.year, Math.round(row.net)]), [['2024', 45], ['2025', 85], ['2026', 85]]);
+  assert.deepEqual(summary.byYear.map(row => [row.year, row.net.toFixed(2)]), [['2024', '22.50'], ['2025', '42.50'], ['2026', '85.00']]);
+  const first = summary.payments.find(payment => payment.date === '2024-06-10');
+  close(first.perShare, 0.5);
+  close(first.adjustedPerShare, 0.25);
+  assert.equal(first.splitFactor, 2);
   close(summary.expectedAnnualNet, 85);
   close(summary.yieldPct, 5);
   assert.deepEqual(summary.holdings.map(item => item.ticker), ['AAAA', 'BBBB']);
@@ -97,6 +102,22 @@ test('manual dividend replaces the automatic record of the same day and hidden r
   const hidden = holdingDividendSummary({ ...base, hiddenDividends:['auto:2026-03-10'] }, { today:'2026-10-19' });
   assert.equal(hidden.count, 1);
   assert.equal(hidden.hiddenCount, 1);
+});
+
+test('manual announced amount before a bedelsiz is converted to today lot units', () => {
+  // Gerçek Test Lab verisi kalıbı: TUPRS 2023-04-04 7:1 bedelsiz, 2023-03-10 ilan 45,41 TL/hisse.
+  const holding = {
+    id:'h1', ticker:'TUPRS', currentLots:100, currentPrice:356.75,
+    purchases:[{ lots:100, price:90, date:'2023-01-03' }], sales:[],
+    historySnapshot:{ dividends:[{ date:'2023-03-10', amount:6.487455 }], splits:[{ date:'2023-04-04', numerator:700, denominator:100 }] },
+  };
+  const [auto] = holdingDividendPayments(holding, { today:'2026-10-19' });
+  close(auto.perShare, 45.412185);
+  close(auto.gross, 648.7455);
+  const [manual] = holdingDividendPayments({ ...holding, manualDividends:[{ id:'m1', date:'2023-03-10', perShare:45.412185 }] }, { today:'2026-10-19' });
+  assert.equal(manual.source, 'manual');
+  close(manual.adjustedPerShare, 6.487455);
+  close(manual.gross, 648.7455);
 });
 
 function memoryRepository() {
@@ -181,6 +202,10 @@ test('splash stays up while startup prices are calculated and is lifted by the w
   assert.match(activity, /window\.__appResumeRefresh/);
   assert.match(activity, /startupPromptsPending[\s\S]*postDelayed\(startupPermissionRequest,\s*700L\)[\s\S]*postDelayed\(startupWidgetPrompt,\s*2200L\)/);
   assert.match(activity, /R\.drawable\.ic_launcher/);
+  // Web katmanı kurulamazsa (eski WebView sözdizimi hatası) logo 10 sn beklemez.
+  assert.match(activity, /deliverWalletWidgetPromo\(\);\s*releaseSplashIfWebAppFailed\(\);/);
+  assert.match(activity, /typeof window\.__appResumeRefresh === 'function'[\s\S]{0,120}hideSplash\(true\)/);
+  assert.match(activity, /if\(document\.documentElement\)\{/);
   assert.match(app, /settleBehindSplash\(\[\s*loadPortfolio\(\)\.then\(\(\) => refreshBackgroundHistory\(\)\),\s*loadHomeComparison\(\),\s*\]/);
   assert.match(app, /window\.AndroidBridge\?\.hideSplash\?\.\(\)/);
   assert.match(app, /window\.__appResumeRefresh = \(\) =>/);

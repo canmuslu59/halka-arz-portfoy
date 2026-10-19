@@ -4,5 +4,5 @@
   "timeout": "10m",
   "versions": "28,33,36",
   "locale": "tr",
-  "note": "Code44 QA run 1 — virtual API 28/33/36"
+  "note": "Code45 QA run 2 — virtual API 28/33/36 (28 = old WebView 66, expected JS failure; checks fast splash release)"
 }
