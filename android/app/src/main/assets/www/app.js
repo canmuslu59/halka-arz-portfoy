@@ -1941,8 +1941,8 @@ function dividendDetailHtml(dividend) {
       <p class="dividend-detail-summary">${summaryParts.map(esc).join(' · ')}</p>
       ${rows ? `<div class="dividend-detail-list">${rows}</div>` : ''}
       <form id="dividendForm" class="mini-form">
-        <input name="date" type="date" max="${today}" required aria-label="Hak kullanım tarihi">
-        <input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Hisse başı brüt temettü (₺)" required>
+        <label class="dividend-field"><span>Hak kullanım tarihi</span><input name="date" type="date" max="${today}" required></label>
+        <label class="dividend-field"><span>Hisse başı brüt (₺, ilan edilen)</span><input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Örn. 6,75" required></label>
         <button class="secondary-btn" type="submit">Temettü ekle</button>
       </form>
       <small class="form-note dividend-form-note">Tarih olarak hak kullanım gününü, tutar olarak o gün ilan edilen hisse başı brüt temettüyü girin. Aynı güne eklediğiniz kayıt otomatik kaydın yerine geçer.</small>
