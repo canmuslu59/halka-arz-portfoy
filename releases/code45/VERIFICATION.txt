@@ -1,0 +1,34 @@
+Hisse Portfoyum v2.6.1 / Code45 - Google Play Upload Verification
+
+Package: com.innative.halkaarz
+Version name: 2.6.1
+Version code: 45
+Source commit: 6ac704d0be72aad190255a85a1cfb8c0bba88734 (branch release/v2.6.1-code45, tag v2.6.1-code45)
+Build: local, owner's Windows machine (JDK 17.0.20 Temurin, Android SDK 36, Gradle 8.11.1, AGP 8.10.1)
+       with the same guards as .github/workflows/code43-final-play-aab.yml.
+
+Build checks:
+- Regression suite: 512/512 PASS.
+- Code41 notification lock (test/code42-labs-production.test.js): PASS.
+- Identity guard: applicationId com.innative.halkaarz, versionCode 45, versionName 2.6.1, no test-only Gradle config: PASS.
+- Working tree equals commit, no untracked android files, no CRLF in web payload: PASS.
+- Production Firebase config: restored from guarded template (com.innative.halkaarz), removed after build.
+- Production push backend embedded in release BuildConfig (VERSION_CODE = 45): PASS.
+- AAB web payload equals committed android/app/src/main/assets/www: PASS (32 files, 213 entries).
+- Unsigned AAB: Hisse-Portfoyum-v2.6.1-Code45-unsigned.aab
+  SHA-256: e0f1cd71783c3d4f08553f49a335c8938c5e468097a71273ae4fd524c9b75406
+
+Firebase Test Lab (branch ci/firebase-test-lab-code44-20261019, same web payload, debug package com.innative.halkaarz.test):
+- See TESTLAB.txt.
+
+Signing:
+- Signed locally by the owner with the existing Google Play upload key (password entered by the owner
+  in the owner's terminal; not seen or stored by the build).
+- Upload alias: halkaarz-upload
+- Upload certificate: CN=Halka Arz Portfoyum Upload, OU=Android, O=Halka Arz Portfoyum, C=TR
+- Upload certificate SHA-256: 02:D9:F2:98:A5:6B:63:EC:90:67:B9:11:FC:89:89:07:B6:FD:FC:4E:05:91:43:D8:8F:0B:9D:F2:40:22:A2:72
+- Signature: SHA384withRSA (jarsigner default for the 4096-bit key), same as Code43/Code44.
+- jarsigner -verify: jar verified (standard warnings: self-signed upload certificate, no timestamp)
+- Signed vs unsigned content (excluding META-INF signature files): 213/213 identical.
+- Final Play AAB: Hisse-Portfoyum-v2.6.1-Code45-Play.aab
+  SHA-256: 0ec6ddc400ea120efe49c6f1edfb86d40c1965e7c0c7fbb8565dead680c821a1

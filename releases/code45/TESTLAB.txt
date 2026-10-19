@@ -1,0 +1,24 @@
+Firebase Test Lab — Code44/Code45 QA (instrumentation: AppLifecycleInstrumentedTest + Code44SplashDividendInstrumentedTest)
+Branch: ci/firebase-test-lab-code44-20261019 · workflow .github/workflows/firebase-test-lab-code44.yml (no android:sync)
+Seed portfolio (real BIST data): TUPRS 100, FROTO 20, EREGL 200, TTRAK 20 lots, bought 2023-01-03.
+
+Run 1 — Code44, virtual API 28/33/36 — GitHub run 39315571024, matrix matrix-8441ln68bv54a
+- API 33, 36: all tests PASS. Splash visible on first frame, lifted after ~3.1 s; resume splash after 31 s background; none after 3 s or on News.
+- Finding 1 (fixed in Code45): Yahoo dividend amounts are split-adjusted (TUPRS 7:1 2023-04-04, FROTO 10:1 2025-05-07,
+  EREGL 2:1 2024-11-27, TTRAK 1.875:1 2023-06-06). Code44 multiplied them back while lots are kept in today's
+  (post-bonus) units, inflating pre-bonus payments (total 15,859.19 TL instead of 10,073.53 TL).
+- Finding 2 (fixed in Code45): API 28 emulator ships WebView 66 (2018), which cannot parse ?. / ?? used since Code43
+  (app.js:60, notification-recovery.js:7). The web layer never starts; the splash was lifted only by the 10 s failsafe.
+  Real Android 9 phones update WebView via Play Store. Code45 lifts the splash 1.5 s after page load if the web layer is missing.
+- Finding 3 (fixed in Code45): safe-area script ran before documentElement existed ("Cannot read properties of null (reading 'style')").
+
+Run 2 — Code45 fixes, virtual API 28/33/36 — GitHub run 39332610711, matrix matrix-5mda94o7dsv4a
+- API 33, 36: 0 failures. Dividend total 10,073.53 TL; dividend screen visible; splash lifted 2.4–4.5 s.
+- API 28: splash lifted after 2.4 s (was 10.3 s); 2 failures expected (old WebView, pre-existing).
+
+Run 3 — physical Samsung Galaxy Z Flip8 (b8q, API 37) — GitHub run 39334238632
+- App behaviour correct (dividends 10,073.53 TL, resume splash visible in screenshot); 2 failures were the test's own
+  splash lookup on Samsung's view hierarchy. Test fixed (probe at RESUMED, overlay found as WebView sibling).
+
+Run 4 — final web payload (commit 6ac704d: dividend notes removed), physical Samsung Galaxy Z Flip8 (API 37) — GitHub run 39335735048
+- 8/8 PASS. Splash visible at launch; resume splash after 31 s; none after 3 s or on News; dividend screens render.

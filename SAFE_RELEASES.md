@@ -58,7 +58,20 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 - Cloudflare: haber kuralları canlıda, Worker sürümü `486c22bd-32a9-4c6f-8a3a-05745c078ff0`. Geri dönüş: `b89a6b0e-f367-470c-86e4-40cd771f152e` (`releases/code43/CLOUD-DEPLOY.txt`).
 - Sorun çıkarsa: uygulamada Code41'e dön (yukarıdaki adımlar), Cloudflare'de Worker'ı `b89a6b0e…` sürümüne al. Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
 
-## Code44 / v2.6.0 — Aday (henüz Last Known Good değil)
+## Code45 / v2.6.1 — Aday (henüz Last Known Good değil)
+
+- Branch: `release/v2.6.1-code45`, tag `v2.6.1-code45`
+- Derleme commit'i: `6ac704d0be72aad190255a85a1cfb8c0bba88734`
+- Release kaydı: `releases/code45/` (README.md, VERIFICATION.txt, TESTLAB.txt, SHA256SUMS.txt, SHA256SUMS-UNSIGNED.txt, jarsigner-verification.txt, PLAY-RELEASE-NOTES.txt)
+- İçerik: Code44 + Firebase Test Lab düzeltmeleri (temettü bedelsiz birimi, eski WebView'de logo süresi, güvenli alan betiği) + temettü açıklama metinleri kaldırıldı.
+- Test: 512/512; Test Lab Android 13/16 sanal + Samsung Galaxy Z Flip8 (Android 17) fiziksel PASS.
+- İmzasız AAB SHA-256: `e0f1cd71783c3d4f08553f49a335c8938c5e468097a71273ae4fd524c9b75406`.
+- Final Play AAB: `Hisse-Portfoyum-v2.6.1-Code45-Play.aab`, SHA-256 `0ec6ddc400ea120efe49c6f1edfb86d40c1965e7c0c7fbb8565dead680c821a1`; upload sertifikası `02:D9:…:A2:72` doğrulandı, içerik imzasız paketle 213/213 aynı.
+- Sorun çıkarsa: Code41'e dön (yukarıdaki adımlar, versionCode 46+).
+
+## Code44 / v2.6.0 — Geçersiz (Play'e yüklenmemeli; yerini Code45 aldı)
+
+- Test Lab'de bedelsiz yapan hisselerde temettü tutarlarını şişirdiği görüldü; düzeltmesi Code45'te.
 
 - Branch: `release/v2.6.0-code44`
 - Derleme commit'i: `6f6bbdc8e3a35708fd069aeb30315cf123d51696`
@@ -97,4 +110,4 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 
 ## Kural
 
-Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42, Code43, Code44 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
+Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42, Code43, Code45 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
