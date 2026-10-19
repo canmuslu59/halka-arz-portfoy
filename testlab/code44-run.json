@@ -1,8 +1,8 @@
 {
-  "profile": "physical-samsung-single",
-  "scenario": "instrumentation",
-  "timeout": "10m",
-  "versions": "",
-  "locale": "tr",
-  "note": "Code45 QA run 3 — physical Samsung, after dividend unit fix and field labels"
+    "profile":  "physical-samsung-single",
+    "scenario":  "instrumentation",
+    "timeout":  "10m",
+    "versions":  "",
+    "locale":  "tr",
+    "note":  "Code45 QA run 4 — physical Samsung, robust splash probe, dividend notes removed"
 }

@@ -19,6 +19,9 @@ import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.runner.lifecycle.ActivityLifecycleCallback;
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
+import androidx.test.runner.lifecycle.Stage;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -90,10 +93,20 @@ public class Code44SplashDividendInstrumentedTest {
     @Test
     public void coldStartKeepsSplashUntilPricesAreReadyAndDividendScreensRender() throws Exception {
         long startedAt = SystemClock.uptimeMillis();
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            boolean visibleAtLaunch = splashVisible(scenario);
+        AtomicReference<Boolean> visibleAtResume = new AtomicReference<>(null);
+        ActivityLifecycleCallback probe = splashProbe(visibleAtResume);
+        ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(probe);
+        ActivityScenario<MainActivity> launched;
+        try {
+            launched = ActivityScenario.launch(MainActivity.class);
+        } finally {
+            ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(probe);
+        }
+        try (ActivityScenario<MainActivity> scenario = launched) {
+            boolean visibleAtLaunch = Boolean.TRUE.equals(visibleAtResume.get());
             report("cold.launchReturnedMs", SystemClock.uptimeMillis() - startedAt);
             report("cold.splashVisibleAtLaunch", visibleAtLaunch);
+            report("cold.splashVisibleWhenLaunchReturned", splashVisible(scenario));
             screenshot("01-cold-splash");
             SystemClock.sleep(1200L);
             screenshot("01b-cold-splash-1200ms");
@@ -155,16 +168,13 @@ public class Code44SplashDividendInstrumentedTest {
 
             scenario.moveToState(Lifecycle.State.CREATED);
             SystemClock.sleep(3_000L);
-            scenario.moveToState(Lifecycle.State.RESUMED);
-            SystemClock.sleep(150L);
-            boolean shortVisible = splashVisible(scenario);
+            boolean shortVisible = resumeAndProbe(scenario);
             report("resume.shortBackgroundSplashVisible", shortVisible);
 
             scenario.moveToState(Lifecycle.State.CREATED);
             SystemClock.sleep(31_500L);
             long resumedAt = SystemClock.uptimeMillis();
-            scenario.moveToState(Lifecycle.State.RESUMED);
-            boolean longVisible = splashVisible(scenario);
+            boolean longVisible = resumeAndProbe(scenario);
             screenshot("08-resume-splash");
             long longHidden = waitSplashGone(scenario, resumedAt, 12_000L);
             report("resume.longBackgroundSplashVisible", longVisible);
@@ -176,9 +186,7 @@ public class Code44SplashDividendInstrumentedTest {
             SystemClock.sleep(800L);
             scenario.moveToState(Lifecycle.State.CREATED);
             SystemClock.sleep(31_500L);
-            scenario.moveToState(Lifecycle.State.RESUMED);
-            SystemClock.sleep(150L);
-            boolean newsVisible = splashVisible(scenario);
+            boolean newsVisible = resumeAndProbe(scenario);
             report("resume.newsLongBackgroundSplashVisible", newsVisible);
             screenshot("10-resume-news");
 
@@ -231,17 +239,38 @@ public class Code44SplashDividendInstrumentedTest {
         return out;
     }
 
+    // Açılış katmanı, WebView ile aynı kök FrameLayout'taki WebView olmayan son çocuktur.
+    // (Bazı Samsung sürümleri content altına ek görünüm eklediği için konumdan değil WebView'den bulunur.)
     private static View splashView(MainActivity activity) {
-        View content = activity.findViewById(android.R.id.content);
-        if (!(content instanceof ViewGroup) || ((ViewGroup) content).getChildCount() == 0) return null;
-        View root = ((ViewGroup) content).getChildAt(0);
-        if (!(root instanceof ViewGroup)) return null;
-        ViewGroup group = (ViewGroup) root;
+        WebView webView = findWebView(activity.getWindow().getDecorView());
+        if (webView == null || !(webView.getParent() instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) webView.getParent();
         for (int i = group.getChildCount() - 1; i >= 0; i--) {
             View child = group.getChildAt(i);
-            if (!(child instanceof WebView)) return child;
+            if (child != webView) return child;
         }
         return null;
+    }
+
+    // Aktivite RESUMED olduğu anda (ana thread'de, ilk karelerden önce) logo durumunu kaydeder.
+    private static ActivityLifecycleCallback splashProbe(AtomicReference<Boolean> result) {
+        return (activity, stage) -> {
+            if (stage != Stage.RESUMED || !(activity instanceof MainActivity) || result.get() != null) return;
+            View splash = splashView((MainActivity) activity);
+            result.set(splash != null && splash.getVisibility() == View.VISIBLE && splash.getAlpha() > 0.5f);
+        };
+    }
+
+    private static boolean resumeAndProbe(ActivityScenario<MainActivity> scenario) {
+        AtomicReference<Boolean> visible = new AtomicReference<>(null);
+        ActivityLifecycleCallback probe = splashProbe(visible);
+        ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(probe);
+        try {
+            scenario.moveToState(Lifecycle.State.RESUMED);
+        } finally {
+            ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(probe);
+        }
+        return Boolean.TRUE.equals(visible.get());
     }
 
     private static boolean splashVisible(ActivityScenario<MainActivity> scenario) {
