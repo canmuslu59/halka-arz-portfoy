@@ -120,6 +120,19 @@ public class Code44SplashDividendInstrumentedTest {
                             + "dividendTotal:$t('#dividendHomeTotal'),dividendNote:$t('#dividendHomeNote'),market:$t('#marketStatus')})"));
             screenshot("02-home-after-splash");
 
+            // Eski WebView (Chrome < 92) www/legacy kopyalarıyla açılmalı; hourCycle polyfill'i 24 saatlik kalmalı.
+            String compat = js(scenario, "(()=>{const i=JSON.parse(window.AndroidBridge.getAppInfo());"
+                    + "const h=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Istanbul',hour:'2-digit',hourCycle:'h23'}).format(new Date(Date.UTC(2026,9,20,11,30)));"
+                    + "return JSON.stringify({webViewMajor:i.webViewMajor,legacyWebView:i.legacyWebView,istanbulHour:h,"
+                    + "randomUUID:typeof crypto.randomUUID,fromEntries:typeof Object.fromEntries,userAgent:navigator.userAgent});})()");
+            report("webview.compat", compat);
+            JSONObject compatInfo = new JSONObject(compat);
+            int webViewMajor = compatInfo.optInt("webViewMajor", -1);
+            assertTrue("WebView sürümü okunamadı: " + compat, webViewMajor > 0);
+            assertTrue("Legacy kipi WebView sürümüyle uyuşmuyor: " + compat, compatInfo.optBoolean("legacyWebView") == (webViewMajor < 92));
+            assertTrue("İstanbul saati 24 saatlik değil: " + compat, "14".equals(compatInfo.optString("istanbulHour")));
+            assertTrue("crypto.randomUUID yok: " + compat, "function".equals(compatInfo.optString("randomUUID")));
+
             report("cold.portfolioAfterSplash", portfolioDigest());
             boolean dividendsReady = waitForDividendSnapshots(40_000L);
             report("cold.dividendSnapshotsReady", dividendsReady);

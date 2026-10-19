@@ -7,7 +7,7 @@ name: Firebase Test Lab Code44 QA
 on:
   push:
     branches:
-      - ci/firebase-test-lab-code44-20261019
+      - ci/firebase-test-lab-webview-compat-20261020
     paths:
       - testlab/code44-run.json
 
@@ -56,6 +56,7 @@ jobs:
           & $sdkmanager "platforms;android-36" "build-tools;36.0.0"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'android/app/src/main/assets/www/core/dividends.js')) { throw 'Code44 web payload missing' }
+          if (-not (Test-Path 'android/app/src/main/assets/www/legacy/legacy-polyfills.js')) { throw 'Legacy WebView payload missing' }
 
       - uses: gradle/actions/setup-gradle@v6.3.0
         with:

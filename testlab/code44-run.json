@@ -1,8 +1,8 @@
 {
-    "profile":  "physical-samsung-single",
+    "profile":  "compat-virtual",
     "scenario":  "instrumentation",
     "timeout":  "10m",
-    "versions":  "",
+    "versions":  "28,33,36",
     "locale":  "tr",
-    "note":  "Code45 QA run 4 — physical Samsung, robust splash probe, dividend notes removed"
+    "note":  "Legacy WebView compat run 1 — virtual API 28/33/36; API 28 (WebView 66) must load www/legacy and open with data"
 }
