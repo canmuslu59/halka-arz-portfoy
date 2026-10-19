@@ -161,6 +161,26 @@ export function parseYahooChart(json, ticker) {
     ? latestTick.close
     : Number.isFinite(meta.regularMarketPrice) ? meta.regularMarketPrice : lastClose;
 
+  // Temettü ve bedelsiz (split) olayları aynı istekte gelir (events=div,splits);
+  // ayrı bir ağ isteği gerekmez. Tarih = hak kullanım (ex-date) günü.
+  const events = result.events || {};
+  const dividendsByDate = new Map();
+  for (const event of Object.values(events.dividends || {})) {
+    const date = dateInZone(Number(event?.date));
+    const amount = Number(event?.amount);
+    if (!date || !Number.isFinite(amount) || amount <= 0) continue;
+    dividendsByDate.set(date, { date, amount });
+  }
+  const dividends = [...dividendsByDate.values()].sort((a,b) => a.date.localeCompare(b.date));
+  const splits = Object.values(events.splits || {})
+    .map(event => ({
+      date: dateInZone(Number(event?.date)),
+      numerator: Number(event?.numerator),
+      denominator: Number(event?.denominator),
+    }))
+    .filter(split => split.date && split.numerator > 0 && split.denominator > 0)
+    .sort((a,b) => a.date.localeCompare(b.date));
+
   return {
     ticker: key,
     symbol: `${key}.IS`,
@@ -172,6 +192,8 @@ export function parseYahooChart(json, ticker) {
     exchangeName: meta.fullExchangeName || meta.exchangeName || 'BIST',
     exchangeTimezoneName: zone,
     history: rows,
+    dividends,
+    splits,
   };
 }
 

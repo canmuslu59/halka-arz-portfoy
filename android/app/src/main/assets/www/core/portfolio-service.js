@@ -10,8 +10,17 @@ import {
   validateSale,
 } from './domain.js';
 import { normalizedPurchases } from './purchase-ledger.js';
+import { lotsEntitledOn, MANUAL_DIVIDEND_LIMIT } from './dividends.js';
 
 const QUOTE_TTL_MS = 12_000;
+
+// Geçmiş fiyat isteğiyle birlikte gelen temettü/bedelsiz olayları önbelleğe yazılır.
+function corporateEvents(result) {
+  return {
+    dividends: Array.isArray(result?.dividends) ? result.dividends : [],
+    splits: Array.isArray(result?.splits) ? result.splits : [],
+  };
+}
 
 function positiveNumber(value) {
   const n = Number(value);
@@ -295,7 +304,9 @@ function hydrate(raw, errors = {}) {
         const historyIsFresh = !force
           && nextRaw.historySnapshot?.fetchedLocalDate === localDate
           && nextRaw.historySnapshot?.startDate === firstTradeDate
-          && Array.isArray(nextRaw.historySnapshot?.history);
+          && Array.isArray(nextRaw.historySnapshot?.history)
+          // Code44 öncesi önbellekte temettü yok; bir kez yeniden indirilir.
+          && Array.isArray(nextRaw.historySnapshot?.dividends);
         if (!historyIsFresh) {
           try {
             const result = await historyFn(nextRaw.ticker, firstTradeDate);
@@ -303,8 +314,12 @@ function hydrate(raw, errors = {}) {
             const existingHistory = Array.isArray(nextRaw.historySnapshot?.history) ? nextRaw.historySnapshot.history : [];
             const quoteHistory = Array.isArray(nextRaw.quoteSnapshot?.history) ? nextRaw.quoteSnapshot.history : [];
             const fallbackHistory = existingHistory.length ? existingHistory : quoteHistory;
+            const events = downloadedHistory.length
+              ? corporateEvents(result)
+              : corporateEvents(nextRaw.historySnapshot);
             nextRaw.historySnapshot = {
               history: downloadedHistory.length ? downloadedHistory : fallbackHistory,
+              ...events,
               fetchedAt:now().toISOString(),
               // Never cache an empty upstream response as a complete daily history.
               fetchedLocalDate:downloadedHistory.length ? localDate : null,
@@ -424,6 +439,7 @@ function hydrate(raw, errors = {}) {
         const resolvedHistory = downloadedHistory.length ? downloadedHistory : quoteHistory;
         return {
           history: resolvedHistory,
+          ...corporateEvents(downloadedHistory.length ? historyResult : null),
           fetchedAt: stamp,
           // Empty daily history is not a successful full-history refresh.
           // Keep recent quote rows visible and retry the full history later.
@@ -551,7 +567,7 @@ function hydrate(raw, errors = {}) {
       try {
         const hist = await historyFn(raw.ticker, firstTradeDate);
         raw.historySnapshot = {
-          history:Array.isArray(hist.history) ? hist.history : [], fetchedAt:stamp,
+          history:Array.isArray(hist.history) ? hist.history : [], ...corporateEvents(hist), fetchedAt:stamp,
           fetchedLocalDate:dateInIstanbul(now()), startDate:firstTradeDate,
         };
       } catch (error) { errors.history = messageOf(error, 'Geçmiş fiyat verisi alınamadı.'); }
@@ -559,6 +575,61 @@ function hydrate(raw, errors = {}) {
     data.holdings[index] = raw;
     await repository.save(data);
     return hydrate(raw, errors);
+  }
+
+  // Otomatik kaynakta eksik/yanlış temettü için elle kayıt. Aynı güne girilen elle kayıt
+  // otomatik kaydın yerine geçer.
+  async function addManualDividend(id, { date, perShare } = {}) {
+    const data = await repository.load();
+    const index = data.holdings.findIndex(item => item.id === id);
+    if (index < 0) throw new Error('Kayıt bulunamadı.');
+    const exDate = optionalIsoDate(date, 'Hak kullanım tarihi');
+    if (!exDate) throw new Error('Hak kullanım tarihi gerekli.');
+    if (exDate > dateInIstanbul(now())) throw new Error('Hak kullanım tarihi gelecekte olamaz.');
+    const amount = positiveNumber(perShare);
+    if (amount == null || amount > 100000) throw new Error('Hisse başı brüt temettü 0’dan büyük olmalı.');
+    const raw = { ...data.holdings[index] };
+    if (!(lotsEntitledOn(hydrate(raw), exDate) > 0)) {
+      throw new Error('Bu hak kullanım tarihinden önceki gün elinizde lot görünmüyor.');
+    }
+    const existing = (Array.isArray(raw.manualDividends) ? raw.manualDividends : []).filter(entry => entry?.date !== exDate);
+    if (existing.length >= MANUAL_DIVIDEND_LIMIT) throw new Error('Elle temettü kaydı sınırına ulaşıldı.');
+    raw.manualDividends = [...existing, { id:uuid(), date:exDate, perShare:amount, createdAt:now().toISOString() }]
+      .sort((a,b) => String(a.date).localeCompare(String(b.date)));
+    raw.hiddenDividends = (Array.isArray(raw.hiddenDividends) ? raw.hiddenDividends : []).filter(key => key !== `auto:${exDate}`);
+    data.holdings[index] = raw;
+    await repository.save(data);
+    return hydrate(raw);
+  }
+
+  // Elle kayıt silinir; otomatik kayıt gizlenir (geri getirilebilir).
+  async function removeDividend(id, dividendId) {
+    const data = await repository.load();
+    const index = data.holdings.findIndex(item => item.id === id);
+    if (index < 0) throw new Error('Kayıt bulunamadı.');
+    const key = String(dividendId || '');
+    const raw = { ...data.holdings[index] };
+    if (/^auto:\d{4}-\d{2}-\d{2}$/.test(key)) {
+      const hidden = Array.isArray(raw.hiddenDividends) ? raw.hiddenDividends : [];
+      raw.hiddenDividends = hidden.includes(key) ? hidden : [...hidden, key];
+    } else {
+      const manual = Array.isArray(raw.manualDividends) ? raw.manualDividends : [];
+      if (!manual.some(entry => entry?.id === key)) throw new Error('Temettü kaydı bulunamadı.');
+      raw.manualDividends = manual.filter(entry => entry?.id !== key);
+    }
+    data.holdings[index] = raw;
+    await repository.save(data);
+    return hydrate(raw);
+  }
+
+  async function restoreHiddenDividends(id) {
+    const data = await repository.load();
+    const index = data.holdings.findIndex(item => item.id === id);
+    if (index < 0) throw new Error('Kayıt bulunamadı.');
+    const raw = { ...data.holdings[index], hiddenDividends:[] };
+    data.holdings[index] = raw;
+    await repository.save(data);
+    return hydrate(raw);
   }
 
   return {
@@ -570,5 +641,8 @@ function hydrate(raw, errors = {}) {
   addSale: (...args) => serialize(() => addSale(...args)),
   deleteHolding: (...args) => serialize(() => deleteHolding(...args)),
   refreshHolding: (...args) => serialize(() => refreshHolding(...args)),
+  addManualDividend: (...args) => serialize(() => addManualDividend(...args)),
+  removeDividend: (...args) => serialize(() => removeDividend(...args)),
+  restoreHiddenDividends: (...args) => serialize(() => restoreHiddenDividends(...args)),
 };
 }

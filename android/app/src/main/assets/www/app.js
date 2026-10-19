@@ -17,6 +17,7 @@ import {
   buildHoldingMatchers, matchNewsToHoldings, filterNews, normalizeHttpsUrl,
 } from './core/news-feed.js';
 import { createBackupPayload, parseBackupText, BACKUP_SETTINGS_KEYS } from './core/labs-backup.js';
+import { summarizeDividends, holdingDividendSummary } from './core/dividends.js';
 
 const $ = (q, root = document) => root.querySelector(q);
 const $$ = (q, root = document) => [...root.querySelectorAll(q)];
@@ -82,6 +83,7 @@ const VIEW_META = {
   portfolio: { title:'Cüzdan' },
   holdings: { title:'Hisselerim' },
   performance: { title:'Performans' },
+  dividends: { title:'Temettü' },
   markets: { title:'Haberler' },
   pro: { title:'Gelişmiş' },
   settings: { title:'Ayarlar' },
@@ -545,7 +547,7 @@ function renderAppInfo() {
   const element = $('#appVersion');
   if (!element) return;
   const info = appInfo();
-  const version = info?.versionName || '2.5.9';
+  const version = info?.versionName || '2.6.0';
   const build = info?.versionCode || 43;
   element.innerHTML = 'Hisse Portföyüm<br />v' + esc(version) + ' • Build ' + esc(build);
 }
@@ -612,7 +614,7 @@ async function buildBackupJson() {
     const value = safeGetLocal(key);
     if (value != null) settings[key] = value;
   }
-  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.5.9' });
+  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.6.0' });
   return { json:JSON.stringify(payload, null, 2), count:payload.portfolio.holdings.length };
 }
 
@@ -1334,8 +1336,10 @@ function switchView(view, { push = true, selectedTicker = null } = {}) {
     const el = $(`#${key}View`);
     if (el) el.hidden = key !== next;
   });
+  // Temettü ekranı Cüzdan'ın alt sayfasıdır; alt menüde Cüzdan seçili kalır.
+  const navView = next === 'dividends' ? 'portfolio' : next;
   $$('.nav-tab').forEach(tab => {
-    const active = tab.dataset.view === next;
+    const active = tab.dataset.view === navView;
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-current', active ? 'page' : 'false');
   });
@@ -1345,8 +1349,10 @@ function switchView(view, { push = true, selectedTicker = null } = {}) {
   if (next === 'markets') onNewsViewShown();
   if (next === 'portfolio') renderHomeComparison();
   if (next === 'performance') requestAnimationFrame(drawChart);
+  if (next === 'dividends') renderDividendsView();
   if (next === 'pro' && typeof renderProView === 'function') renderProView({ selectedTicker });
   if (next === 'settings') renderSettings();
+  syncResumeSplashEligibility();
   if (push) {
     const hash = next === 'portfolio' ? '' : `#${next}`;
     window.history.pushState(nextNavigationState(window.history.state, { view:next, ...(selectedTicker ? { selectedTicker } : {}) }), '', `${location.pathname}${location.search}${hash}`);
@@ -1704,6 +1710,9 @@ function renderPortfolio(data) {
   renderDailyHistory();
   drawChart();
   renderWeeklyMovers(data.holdings);
+  const dividends = dividendSummary(data);
+  renderDividendHome(dividends);
+  if (state.view === 'dividends') renderDividendsView(dividends);
 }
 
 const holdingLogoCache = new Map();
@@ -1816,12 +1825,185 @@ function renderDailyHistory() {
   `).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Temettü. Veriler günlük geçmiş fiyat isteğiyle birlikte gelir; ek ağ isteği yoktur.
+// Hesaplar core/dividends.js'te, burada yalnız gösterim yapılır.
+// ---------------------------------------------------------------------------
+const fmtPerShare = new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', minimumFractionDigits:2, maximumFractionDigits:4 });
+function perShareMoney(v) { return Number.isFinite(Number(v)) ? fmtPerShare.format(Number(v)) : '—'; }
+function yieldText(v) { return v != null && Number.isFinite(Number(v)) ? `%${fmtNum.format(Number(v))}` : '—'; }
+
+function dividendSummary(data = state.portfolio) {
+  return summarizeDividends(data?.holdings || [], { today:todayIstanbul() });
+}
+
+function dividendDataPending(holdings = state.portfolio?.holdings || []) {
+  return holdings.some(holding => holding.firstTradeDate && !Array.isArray(holding.historySnapshot?.dividends));
+}
+
+function renderDividendHome(summary = dividendSummary()) {
+  const total = $('#dividendHomeTotal');
+  if (!total) return;
+  const holdings = state.portfolio?.holdings || [];
+  total.textContent = money(summary.totalNet);
+  $('#dividendHomeYear').textContent = money(summary.yearNet);
+  $('#dividendHomeExpected').textContent = money(summary.expectedAnnualNet);
+  const last = summary.payments[0];
+  $('#dividendHomeNote').textContent = !holdings.length
+    ? 'Hisse eklediğinizde temettüleriniz burada görünür.'
+    : last
+      ? `Son ödeme: ${last.ticker} · ${trDate(last.date)} · ${money(last.net)}`
+      : dividendDataPending(holdings)
+        ? 'Temettü verileri hazırlanıyor…'
+        : summary.yieldPct != null
+          ? `Henüz ödeme almadınız · Portföy verimi ${yieldText(summary.yieldPct)}`
+          : 'Portföyünüzde henüz temettü ödemesi yok.';
+}
+
+function renderDividendsView(summary = dividendSummary()) {
+  if (!$('#dividendsView')) return;
+  const totals = state.portfolio?.totals || {};
+  $('#dividendTotalNet').textContent = money(summary.totalNet);
+  $('#dividendTotalSub').textContent = `Brüt ${money(summary.totalGross)} · Stopaj ${money(summary.totalTax)} · ${summary.count} ödeme`;
+  $('#dividendYearNet').textContent = money(summary.yearNet);
+  $('#dividendTtmNet').textContent = money(summary.ttmNet);
+  $('#dividendExpectedNet').textContent = money(summary.expectedAnnualNet);
+  $('#dividendYield').textContent = yieldText(summary.yieldPct);
+
+  const totalReturn = $('#dividendTotalReturn');
+  const profit = Number(totals.totalProfit);
+  if (totals.totalProfit != null && Number.isFinite(profit) && Number(totals.invested) > 0) {
+    const value = profit + summary.totalNet;
+    totalReturn.textContent = `${money(value)} · ${pct((value / Number(totals.invested)) * 100)}`;
+    totalReturn.className = signClass(value);
+  } else {
+    totalReturn.textContent = '—';
+    totalReturn.className = 'neutral';
+  }
+
+  const pending = dividendDataPending();
+  const emptyText = pending ? 'Temettü verileri hazırlanıyor…' : 'Henüz temettü ödemesi yok.';
+  const maxYear = Math.max(0, ...summary.byYear.map(row => row.net));
+  $('#dividendYears').innerHTML = summary.byYear.length
+    ? summary.byYear.slice().reverse().map(row => `
+      <div class="dividend-year-row">
+        <span class="dividend-year">${esc(row.year)}</span>
+        <span class="dividend-year-bar"><i style="width:${maxYear > 0 ? Math.max(4, (row.net / maxYear) * 100).toFixed(1) : 0}%"></i></span>
+        <span class="dividend-year-value"><strong>${money(row.net)}</strong><small>${row.count} ödeme</small></span>
+      </div>`).join('')
+    : `<div class="analytics-empty">${emptyText}</div>`;
+
+  const holdingsEl = $('#dividendHoldings');
+  holdingsEl.innerHTML = summary.holdings.length
+    ? summary.holdings.map(item => `
+      <button class="dividend-holding-row" type="button" data-dividend-holding="${esc(item.id)}">
+        <span class="dividend-holding-id"><strong>${esc(item.ticker)}</strong><small>${item.count ? `${item.count} ödeme · son ${trDate(item.lastPayment.date)}` : 'Son 12 ayda dağıttı · ödeme almadınız'}</small></span>
+        <span class="dividend-holding-yield"><small>Verim</small><b>${yieldText(item.ttmYieldPct)}</b></span>
+        <span class="dividend-holding-total"><strong>${money(item.totalNet)}</strong><small>${item.expectedAnnualNet > 0 ? `Yıllık ~${money(item.expectedAnnualNet)}` : 'net alınan'}</small></span>
+      </button>`).join('')
+    : `<div class="analytics-empty">${pending ? emptyText : 'Portföyünüzde son dönemde temettü dağıtan hisse bulunmuyor.'}</div>`;
+  $$('[data-dividend-holding]', holdingsEl).forEach(button => {
+    button.addEventListener('click', () => openDetail(button.dataset.dividendHolding));
+  });
+
+  $('#dividendPaymentCount').textContent = `${summary.count} ödeme`;
+  $('#dividendPayments').innerHTML = summary.payments.length
+    ? summary.payments.map(payment => `
+      <div class="dividend-payment-row">
+        <div class="dividend-payment-date"><strong>${trDate(payment.date)}</strong><small>${esc(payment.ticker)}${payment.source === 'manual' ? ' · Elle' : ''}</small></div>
+        <div class="dividend-payment-calc"><span>${fmtNum.format(payment.lots)} lot × ${perShareMoney(payment.perShare)}</span><small>Brüt ${money(payment.gross)} · Stopaj %${fmtNum.format(payment.taxRate * 100)}</small></div>
+        <strong class="dividend-payment-net positive">${money(payment.net)}</strong>
+      </div>`).join('')
+    : `<div class="analytics-empty">${emptyText}</div>`;
+}
+
+function dividendDetailHtml(dividend) {
+  const today = todayIstanbul();
+  const summaryParts = [
+    dividend.count ? `${dividend.count} ödeme · Brüt ${money(dividend.totalGross)} · Net ${money(dividend.totalNet)}` : 'Bu hisseden henüz temettü kaydı yok.',
+    dividend.ttmYieldPct != null ? `Son 12 ay verimi ${yieldText(dividend.ttmYieldPct)}` : '',
+  ].filter(Boolean);
+  const rows = dividend.payments.map(payment =>
+    '<div class="dividend-detail-row">' +
+      '<span>' + trDate(payment.date) + (payment.source === 'manual' ? ' · Elle' : '') + '</span>' +
+      '<strong>' + fmtNum.format(payment.lots) + ' lot × ' + perShareMoney(payment.perShare) + '</strong>' +
+      '<b>' + money(payment.net) + '</b>' +
+      '<button class="dividend-remove" type="button" data-dividend-remove="' + esc(payment.id) + '" aria-label="' + (payment.source === 'manual' ? 'Elle eklenen kaydı sil' : 'Otomatik kaydı gizle') + '" title="' + (payment.source === 'manual' ? 'Sil' : 'Gizle') + '">×</button>' +
+    '</div>'
+  ).join('');
+  return `
+    <div class="edit-box dividend-detail">
+      <h3>Temettü</h3>
+      <p class="dividend-detail-summary">${summaryParts.map(esc).join(' · ')}</p>
+      ${rows ? `<div class="dividend-detail-list">${rows}</div>` : ''}
+      <form id="dividendForm" class="mini-form">
+        <input name="date" type="date" max="${today}" required aria-label="Hak kullanım tarihi">
+        <input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Hisse başı brüt temettü (₺)" required>
+        <button class="secondary-btn" type="submit">Temettü ekle</button>
+      </form>
+      <small class="form-note dividend-form-note">Tarih olarak hak kullanım gününü girin. Aynı güne eklediğiniz kayıt otomatik kaydın yerine geçer.</small>
+      ${dividend.hiddenCount ? `<button id="dividendRestore" class="dividend-restore" type="button">Gizlenen ${dividend.hiddenCount} otomatik kaydı geri getir</button>` : ''}
+    </div>`;
+}
+
+async function reloadPortfolioFromCache() {
+  const data = await service.getPortfolio({ refresh:false });
+  state.portfolio = data;
+  renderPortfolio(data);
+  return data;
+}
+
+async function submitDividend(event) {
+  event.preventDefault();
+  const element = event.currentTarget;
+  if (element.dataset.saving === 'true' || !state.selected) return;
+  element.dataset.saving = 'true';
+  const button = element.querySelector('button');
+  if (button) button.disabled = true;
+  const form = new FormData(element);
+  const id = state.selected.id;
+  try {
+    await service.addManualDividend(id, { date:String(form.get('date') || ''), perShare:Number(form.get('perShare')) });
+    await reloadPortfolioFromCache();
+    openDetail(id, { push:false });
+    toast('Temettü kaydedildi.');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    element.dataset.saving = 'false';
+    if (button) button.disabled = false;
+  }
+}
+
+async function removeDividendRecord(dividendId) {
+  if (!state.selected) return;
+  const id = state.selected.id;
+  try {
+    await service.removeDividend(id, dividendId);
+    await reloadPortfolioFromCache();
+    openDetail(id, { push:false });
+    toast(String(dividendId).startsWith('auto:') ? 'Otomatik temettü kaydı gizlendi.' : 'Temettü kaydı silindi.');
+  } catch (error) { toast(error.message); }
+}
+
+async function restoreDividendRecords() {
+  if (!state.selected) return;
+  const id = state.selected.id;
+  try {
+    await service.restoreHiddenDividends(id);
+    await reloadPortfolioFromCache();
+    openDetail(id, { push:false });
+    toast('Gizlenen temettü kayıtları geri getirildi.');
+  } catch (error) { toast(error.message); }
+}
+
 function hideSheets() {
   closeDeleteHoldingConfirm();
   $('#sheetBackdrop').hidden = true;
   $$('.sheet').forEach(sheet => { sheet.hidden = true; });
   document.body.style.overflow = '';
   document.body.classList.remove('sheet-open');
+  syncResumeSplashEligibility();
 }
 
 function showSheet(id) {
@@ -1830,6 +2012,7 @@ function showSheet(id) {
   $(id).hidden = false;
   document.body.style.overflow = 'hidden';
   document.body.classList.add('sheet-open');
+  syncResumeSplashEligibility();
 }
 
 function openSheet(id, navigation = {}, { push = true } = {}) {
@@ -1874,6 +2057,8 @@ function openDetail(id, { push = true } = {}) {
   state.selected = h;
   $('#detailTitle').textContent = `${h.ticker} · ${h.currentLots} lot`;
   const warnings = [h.errors?.market, h.errors?.history, h.errors?.ipo, h.errors?.sector].filter(Boolean);
+  const dividend = holdingDividendSummary(h, { today:todayIstanbul() });
+  const dividendNet = dividend.totalNet;
   $('#detailContent').innerHTML = `
     <div class="detail-grid">
       <div class="detail-tile"><span>Güncel fiyat</span><strong>${money(h.currentPrice)}</strong></div>
@@ -1885,6 +2070,7 @@ function openDetail(id, { push = true } = {}) {
       <div class="detail-tile"><span>Güncel değer</span><strong>${money(h.activeValue)}</strong></div>
       <div class="detail-tile"><span>Gerçekleşen net kâr</span><strong class="${signClass(h.realizedProfit)}">${money(h.realizedProfit)}</strong></div>
       ${Number(h.withholdingTax || 0) > 0 ? `<div class="detail-tile"><span>Stopaj (%17,5)</span><strong class="negative">-${money(h.withholdingTax)}</strong></div>` : ''}
+      <div class="detail-tile"><span>Alınan temettü (net)</span><strong class="${dividendNet > 0 ? 'positive' : ''}">${money(dividendNet)}</strong></div>
       <div class="detail-tile"><span>Sektör</span><strong>${esc(h.sector || '—')}</strong></div>
     </div>
     ${Array.isArray(h.purchases) && h.purchases.length
@@ -1892,6 +2078,7 @@ function openDetail(id, { push = true } = {}) {
           '<div class="purchase-history-row"><span>' + trDate(purchase.date) + '</span><strong>' + purchase.lots + ' lot · ' + money(purchase.price) + '</strong><b>' + money(Number(purchase.lots) * Number(purchase.price)) + '</b></div>'
         ).join('') + '</div></div>'
       : ''}
+    ${dividendDetailHtml(dividend)}
     ${warnings.length ? `<div class="warning-box">${warnings.map(esc).join('<br>')}</div>` : ''}
     <div class="edit-box">
       <h3>Satış ekle</h3>
@@ -1919,6 +2106,11 @@ function openDetail(id, { push = true } = {}) {
   `;
   $('#saleForm').addEventListener('submit', submitSale);
   $('#overrideForm').addEventListener('submit', submitOverride);
+  $('#dividendForm')?.addEventListener('submit', submitDividend);
+  $$('[data-dividend-remove]', $('#detailContent')).forEach(button => {
+    button.addEventListener('click', () => removeDividendRecord(button.dataset.dividendRemove));
+  });
+  $('#dividendRestore')?.addEventListener('click', restoreDividendRecords);
   $('#refreshOne').addEventListener('click', async () => {
     try {
       await service.refreshHolding(id);
@@ -2468,6 +2660,11 @@ $('#holdingSort').addEventListener('change', event => {
   if (state.portfolio) renderPortfolio(state.portfolio);
 });
 $$('.nav-tab').forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
+$('#dividendHomeOpen')?.addEventListener('click', () => switchView('dividends'));
+$('#dividendsBack')?.addEventListener('click', () => {
+  if (canHandleAppBack(window.history.state)) window.history.back();
+  else switchView('portfolio');
+});
 $('#themeToggle')?.addEventListener('click', () => applyTheme(nextTheme(state.theme)));
 $('#notificationEnabled')?.addEventListener('change', event => { state.alertSettings.enabled = event.target.checked; persistAlertSettings(); });
 // Kaydırırken yalnız etiket güncellenir; kayıt ve senkronizasyon bırakınca yapılır.
@@ -2527,6 +2724,50 @@ $('#walletWidgetPromoAdd')?.addEventListener('click', () => {
 
 window.__showBackExitHint = () => toast('Çıkmak için tekrar geri basın.');
 
+// ---------------------------------------------------------------------------
+// Açılış ekranı (native logo katmanı). Uygulama her açıldığında ve fiyat gösteren
+// bir ekrana uzun aradan sonra dönüldüğünde hesaplamalar logonun arkasında yapılır.
+// ---------------------------------------------------------------------------
+const SPLASH_MIN_VISIBLE_MS = 650;
+const SPLASH_STARTUP_MAX_WAIT_MS = 8000;
+const SPLASH_RESUME_MAX_WAIT_MS = 6000;
+const SPLASH_REFRESH_VIEWS = new Set(['portfolio', 'holdings', 'performance', 'dividends']);
+
+function waitMs(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function hideAppSplash() {
+  try { window.AndroidBridge?.hideSplash?.(); } catch {}
+}
+
+async function settleBehindSplash(tasks, { maxWaitMs }) {
+  const startedAt = Date.now();
+  try {
+    await Promise.race([Promise.allSettled(tasks), waitMs(maxWaitMs)]);
+    const remaining = SPLASH_MIN_VISIBLE_MS - (Date.now() - startedAt);
+    if (remaining > 0) await waitMs(remaining);
+  } finally {
+    hideAppSplash();
+  }
+}
+
+function resumeSplashEligible() {
+  return SPLASH_REFRESH_VIEWS.has(state.view) && $('#addSheet')?.hidden !== false;
+}
+
+function syncResumeSplashEligibility() {
+  try { window.AndroidBridge?.setResumeSplashEnabled?.(resumeSplashEligible()); } catch {}
+}
+
+window.__appResumeRefresh = () => {
+  if (!resumeSplashEligible()) return false;
+  renderMarketStatus();
+  settleBehindSplash([
+    loadPortfolio({ quiet:true }).then(() => refreshBackgroundHistory()),
+    state.view === 'portfolio' ? loadHomeComparison() : null,
+  ], { maxWaitMs:SPLASH_RESUME_MAX_WAIT_MS });
+  return true;
+};
+
 if (!window.history.state?.appRoot) window.history.replaceState(createRootNavigationState('portfolio'), '', `${location.pathname}${location.search}`);
 else if (!Number.isFinite(Number(window.history.state?.navDepth)) || Number(window.history.state.navDepth) < 0) window.history.replaceState(createRootNavigationState(window.history.state?.view || 'portfolio'), '', location.href);
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'app.local') navigator.serviceWorker.register('./sw.js').catch(()=>{});
@@ -2536,9 +2777,12 @@ applyPrivacyMode(safeGetLocal(PRIVACY_KEY) === '1', { persist:false });
 restoreNewsCache();
 applyNavigationState(window.history.state);
 renderMarketStatus();
-loadPortfolio();
-loadHomeComparison();
-setTimeout(() => refreshBackgroundHistory(), 900);
+// Açılış: native logo katmanı fiyatlar, geçmiş ve karşılaştırma hesaplanana kadar açık kalır;
+// kullanıcı eski → yeni fiyat geçişini görmez. Ağ yavaşsa üst sınırda logo yine kalkar.
+settleBehindSplash([
+  loadPortfolio().then(() => refreshBackgroundHistory()),
+  loadHomeComparison(),
+], { maxWaitMs:SPLASH_STARTUP_MAX_WAIT_MS });
 let closedQuoteTick = 0;
 setInterval(() => {
   if (document.hidden) return;

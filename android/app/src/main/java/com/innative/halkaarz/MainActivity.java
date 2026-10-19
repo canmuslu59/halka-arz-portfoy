@@ -8,14 +8,25 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.provider.Settings;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.animation.DecelerateInterpolator;
 import android.webkit.JavascriptInterface;
 import android.webkit.MimeTypeMap;
 import android.webkit.ValueCallback;
@@ -25,6 +36,11 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
@@ -83,6 +99,11 @@ public class MainActivity extends ComponentActivity {
             "www.haberturk.com"
     ));
     private static final long EXIT_BACK_WINDOW_MS = 2000L;
+    // Açılış ekranı: web katmanı fiyatları hesaplayıp hideSplash() çağırana kadar logo görünür.
+    // Web katmanı hiç cevap vermezse SPLASH_FAILSAFE_MS sonunda kendiliğinden kapanır.
+    private static final int SPLASH_BACKGROUND = Color.rgb(7, 11, 21);
+    private static final long SPLASH_FAILSAFE_MS = 10000L;
+    private static final long RESUME_SPLASH_AFTER_MS = 30000L;
     private final ExecutorService networkExecutor = new ThreadPoolExecutor(
             4,
             4,
@@ -93,6 +114,7 @@ public class MainActivity extends ComponentActivity {
     );
     private final Runnable startupPermissionRequest = this::requestStartupNotificationPermission;
     private final Runnable startupWidgetPrompt = this::maybePromptWalletWidget;
+    private final Runnable splashFailsafe = () -> hideSplash(true);
     private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestPermission(),
             granted -> handleNotificationPermissionResult()
@@ -123,6 +145,13 @@ public class MainActivity extends ComponentActivity {
     private boolean walletWidgetPromoPending;
     private boolean lightThemeActive;
     private String pendingBackupJson;
+    private View splashView;
+    private View splashBrand;
+    private boolean splashVisible;
+    private boolean startupPromptsPending = true;
+    private boolean activityStarted;
+    private long backgroundSinceMs;
+    private volatile boolean resumeSplashEnabled = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,12 +163,18 @@ public class MainActivity extends ComponentActivity {
         super.onCreate(savedInstanceState);
         getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(7, 11, 21));
+        webView.setBackgroundColor(SPLASH_BACKGROUND);
         applyInsets(webView);
         setSystemBarIcons(false);
         hideSystemNavigation();
         configureWebView(webView);
-        setContentView(webView);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(SPLASH_BACKGROUND);
+        root.addView(webView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        splashView = createSplashView();
+        root.addView(splashView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        showSplash(true);
         capturePushRoute(getIntent());
         NotificationHelper.ensureChannels(this);
         BackgroundAlertScheduler.ensure(this);
@@ -147,8 +182,118 @@ public class MainActivity extends ComponentActivity {
         PushConfigSync.installId(this);
         PushMessagingService.refreshToken(this);
         webView.loadUrl(START_URL);
-        webView.postDelayed(startupPermissionRequest, 700L);
-        webView.postDelayed(startupWidgetPrompt, 2200L);
+    }
+
+    private int dp(float value) {
+        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics()));
+    }
+
+    // Uygulama her açıldığında fiyatlar arka planda hesaplanırken gösterilen büyük logo katmanı.
+    private View createSplashView() {
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setBackgroundColor(SPLASH_BACKGROUND);
+        overlay.setClickable(true);
+        overlay.setFocusable(true);
+        overlay.setVisibility(View.GONE);
+
+        LinearLayout brand = new LinearLayout(this);
+        brand.setOrientation(LinearLayout.VERTICAL);
+        brand.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        FrameLayout logoHalo = new FrameLayout(this);
+        GradientDrawable glow = new GradientDrawable();
+        glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        glow.setColors(new int[] { Color.argb(110, 56, 116, 255), Color.argb(0, 56, 116, 255) });
+        glow.setGradientRadius(dp(150));
+        logoHalo.setBackground(glow);
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.ic_launcher);
+        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        logo.setContentDescription("Hisse Portföyüm");
+        final float logoRadius = dp(42);
+        logo.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View view, Outline outline) {
+                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), logoRadius);
+            }
+        });
+        logo.setClipToOutline(true);
+        logoHalo.addView(logo, new FrameLayout.LayoutParams(dp(168), dp(168), Gravity.CENTER));
+        brand.addView(logoHalo, new LinearLayout.LayoutParams(dp(300), dp(300)));
+
+        TextView title = new TextView(this);
+        title.setText("Hisse Portföyüm");
+        title.setTextColor(Color.rgb(248, 250, 252));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 27f);
+        title.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        title.setLetterSpacing(-0.01f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleParams.topMargin = -dp(46);
+        brand.addView(title, titleParams);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Fiyatlar güncelleniyor…");
+        subtitle.setTextColor(Color.rgb(141, 153, 173));
+        subtitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subtitleParams.topMargin = dp(6);
+        brand.addView(subtitle, subtitleParams);
+
+        ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setIndeterminate(true);
+        progress.setIndeterminateTintList(ColorStateList.valueOf(Color.rgb(109, 141, 255)));
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(dp(124), dp(4));
+        progressParams.topMargin = dp(24);
+        brand.addView(progress, progressParams);
+
+        overlay.addView(brand, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        splashBrand = brand;
+        return overlay;
+    }
+
+    private void showSplash(boolean coldStart) {
+        View overlay = splashView;
+        if (overlay == null) return;
+        overlay.animate().cancel();
+        overlay.removeCallbacks(splashFailsafe);
+        overlay.setAlpha(1f);
+        overlay.setVisibility(View.VISIBLE);
+        splashVisible = true;
+        if (coldStart && splashBrand != null) {
+            splashBrand.setAlpha(0f);
+            splashBrand.setScaleX(0.92f);
+            splashBrand.setScaleY(0.92f);
+            splashBrand.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                    .setDuration(420L)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        }
+        overlay.postDelayed(splashFailsafe, SPLASH_FAILSAFE_MS);
+    }
+
+    private void hideSplash(boolean animate) {
+        View overlay = splashView;
+        if (overlay == null || !splashVisible) return;
+        splashVisible = false;
+        overlay.removeCallbacks(splashFailsafe);
+        overlay.animate().cancel();
+        if (!animate || !activityStarted) {
+            overlay.setVisibility(View.GONE);
+            overlay.setAlpha(1f);
+        } else {
+            overlay.animate().alpha(0f).setDuration(280L).withEndAction(() -> {
+                if (splashVisible) return;
+                overlay.setVisibility(View.GONE);
+                overlay.setAlpha(1f);
+            }).start();
+        }
+        // Bildirim izni ve widget tanıtımı açılış ekranının üstüne binmesin diye logo kalktıktan sonra sorulur.
+        if (startupPromptsPending && webView != null) {
+            startupPromptsPending = false;
+            webView.postDelayed(startupPermissionRequest, 700L);
+            webView.postDelayed(startupWidgetPrompt, 2200L);
+        }
     }
 
     private void requestStartupNotificationPermission() {
@@ -279,6 +424,30 @@ public class MainActivity extends ComponentActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        activityStarted = true;
+        long hiddenSince = backgroundSinceMs;
+        backgroundSinceMs = 0L;
+        // Arka planda uzun kalındıysa eski fiyatlar görünmesin: logo gelir, web katmanı
+        // fiyatları yeniler ve bitince hideSplash() çağırır. Kısa geçişlerde açılmaz.
+        if (hiddenSince > 0L && resumeSplashEnabled && !splashVisible && webView != null
+                && SystemClock.elapsedRealtime() - hiddenSince >= RESUME_SPLASH_AFTER_MS) {
+            showSplash(false);
+            evaluateJavascriptIfAlive("Boolean(window.__appResumeRefresh && window.__appResumeRefresh())", value -> {
+                if (!"true".equalsIgnoreCase(String.valueOf(value))) hideSplash(false);
+            });
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        activityStarted = false;
+        backgroundSinceMs = SystemClock.elapsedRealtime();
+        super.onStop();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         hideSystemNavigation();
@@ -295,6 +464,10 @@ public class MainActivity extends ComponentActivity {
         WebView currentWebView = webView;
         webView = null;
         networkExecutor.shutdownNow();
+        if (splashView != null) {
+            splashView.removeCallbacks(splashFailsafe);
+            splashView.animate().cancel();
+        }
         if (currentWebView != null) {
             currentWebView.removeCallbacks(startupPermissionRequest);
             currentWebView.removeCallbacks(startupWidgetPrompt);
@@ -588,6 +761,18 @@ public class MainActivity extends ComponentActivity {
             if (isValidJsonObject(current)) editor.putString(BACKUP_KEY, current);
             editor.putString(PORTFOLIO_KEY, json);
             return editor.commit();
+        }
+
+        // Web katmanı açılış/geri dönüş hesaplamasını bitirince logo katmanını kaldırır.
+        @JavascriptInterface
+        public void hideSplash() {
+            activity.runOnUiThread(() -> activity.hideSplash(true));
+        }
+
+        // Fiyat gösteren ekranlarda geri dönüşte logo gösterilir; haber/ayar ekranlarında gösterilmez.
+        @JavascriptInterface
+        public void setResumeSplashEnabled(boolean enabled) {
+            activity.resumeSplashEnabled = enabled;
         }
 
         @JavascriptInterface

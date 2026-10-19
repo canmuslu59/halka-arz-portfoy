@@ -72,6 +72,21 @@
       <div id="weeklyMoversList" class="weekly-movers-list"><div class="weekly-movers-empty">Haftalık veri bekleniyor.</div></div>
     </section>
 
+    <section id="dividendHomeCard" class="dividend-home-card" aria-label="Temettü özeti">
+      <button id="dividendHomeOpen" class="dividend-home-button" type="button" aria-label="Temettü gelirini aç">
+        <span class="dividend-home-head">
+          <span><span class="eyebrow">TEMETTÜ</span><b class="dividend-home-title">Temettü Gelirim</b></span>
+          <span class="dividend-home-link">Tümü ›</span>
+        </span>
+        <span class="dividend-home-grid">
+          <span><small>Toplam (net)</small><strong id="dividendHomeTotal">—</strong></span>
+          <span><small>Bu yıl</small><strong id="dividendHomeYear">—</strong></span>
+          <span><small>Yıllık tahmini</small><strong id="dividendHomeExpected">—</strong></span>
+        </span>
+        <span id="dividendHomeNote" class="dividend-home-note">Temettü verileri hazırlanıyor…</span>
+      </button>
+    </section>
+
     <section id="comparisonCard" class="comparison-card portfolio-comparison-card" aria-label="Portföy karşılaştırması">
       <div class="comparison-head"><span class="eyebrow">KARŞILAŞTIRMA</span></div>
       <div class="comparison-range" role="tablist" aria-label="Karşılaştırma dönemi">
@@ -173,6 +188,54 @@
       </div>
     </section>
 
+    </section>
+
+    <section id="dividendsView" class="app-view dividends-view" hidden>
+      <section class="dividend-hero" aria-label="Temettü özeti">
+        <div class="dividend-hero-top">
+          <button id="dividendsBack" class="icon-btn dividend-back" type="button" aria-label="Cüzdana dön" title="Geri">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div><span class="eyebrow">TEMETTÜ</span><h2>Temettü Gelirim</h2></div>
+        </div>
+        <span class="dividend-hero-label">Toplam alınan temettü (net)</span>
+        <div id="dividendTotalNet" class="dividend-hero-value">₺0,00</div>
+        <div id="dividendTotalSub" class="dividend-hero-sub">Brüt — · Stopaj —</div>
+        <div class="dividend-stat-grid">
+          <div><span>Bu yıl</span><strong id="dividendYearNet">—</strong></div>
+          <div><span>Son 12 ay</span><strong id="dividendTtmNet">—</strong></div>
+          <div><span>Yıllık tahmini</span><strong id="dividendExpectedNet">—</strong></div>
+          <div><span>Temettü verimi</span><strong id="dividendYield">—</strong></div>
+        </div>
+        <div class="dividend-total-return">
+          <span>Temettü dahil toplam getiri</span>
+          <strong id="dividendTotalReturn">—</strong>
+        </div>
+      </section>
+
+      <section class="section analytics-card dividend-card">
+        <div class="section-head">
+          <div><span class="eyebrow">YILLIK</span><h2>Yıllara göre temettü</h2></div>
+        </div>
+        <div id="dividendYears" class="dividend-years"></div>
+      </section>
+
+      <section class="section analytics-card dividend-card">
+        <div class="section-head">
+          <div><span class="eyebrow">HİSSE BAZINDA</span><h2>Temettü veren hisseler</h2></div>
+        </div>
+        <div id="dividendHoldings" class="dividend-holdings"></div>
+      </section>
+
+      <section class="section analytics-card dividend-card">
+        <div class="section-head">
+          <div><span class="eyebrow">GEÇMİŞ</span><h2>Ödeme geçmişi</h2></div>
+          <span id="dividendPaymentCount" class="count-chip">0 ödeme</span>
+        </div>
+        <div id="dividendPayments" class="dividend-payments"></div>
+      </section>
+
+      <p class="dividend-disclaimer">Temettüler hak kullanım tarihinden önceki gün elinizdeki lota göre hesaplanır. Veriler Yahoo Finance'tan gelir ve gecikmeli/eksik olabilir; eksik veya hatalı kaydı hisse detayındaki Temettü bölümünden düzeltebilirsiniz. Stopaj: 22.12.2024 öncesi %10, sonrası %15. Yıllık tahmin son 12 ayın ödemelerine dayanır; yatırım tavsiyesi değildir.</p>
     </section>
 
     <section id="marketsView" class="app-view finance-news-view labs-news" hidden>
@@ -322,7 +385,7 @@
             <a href="./privacy.html">Gizlilik politikası</a>
             <span>Portföy takip uygulaması • yatırım tavsiyesi değildir.</span>
           </div>
-          <small id="appVersion" class="build-info">Hisse Portföyüm<br />v2.5.9 • Build 43</small>
+          <small id="appVersion" class="build-info">Hisse Portföyüm<br />v2.6.0 • Build 44</small>
         </article>
       </section>
     </section>

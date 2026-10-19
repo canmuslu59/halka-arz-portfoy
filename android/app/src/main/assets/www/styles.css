@@ -787,3 +787,111 @@ html[data-theme="light"] .delete-confirm-copy h3{color:#22324e}html[data-theme="
   }
   .bottom-nav .nav-tab b{font-size:10px!important}
 }
+
+/* Code44: temettü kartı ve Temettü Gelirim ekranı. */
+#dividendHomeCard{order:4}
+.dividend-home-card{border:1px solid var(--line);background:linear-gradient(160deg,rgba(25,35,65,.92),rgba(11,16,31,.92));box-shadow:var(--shadow);border-radius:22px;overflow:hidden;position:relative}
+.dividend-home-card:before{content:"";position:absolute;inset:-70px -60px auto auto;width:170px;height:170px;border-radius:50%;background:rgba(53,212,154,.10);filter:blur(10px);pointer-events:none}
+.dividend-home-button{position:relative;width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:14px 15px 12px;display:grid;gap:10px;cursor:pointer}
+.dividend-home-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.dividend-home-head>span:first-child{display:grid;gap:2px}
+.dividend-home-title{font-size:14px;line-height:1.15}
+.dividend-home-link{font-size:11px;font-weight:850;color:#8eabff;white-space:nowrap}
+.dividend-home-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.dividend-home-grid>span{min-width:0;border:1px solid rgba(255,255,255,.055);background:rgba(255,255,255,.035);border-radius:12px;padding:9px 8px;display:grid;gap:4px}
+.dividend-home-grid>span:first-child{background:rgba(53,212,154,.08);border-color:rgba(53,212,154,.16)}
+.dividend-home-grid small{font-size:9.5px;color:#7f8ca1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-home-grid strong{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-home-grid>span:first-child strong{color:var(--green)}
+.dividend-home-note{font-size:10px;color:var(--muted);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dividendsView{display:grid;gap:14px;align-content:start}
+#dividendsView[hidden]{display:none}
+.dividend-card.section{margin-top:0}
+.dividend-hero{border:1px solid var(--line);background:linear-gradient(160deg,rgba(25,35,65,.92),rgba(11,16,31,.92));box-shadow:var(--shadow);border-radius:26px;padding:16px 18px 18px;margin-top:8px;position:relative;overflow:hidden;display:grid;gap:4px}
+.dividend-hero:before{content:"";position:absolute;inset:-90px -70px auto auto;width:220px;height:220px;border-radius:50%;background:rgba(53,212,154,.12);filter:blur(12px);pointer-events:none}
+.dividend-hero>*{position:relative}
+.dividend-hero-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.dividend-hero-top h2{font-size:20px;line-height:1.15;margin-top:2px}
+.dividend-back{flex:0 0 auto;width:40px;height:40px;border-radius:13px}
+.dividend-hero-label{font-size:11px;color:var(--muted);font-weight:750}
+.dividend-hero-value{font-size:clamp(30px,9vw,40px);font-weight:900;letter-spacing:-.03em;color:var(--green);font-variant-numeric:tabular-nums;line-height:1.1}
+.dividend-hero-sub{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dividend-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.dividend-stat-grid>div{border:1px solid rgba(255,255,255,.055);background:rgba(255,255,255,.035);border-radius:13px;padding:10px 11px;display:grid;gap:4px;min-width:0}
+.dividend-stat-grid span{font-size:10px;color:#7f8ca1}
+.dividend-stat-grid strong{font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-total-return{margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:13px;background:rgba(109,141,255,.09);border:1px solid rgba(109,141,255,.16)}
+.dividend-total-return span{font-size:11px;color:#a9b6cc;font-weight:750}
+.dividend-total-return strong{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dividend-years{display:grid;gap:9px;margin-top:12px}
+.dividend-year-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px}
+.dividend-year{font-size:12px;font-weight:850;color:#b8c3d6}
+.dividend-year-bar{height:10px;border-radius:999px;background:rgba(255,255,255,.05);overflow:hidden}
+.dividend-year-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#2fb487,#35d49a)}
+.dividend-year-value{display:grid;justify-items:end;gap:1px}
+.dividend-year-value strong{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dividend-year-value small{font-size:9px;color:#6f7d93}
+.dividend-holdings{display:grid;gap:8px;margin-top:12px}
+.dividend-holding-row{width:100%;border:1px solid rgba(255,255,255,.055);border-radius:14px;background:rgba(255,255,255,.035);color:inherit;font:inherit;text-align:left;padding:10px 11px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;cursor:pointer}
+.dividend-holding-id{display:grid;gap:2px;min-width:0}
+.dividend-holding-id strong{font-size:13px;letter-spacing:.02em}
+.dividend-holding-id small,.dividend-holding-yield small,.dividend-holding-total small{font-size:9px;color:#6f7d93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-holding-yield{display:grid;justify-items:end;gap:2px}
+.dividend-holding-yield b{font-size:12px;color:#8eabff;font-variant-numeric:tabular-nums}
+.dividend-holding-total{display:grid;justify-items:end;gap:2px;min-width:0}
+.dividend-holding-total strong{font-size:13px;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
+.dividend-payments{display:grid;margin-top:12px;max-height:440px;overflow:auto;overscroll-behavior:contain;border-top:1px solid var(--line)}
+.dividend-payment-row{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr) auto;gap:10px;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(255,255,255,.055);font-variant-numeric:tabular-nums}
+.dividend-payment-row>div{display:grid;gap:2px;min-width:0}
+.dividend-payment-row strong{font-size:12px;white-space:nowrap}
+.dividend-payment-row span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-payment-row small{font-size:9px;color:#6f7d93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dividend-payment-net{text-align:right}
+.dividend-disclaimer{font-size:10px;line-height:1.55;color:#657187;padding:0 4px}
+.dividend-detail-summary{font-size:11px;color:var(--muted);line-height:1.5;margin:-4px 0 10px}
+.dividend-detail-list{display:grid;gap:7px;margin-bottom:10px}
+.dividend-detail-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:9px;padding:9px 6px 9px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.03);font-size:11px;font-variant-numeric:tabular-nums}
+.dividend-detail-row span{color:var(--muted);white-space:nowrap}
+.dividend-detail-row strong{font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dividend-detail-row b{font-size:12px;color:var(--green);white-space:nowrap}
+.dividend-remove{width:28px;height:28px;border:0;border-radius:9px;background:rgba(255,255,255,.05);color:#8d99ad;font-size:16px;line-height:1;cursor:pointer}
+.dividend-form-note{display:block;margin-top:8px}
+.dividend-restore{margin-top:8px;border:0;background:transparent;color:#8eabff;font:inherit;font-size:11px;font-weight:800;padding:4px 0;cursor:pointer}
+html[data-theme="light"] .dividend-home-card,html[data-theme="light"] .dividend-hero{background:linear-gradient(160deg,#fff,#f8faff);border-color:#dfe5f0;box-shadow:0 10px 28px rgba(52,67,103,.08)}
+html[data-theme="light"] .dividend-home-grid>span,html[data-theme="light"] .dividend-stat-grid>div,html[data-theme="light"] .dividend-holding-row,html[data-theme="light"] .dividend-detail-row{background:#f7f9fc;border-color:#e5e9f0}
+html[data-theme="light"] .dividend-home-grid>span:first-child{background:rgba(10,154,110,.07);border-color:rgba(10,154,110,.16)}
+html[data-theme="light"] .dividend-total-return{background:rgba(79,114,232,.07);border-color:rgba(79,114,232,.14)}
+html[data-theme="light"] .dividend-total-return span,html[data-theme="light"] .dividend-year{color:#4d5c75}
+html[data-theme="light"] .dividend-year-bar,html[data-theme="light"] .dividend-remove{background:rgba(29,50,82,.06)}
+html[data-theme="light"] .dividend-payment-row{border-bottom-color:rgba(22,37,63,.07)}
+html[data-theme="light"] .dividend-home-link,html[data-theme="light"] .dividend-holding-yield b,html[data-theme="light"] .dividend-restore{color:#4f72e8}
+html.labs-privacy #dividendHomeTotal,
+html.labs-privacy #dividendHomeYear,
+html.labs-privacy #dividendHomeExpected,
+html.labs-privacy #dividendHomeNote,
+html.labs-privacy #dividendTotalNet,
+html.labs-privacy #dividendTotalSub,
+html.labs-privacy .dividend-stat-grid strong,
+html.labs-privacy #dividendTotalReturn,
+html.labs-privacy .dividend-year-value strong,
+html.labs-privacy .dividend-holding-total,
+html.labs-privacy .dividend-payment-row .dividend-payment-calc,
+html.labs-privacy .dividend-payment-net,
+html.labs-privacy .dividend-detail-summary,
+html.labs-privacy .dividend-detail-row strong,
+html.labs-privacy .dividend-detail-row b{filter:blur(7px);user-select:none;transition:filter .18s ease}
+@media(max-width:430px){
+  .dividend-home-button{padding:12px 13px 10px;gap:8px}
+  .dividend-home-title{font-size:13px}
+  .dividend-home-grid{gap:5px}
+  .dividend-home-grid>span{padding:8px 6px;border-radius:10px}
+  .dividend-home-grid strong{font-size:12px}
+  .dividend-holding-row{gap:9px;padding:9px 10px}
+  .dividend-payment-row{gap:8px}
+}
+@media(max-width:365px){
+  .dividend-home-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dividend-home-grid>span:last-child{grid-column:1/-1}
+  .dividend-holding-yield{display:none}
+  .dividend-holding-row{grid-template-columns:minmax(0,1fr) auto}
+}
