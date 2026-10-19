@@ -1,8 +1,8 @@
 {
-  "profile": "compat-virtual",
+  "profile": "physical-samsung-single",
   "scenario": "instrumentation",
   "timeout": "10m",
-  "versions": "28,33,36",
+  "versions": "",
   "locale": "tr",
-  "note": "Code45 QA run 2 — virtual API 28/33/36 (28 = old WebView 66, expected JS failure; checks fast splash release)"
+  "note": "Code45 QA run 3 — physical Samsung, after dividend unit fix and field labels"
 }
