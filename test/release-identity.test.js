@@ -6,14 +6,14 @@ async function read(path) {
   return fs.readFile(path, 'utf8');
 }
 
-test('Google Play release candidate advances to versionCode 44 / versionName 2.6.0', async () => {
+test('Google Play release candidate advances to versionCode 45 / versionName 2.6.1', async () => {
   const gradle = await read('android/app/build.gradle');
   const index = await read('public/index.html');
 
   assert.match(gradle, /applicationId ['"]com\.innative\.halkaarz['"]/);
   assert.match(gradle, /targetSdk 36/);
-  assert.match(gradle, /versionCode 44/);
-  assert.match(gradle, /versionName ['"]2\.6\.0['"]/);
-  assert.match(index, /id="appVersion"[\s\S]*v2\.6\.0\s*•\s*Build 44/);
+  assert.match(gradle, /versionCode 45/);
+  assert.match(gradle, /versionName ['"]2\.6\.1['"]/);
+  assert.match(index, /id="appVersion"[\s\S]*v2\.6\.1\s*•\s*Build 45/);
 });
 

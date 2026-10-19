@@ -547,7 +547,7 @@ function renderAppInfo() {
   const element = $('#appVersion');
   if (!element) return;
   const info = appInfo();
-  const version = info?.versionName || '2.6.0';
+  const version = info?.versionName || '2.6.1';
   const build = info?.versionCode || 43;
   element.innerHTML = 'Hisse Portföyüm<br />v' + esc(version) + ' • Build ' + esc(build);
 }
@@ -614,7 +614,7 @@ async function buildBackupJson() {
     const value = safeGetLocal(key);
     if (value != null) settings[key] = value;
   }
-  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.6.0' });
+  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.6.1' });
   return { json:JSON.stringify(payload, null, 2), count:payload.portfolio.holdings.length };
 }
 
@@ -1832,6 +1832,9 @@ function renderDailyHistory() {
 const fmtPerShare = new Intl.NumberFormat('tr-TR', { style:'currency', currency:'TRY', minimumFractionDigits:2, maximumFractionDigits:4 });
 function perShareMoney(v) { return Number.isFinite(Number(v)) ? fmtPerShare.format(Number(v)) : '—'; }
 function yieldText(v) { return v != null && Number.isFinite(Number(v)) ? `%${fmtNum.format(Number(v))}` : '—'; }
+// Bedelsizden önceki ödemelerde tutar bugünkü lot adedine göre düzeltilmiştir; ilan edilen tutar ayrıca gösterilir.
+function splitAdjusted(payment) { return Math.abs(Number(payment?.splitFactor || 1) - 1) > 1e-9; }
+function splitNote(payment) { return splitAdjusted(payment) ? ` · İlan ${perShareMoney(payment.perShare)}/hisse` : ''; }
 
 function dividendSummary(data = state.portfolio) {
   return summarizeDividends(data?.holdings || [], { today:todayIstanbul() });
@@ -1911,7 +1914,7 @@ function renderDividendsView(summary = dividendSummary()) {
     ? summary.payments.map(payment => `
       <div class="dividend-payment-row">
         <div class="dividend-payment-date"><strong>${trDate(payment.date)}</strong><small>${esc(payment.ticker)}${payment.source === 'manual' ? ' · Elle' : ''}</small></div>
-        <div class="dividend-payment-calc"><span>${fmtNum.format(payment.lots)} lot × ${perShareMoney(payment.perShare)}</span><small>Brüt ${money(payment.gross)} · Stopaj %${fmtNum.format(payment.taxRate * 100)}</small></div>
+        <div class="dividend-payment-calc"><span>${fmtNum.format(payment.lots)} lot × ${perShareMoney(payment.adjustedPerShare)}</span><small>Brüt ${money(payment.gross)} · Stopaj %${fmtNum.format(payment.taxRate * 100)}${splitNote(payment)}</small></div>
         <strong class="dividend-payment-net positive">${money(payment.net)}</strong>
       </div>`).join('')
     : `<div class="analytics-empty">${emptyText}</div>`;
@@ -1922,11 +1925,12 @@ function dividendDetailHtml(dividend) {
   const summaryParts = [
     dividend.count ? `${dividend.count} ödeme · Brüt ${money(dividend.totalGross)} · Net ${money(dividend.totalNet)}` : 'Bu hisseden henüz temettü kaydı yok.',
     dividend.ttmYieldPct != null ? `Son 12 ay verimi ${yieldText(dividend.ttmYieldPct)}` : '',
+    dividend.payments.some(splitAdjusted) ? 'Bedelsiz öncesi ödemeler bugünkü lot adedine göre düzeltilmiştir' : '',
   ].filter(Boolean);
   const rows = dividend.payments.map(payment =>
     '<div class="dividend-detail-row">' +
       '<span>' + trDate(payment.date) + (payment.source === 'manual' ? ' · Elle' : '') + '</span>' +
-      '<strong>' + fmtNum.format(payment.lots) + ' lot × ' + perShareMoney(payment.perShare) + '</strong>' +
+      '<strong' + (splitAdjusted(payment) ? ' title="İlan edilen: ' + perShareMoney(payment.perShare) + '/hisse"' : '') + '>' + fmtNum.format(payment.lots) + ' lot × ' + perShareMoney(payment.adjustedPerShare) + '</strong>' +
       '<b>' + money(payment.net) + '</b>' +
       '<button class="dividend-remove" type="button" data-dividend-remove="' + esc(payment.id) + '" aria-label="' + (payment.source === 'manual' ? 'Elle eklenen kaydı sil' : 'Otomatik kaydı gizle') + '" title="' + (payment.source === 'manual' ? 'Sil' : 'Gizle') + '">×</button>' +
     '</div>'
@@ -1941,7 +1945,7 @@ function dividendDetailHtml(dividend) {
         <input name="perShare" type="number" min="0.0001" step="0.0001" inputmode="decimal" placeholder="Hisse başı brüt temettü (₺)" required>
         <button class="secondary-btn" type="submit">Temettü ekle</button>
       </form>
-      <small class="form-note dividend-form-note">Tarih olarak hak kullanım gününü girin. Aynı güne eklediğiniz kayıt otomatik kaydın yerine geçer.</small>
+      <small class="form-note dividend-form-note">Tarih olarak hak kullanım gününü, tutar olarak o gün ilan edilen hisse başı brüt temettüyü girin. Aynı güne eklediğiniz kayıt otomatik kaydın yerine geçer.</small>
       ${dividend.hiddenCount ? `<button id="dividendRestore" class="dividend-restore" type="button">Gizlenen ${dividend.hiddenCount} otomatik kaydı geri getir</button>` : ''}
     </div>`;
 }

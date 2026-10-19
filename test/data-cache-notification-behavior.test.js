@@ -72,8 +72,8 @@ test('IPO calendar cache uses the current schema alongside the milestone release
   const gradle = await read('android/app/build.gradle');
   const html = await read('public/index.html');
   assert.match(service, /halka_arz_calendar_cache_v3/);
-  assert.match(gradle, /versionCode 44/);
-  assert.match(gradle, /versionName ['"]2\.6\.0['"]/);
-  assert.match(html, /v2\.6\.0\s*•\s*Build 44/);
+  assert.match(gradle, /versionCode 45/);
+  assert.match(gradle, /versionName ['"]2\.6\.1['"]/);
+  assert.match(html, /v2\.6\.1\s*•\s*Build 45/);
 });
 

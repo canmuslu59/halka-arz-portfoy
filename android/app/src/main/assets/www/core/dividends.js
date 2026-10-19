@@ -3,8 +3,11 @@
 // Kaynak: günlük geçmiş fiyat isteğiyle birlikte gelen Yahoo temettü/bedelsiz olayları
 // (historySnapshot.dividends / .splits) + kullanıcının elle eklediği kayıtlar.
 // - Hak: hak kullanım (ex-date) gününden bir önceki gün sonunda eldeki lot.
-// - Yahoo tutarları sonraki bedelsizlere göre düzeltilmiş gelir; ödeme günündeki gerçek
-//   hisse başı tutar için sonraki split oranlarıyla geri çarpılır.
+// - Birim: uygulama lotları bugünkü adetle (bedelsiz sonrası, "Elinizdeki lot") ve fiyat
+//   geçmişini bedelsiz düzeltilmiş tutar. Yahoo temettü tutarları da sonraki bedelsizlere göre
+//   düzeltilmiş gelir; hesap bu düzeltilmiş tutar × lot ile yapılır. İlan edilen (o günkü)
+//   hisse başı tutar yalnız gösterim içindir. Elle girilen ilan tutarı sonraki bedelsiz
+//   oranına bölünerek aynı birime çevrilir.
 // - Stopaj: 22.12.2024 ve sonrası %15, öncesi %10 (gerçek kişi, tam mükellef).
 import { calculatePurchaseLedger } from './purchase-ledger.js';
 
@@ -69,19 +72,24 @@ function dividendSources(holding) {
         date:event.date,
         perShare:event.adjusted * factor,
         adjustedPerShare:event.adjusted,
+        splitFactor:factor,
         source:'auto',
       };
     })
     // Aynı güne elle girilen kayıt otomatik kaydın yerine geçer (tutar düzeltme).
     .filter(event => !hidden.has(event.id) && !manualDates.has(event.date));
 
-  const manualEvents = manual.map(entry => ({
-    id:entry.id,
-    date:entry.date,
-    perShare:entry.perShare,
-    adjustedPerShare:entry.perShare / splitFactorAfter(splits, entry.date),
-    source:'manual',
-  }));
+  const manualEvents = manual.map(entry => {
+    const factor = splitFactorAfter(splits, entry.date);
+    return {
+      id:entry.id,
+      date:entry.date,
+      perShare:entry.perShare,
+      adjustedPerShare:entry.perShare / factor,
+      splitFactor:factor,
+      source:'manual',
+    };
+  });
   return { events:[...auto, ...manualEvents], hiddenCount:hidden.size };
 }
 
@@ -90,8 +98,9 @@ export function holdingDividendPayments(holding, { today = null } = {}) {
   return dividendSources(holding).events
     .filter(event => !limit || event.date <= limit)
     .map(event => {
+      // Lotlar bugünkü adette tutulduğu için düzeltilmiş tutarla çarpılır.
       const lots = lotsEntitledOn(holding, event.date);
-      const gross = lots * event.perShare;
+      const gross = lots * event.adjustedPerShare;
       const rate = dividendWithholdingRate(event.date);
       const tax = gross * rate;
       return {
