@@ -4,5 +4,5 @@
     "timeout":  "10m",
     "versions":  "28,33,36",
     "locale":  "tr",
-    "note":  "Legacy WebView compat run 1 — virtual API 28/33/36; API 28 (WebView 66) must load www/legacy and open with data"
+    "note":  "Legacy WebView compat run 2 — legacy CSS overrides; API 28 (WebView 66): header below status bar, FAB bottom-right above dock; API 33/36 unchanged"
 }
