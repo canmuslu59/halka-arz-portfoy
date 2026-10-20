@@ -1,4 +1,4 @@
-// legacy-webview source=app.js blob=402017ccbf8225f9718a450821689b6be18eebff esbuild=0.25.11 target=chrome64 — scripts/build-legacy-webview.mjs üretir, elle düzenlemeyin.
+// legacy-webview source=app.js blob=4913dd0a2ca70c55447eff00d8f561ee5636a490 esbuild=0.25.11 target=chrome64 — scripts/build-legacy-webview.mjs üretir, elle düzenlemeyin.
 import './legacy-polyfills.js';
 var _a, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
 import { createRepository, createPlatformStorage } from "./core/repository.js";
@@ -593,7 +593,7 @@ function renderAppInfo() {
   const element = $("#appVersion");
   if (!element) return;
   const info = appInfo();
-  const version = (info == null ? void 0 : info.versionName) || "2.6.1";
+  const version = (info == null ? void 0 : info.versionName) || "2.6.2";
   const build = (info == null ? void 0 : info.versionCode) || 43;
   element.innerHTML = "Hisse Portföyüm<br />v" + esc(version) + " • Build " + esc(build);
 }
@@ -651,7 +651,7 @@ async function buildBackupJson() {
     const value = safeGetLocal(key);
     if (value != null) settings[key] = value;
   }
-  const payload = createBackupPayload({ portfolio, settings, appVersion: ((_a2 = appInfo()) == null ? void 0 : _a2.versionName) || "2.6.1" });
+  const payload = createBackupPayload({ portfolio, settings, appVersion: ((_a2 = appInfo()) == null ? void 0 : _a2.versionName) || "2.6.2" });
   return { json: JSON.stringify(payload, null, 2), count: payload.portfolio.holdings.length };
 }
 async function exportBackup(mode) {

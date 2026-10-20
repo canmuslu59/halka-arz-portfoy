@@ -547,7 +547,7 @@ function renderAppInfo() {
   const element = $('#appVersion');
   if (!element) return;
   const info = appInfo();
-  const version = info?.versionName || '2.6.1';
+  const version = info?.versionName || '2.6.2';
   const build = info?.versionCode || 43;
   element.innerHTML = 'Hisse Portföyüm<br />v' + esc(version) + ' • Build ' + esc(build);
 }
@@ -614,7 +614,7 @@ async function buildBackupJson() {
     const value = safeGetLocal(key);
     if (value != null) settings[key] = value;
   }
-  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.6.1' });
+  const payload = createBackupPayload({ portfolio, settings, appVersion:appInfo()?.versionName || '2.6.2' });
   return { json:JSON.stringify(payload, null, 2), count:payload.portfolio.holdings.length };
 }
 
