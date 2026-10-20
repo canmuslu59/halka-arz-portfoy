@@ -1,6 +1,7 @@
 // Eski Android WebView'ler (Chrome < 92) için www JS/CSS dosyalarının dönüştürülmüş kopyalarını
 // android/app/src/main/assets/www/legacy altına üretir. Kaynak dosyalar (Code41 bildirim kilidi
-// dahil) değişmez; MainActivity eski WebView'de aynı adresleri bu kopyalardan sunar.
+// dahil) değişmez; MainActivity eski WebView'de aynı adresleri bu kopyalardan sunar. Dönüştürülemeyen CSS
+// (max()/clamp()/env()) için scripts/legacy-webview/overrides.css, legacy styles.css'in sonuna eklenir.
 //
 //   npm i --no-save esbuild@0.25.11
 //   node scripts/build-legacy-webview.mjs           # üret
@@ -15,6 +16,9 @@ const WWW = path.resolve('android/app/src/main/assets/www');
 const LEGACY = path.join(WWW, 'legacy');
 const POLYFILLS_SOURCE = path.resolve('scripts/legacy-webview/polyfills.js');
 const POLYFILLS_NAME = 'legacy-polyfills.js';
+// Eski motorda düşen max()/clamp()/env() bildirimlerinin elle yazılmış karşılıkları; bu kopyanın sonuna eklenir.
+const OVERRIDES_SOURCE = path.resolve('scripts/legacy-webview/overrides.css');
+const OVERRIDES_TARGET = 'styles.css';
 
 let esbuild;
 try {
@@ -69,6 +73,8 @@ if (!entries.size) throw new Error('index.html içinde modül giriş betiği bul
 const outputs = new Map();
 const polyfills = await fs.readFile(POLYFILLS_SOURCE, 'utf8');
 outputs.set(POLYFILLS_NAME, header('scripts/legacy-webview/polyfills.js', blobSha(polyfills)) + await transform(polyfills, POLYFILLS_NAME));
+const overrides = await fs.readFile(OVERRIDES_SOURCE, 'utf8');
+const overridesBlock = header('scripts/legacy-webview/overrides.css', blobSha(overrides)) + await transform(overrides, 'legacy-overrides.css');
 
 for (const file of await listSources(WWW)) {
   const rel = path.relative(WWW, file).split(path.sep).join('/');
@@ -76,8 +82,11 @@ for (const file of await listSources(WWW)) {
   let body = await transform(source, rel);
   // Polyfill'ler giriş modüllerinin ilk import'u: modül grafiğindeki her şeyden önce çalışır.
   if (entries.has(rel)) body = `import './${'../'.repeat(rel.split('/').length - 1)}${POLYFILLS_NAME}';\n` + body;
+  // Geçersiz kılmalar en sonda: aynı özgüllükteki www kurallarını kaskadda geçer.
+  if (rel === OVERRIDES_TARGET) body += overridesBlock;
   outputs.set(rel, header(rel, blobSha(source)) + body);
 }
+if (!outputs.has(OVERRIDES_TARGET)) throw new Error(`${OVERRIDES_TARGET} bulunamadı; geçersiz kılmalar eklenemedi`);
 
 async function listExisting(dir, out = []) {
   let items = [];
