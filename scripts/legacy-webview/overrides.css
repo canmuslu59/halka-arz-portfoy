@@ -69,11 +69,12 @@
 
 /* backdrop-filter (76) yok: yarı saydam .topbar ve .bottom-nav bulanıklaştırılmadığı için kaydırılan içerik
    arkalarından görünüyordu. www'deki degradeler aynen kalır; altlarına temanın zemin rengi (--bg; açık temada menü
-   için beyaz) neredeyse opak background-color olarak serilir. backdrop-filter olan 76–91 sürümlerinde uygulanmaz. */
+   için beyaz) neredeyse opak background-color olarak serilir. Bulanıklık olmadığından .97'de arkadaki keskin yazı
+   hâlâ seçiliyordu; .99 kalır. backdrop-filter olan 76–91 sürümlerinde uygulanmaz. */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .topbar,.bottom-nav{background-color:rgba(7,11,21,.97)}
-  html[data-theme="light"] .topbar{background-color:rgba(244,247,251,.97)}
-  html[data-theme="light"] .bottom-nav{background-color:rgba(255,255,255,.97)}
+  .topbar,.bottom-nav{background-color:rgba(7,11,21,.99)}
+  html[data-theme="light"] .topbar{background-color:rgba(244,247,251,.99)}
+  html[data-theme="light"] .bottom-nav{background-color:rgba(255,255,255,.99)}
 }
 
 /* www'deki media blokları ve yukarıdaki clamp() karşılıklarının eşikleri, genişten dara. */
