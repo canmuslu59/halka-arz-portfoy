@@ -5109,7 +5109,7 @@ html.labs-privacy .dividend-detail-row b {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
-/* legacy-webview source=scripts/legacy-webview/overrides.css blob=1dd1e51ae783e968805b35b284caa0c570b64ac7 esbuild=0.25.11 target=chrome64 — scripts/build-legacy-webview.mjs üretir, elle düzenlemeyin. */
+/* legacy-webview source=scripts/legacy-webview/overrides.css blob=e64a429329c8ebae262cc7926f8836544d73e3b5 esbuild=0.25.11 target=chrome64 — scripts/build-legacy-webview.mjs üretir, elle düzenlemeyin. */
 .topbar {
   padding-top: 0;
 }
@@ -5255,6 +5255,18 @@ html.labs-privacy .dividend-detail-row b {
 }
 .delete-confirm-overlay {
   padding: 20px calc(20px + var(--android-safe-right,0px)) calc(20px + var(--android-safe-bottom,0px)) calc(20px + var(--android-safe-left,0px));
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+  .topbar,
+  .bottom-nav {
+    background-color: rgba(7, 11, 21, .97);
+  }
+  html[data-theme=light] .topbar {
+    background-color: rgba(244, 247, 251, .97);
+  }
+  html[data-theme=light] .bottom-nav {
+    background-color: rgba(255, 255, 255, .97);
+  }
 }
 @media (min-width: 700px) {
   .bottom-nav {
