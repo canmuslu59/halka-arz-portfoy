@@ -4,5 +4,5 @@
     "timeout":  "10m",
     "versions":  "28,33,36",
     "locale":  "tr",
-    "note":  "Legacy WebView compat run 2 — legacy CSS overrides; API 28 (WebView 66): header below status bar, FAB bottom-right above dock; API 33/36 unchanged"
+    "note":  "Legacy WebView compat run 3 — no backdrop-filter fallback; API 28 (WebView 66): sticky topbar and bottom dock near-opaque while scrolling; API 33/36 unchanged"
 }
