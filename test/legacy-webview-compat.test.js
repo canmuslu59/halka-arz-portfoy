@@ -74,7 +74,7 @@ test('legacy styles.css ends with the fresh handwritten overrides for old WebVie
   assert.match(compact, /\.weekly-mover-row \{ display: flex;/);
   assert.match(compact, /\.wallet-center-tab,\s?\.wallet-center-tab\.active \{ width: 58px !important; height: 58px !important; min-height: 58px !important; \}/);
   assert.match(compact, /\.bottom-nav \.nav-tab \{ border-radius: 16px !important; \}/);
-  assert.match(compact, /@supports not \(\(backdrop-filter:blur\(1px\)\) or \(-webkit-backdrop-filter:blur\(1px\)\)\) \{ \.topbar, \.bottom-nav \{ background-color: rgba\(7, 11, 21, \.97\); \} html\[data-theme=light\] \.topbar \{ background-color: rgba\(244, 247, 251, \.97\); \} html\[data-theme=light\] \.bottom-nav \{ background-color: rgba\(255, 255, 255, \.97\); \} \}/);
+  assert.match(compact, /@supports not \(\(backdrop-filter:blur\(1px\)\) or \(-webkit-backdrop-filter:blur\(1px\)\)\) \{ \.topbar, \.bottom-nav \{ background-color: rgba\(7, 11, 21, \.99\); \} html\[data-theme=light\] \.topbar \{ background-color: rgba\(244, 247, 251, \.99\); \} html\[data-theme=light\] \.bottom-nav \{ background-color: rgba\(255, 255, 255, \.99\); \} \}/);
 });
 
 test('legacy overrides replace every max()/env()/dvh declaration that becomes unset on the visible chrome', () => {
