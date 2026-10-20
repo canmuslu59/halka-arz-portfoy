@@ -5109,3 +5109,232 @@ html.labs-privacy .dividend-detail-row b {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+/* legacy-webview source=scripts/legacy-webview/overrides.css blob=1dd1e51ae783e968805b35b284caa0c570b64ac7 esbuild=0.25.11 target=chrome64 — scripts/build-legacy-webview.mjs üretir, elle düzenlemeyin. */
+.topbar {
+  padding-top: 0;
+}
+.topbar:before {
+  content: "";
+  display: block;
+  height: var(--android-safe-top,0px);
+  min-height: 14px;
+}
+.topbar-actions {
+  gap: 0;
+}
+.topbar-actions > * + * {
+  margin-left: 9px;
+}
+.shell {
+  width: calc(100% - 28px);
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+:root {
+  --fixed-dock-height:68px;
+}
+@media (max-height: 809px) {
+  :root {
+    --fixed-dock-height:8.4vh;
+  }
+}
+@media (max-height: 714px) {
+  :root {
+    --fixed-dock-height:60px;
+  }
+}
+.bottom-nav {
+  padding-left: calc(5px + var(--android-safe-left,0px)) !important;
+  padding-right: calc(5px + var(--android-safe-right,0px)) !important;
+}
+.bottom-nav .nav-tab {
+  border-radius: 16px !important;
+}
+.wallet-center-tab,
+.wallet-center-tab.active {
+  width: 58px !important;
+  height: 58px !important;
+  min-height: 58px !important;
+}
+.wallet-center-tab .wallet-center-icon {
+  width: 25px !important;
+  height: 25px !important;
+}
+#addFab {
+  right: calc(var(--android-safe-right,0px) + 14px);
+}
+.fab {
+  gap: 0;
+}
+.fab b {
+  margin-left: 8px;
+}
+.weekly-mover-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+}
+.weekly-mover-identity {
+  flex: 1 1 auto;
+  margin-right: 10px;
+  gap: 0;
+}
+.weekly-mover-identity strong {
+  margin-right: 7px;
+}
+.weekly-mover-change {
+  flex: none;
+}
+.dividend-home-button {
+  gap: 0;
+}
+.dividend-home-button > * + * {
+  margin-top: 10px;
+}
+.dividend-home-note {
+  display: block;
+}
+.dividend-holding-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.dividend-holding-id {
+  flex: 1 1 auto;
+}
+.dividend-holding-yield,
+.dividend-holding-total {
+  flex: none;
+  margin-left: 12px;
+}
+.dividend-hero-top {
+  gap: 0;
+}
+.dividend-hero-top > * + * {
+  margin-left: 12px;
+}
+.dividend-hero-value {
+  font-size: 40px;
+}
+.sheet {
+  width: 100%;
+  max-width: 620px;
+  max-height: 92vh;
+  padding: 10px 18px 0;
+}
+.sheet:after {
+  content: "";
+  display: block;
+  height: calc(var(--android-safe-bottom,0px) + 14px);
+  min-height: 22px;
+}
+.detail-sheet:after {
+  height: calc(var(--android-safe-bottom,0px) + 20px);
+  min-height: 30px;
+}
+#addSheet {
+  bottom: var(--android-ime-bottom,0px);
+  max-height: calc(92vh - var(--android-ime-bottom,0px));
+}
+#addSubmit {
+  bottom: calc(var(--keyboard-inset,0px) + 8px);
+}
+.review-access-box {
+  width: 100%;
+  max-width: 520px;
+}
+.widget-promo-card {
+  width: 100%;
+  max-width: 420px;
+}
+.delete-confirm-card {
+  width: 100%;
+  max-width: 360px;
+}
+.delete-confirm-overlay {
+  padding: 20px calc(20px + var(--android-safe-right,0px)) calc(20px + var(--android-safe-bottom,0px)) calc(20px + var(--android-safe-left,0px));
+}
+@media (min-width: 700px) {
+  .bottom-nav {
+    padding-left: calc(10px + var(--android-safe-left,0px)) !important;
+    padding-right: calc(10px + var(--android-safe-right,0px)) !important;
+  }
+}
+@media (max-width: 720px) {
+  .shell {
+    width: calc(100% - 22px);
+  }
+}
+@media (max-width: 533px) {
+  .bottom-nav .nav-tab {
+    border-radius: 3vw !important;
+  }
+}
+@media (max-width: 444px) {
+  .dividend-hero-value {
+    font-size: 9vw;
+  }
+}
+@media (max-width: 430px) {
+  .shell {
+    width: calc(100% - 20px);
+  }
+  .topbar-actions > * + * {
+    margin-left: 6px;
+  }
+  .sheet {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .dividend-home-button > * + * {
+    margin-top: 8px;
+  }
+  .dividend-holding-yield,
+  .dividend-holding-total {
+    margin-left: 9px;
+  }
+}
+@media (max-width: 414px) {
+  .wallet-center-tab,
+  .wallet-center-tab.active {
+    width: 14vw !important;
+    height: 14vw !important;
+    min-height: 14vw !important;
+  }
+}
+@media (max-width: 396px) {
+  .wallet-center-tab .wallet-center-icon {
+    width: 6.3vw !important;
+    height: 6.3vw !important;
+  }
+}
+@media (max-width: 366px) {
+  .bottom-nav .nav-tab {
+    border-radius: 11px !important;
+  }
+}
+@media (max-width: 365px) {
+  :root {
+    --fixed-dock-height:60px;
+  }
+  .topbar-actions > * + * {
+    margin-left: 4px;
+  }
+  .wallet-center-tab,
+  .wallet-center-tab.active {
+    width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+  }
+}
+@media (max-width: 333px) {
+  .wallet-center-tab .wallet-center-icon {
+    width: 21px !important;
+    height: 21px !important;
+  }
+  .dividend-hero-value {
+    font-size: 30px;
+  }
+}
