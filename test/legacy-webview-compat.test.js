@@ -44,6 +44,51 @@ test('every www script and stylesheet has a fresh legacy copy for old WebViews',
   assert.deepEqual(legacyFiles.sort(), [...sources, 'legacy-polyfills.js'].sort());
 });
 
+// legacy/styles.css = başlık + dönüştürülmüş www/styles.css + başlık + dönüştürülmüş overrides.css.
+function legacyOverrides() {
+  const lines = read(LEGACY + 'styles.css').split('\n');
+  const at = lines.findIndex(line => headerOf(line)?.[1] === 'scripts/legacy-webview/overrides.css');
+  return { at, header:at < 0 ? null : headerOf(lines[at]), css:lines.slice(at + 1).join('\n') };
+}
+
+test('legacy styles.css ends with the fresh handwritten overrides for old WebViews', () => {
+  const { at, header, css } = legacyOverrides();
+  assert.ok(at > 0, 'legacy/styles.css içinde overrides.css bölümü yok');
+  assert.equal(header[2], blobSha(read('scripts/legacy-webview/overrides.css')), 'overrides.css değişti: node scripts/build-legacy-webview.mjs çalıştırın');
+  assert.equal(header[3], '0.25.11');
+  assert.equal(header[4], 'chrome64');
+  for (const rel of legacyFiles.filter(name => name !== 'styles.css')) {
+    assert.ok(!read(LEGACY + rel).includes('legacy-webview source=scripts/legacy-webview/overrides.css'), rel);
+  }
+  // Eski motorun düşürdüğü hiçbir şey kullanılmaz.
+  assert.doesNotMatch(css, /\b(?:max|min|clamp|env)\(/);
+  assert.doesNotMatch(css, /\d(?:dvh|svh|lvh)\b/);
+  assert.doesNotMatch(css, /\b(?:margin|padding)-(?:inline|block)\b/);
+  assert.doesNotMatch(css, /:(?:has|is|where)\(/);
+  // Görülen hatalar: başlık durum çubuğunun altında, FAB sol altta menünün arkasında, haftalık % alt satırda,
+  // Cüzdan düğmesi yuvarlak.
+  const compact = css.replace(/\s+/g, ' ');
+  assert.match(compact, /\.topbar \{ padding-top: 0; \} \.topbar:before \{ content: ""; display: block; height: var\(--android-safe-top,0px\); min-height: 14px; \}/);
+  assert.match(compact, /:root \{ --fixed-dock-height:68px; \}/);
+  assert.match(compact, /#addFab \{ right: calc\(var\(--android-safe-right,0px\) \+ 14px\); \}/);
+  assert.match(compact, /\.weekly-mover-row \{ display: flex;/);
+  assert.match(compact, /\.wallet-center-tab,\s?\.wallet-center-tab\.active \{ width: 58px !important; height: 58px !important; min-height: 58px !important; \}/);
+  assert.match(compact, /\.bottom-nav \.nav-tab \{ border-radius: 16px !important; \}/);
+});
+
+test('legacy overrides replace every max()/env()/dvh declaration that becomes unset on the visible chrome', () => {
+  const styles = read(WWW + 'styles.css');
+  // Bu www bildirimleri var() içerdiği için eski motorda unset olur; değişirlerse overrides.css de güncellenmeli.
+  for (const declaration of [
+    'padding-top:max(14px,env(safe-area-inset-top),var(--android-safe-top,0px))',
+    '--fixed-dock-height:clamp(60px,8.4dvh,68px)',
+    'right:max(14px,calc(var(--android-safe-right,0px) + 14px));',
+    'bottom:calc(var(--fixed-dock-height) + 14px + var(--android-safe-bottom,0px))!important',
+    'border-radius:clamp(11px,3vw,16px)!important',
+    'grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px',
+  ]) assert.ok(styles.includes(declaration), declaration);
+});
+
 test('legacy copies of the Code41-locked web files come from the locked sources', () => {
   const locked = {
     'core/notification-rules.js': 'e953ca7205b133af2724b39a0d4ff4c6739fa013',
