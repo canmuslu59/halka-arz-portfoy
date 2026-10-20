@@ -3,7 +3,7 @@
  * güncel WebView'in gördüğü dosyalar değişmez.
  *
  * Motorda olmayanlar: max()/min()/clamp() (79), env() (69), dvh (108), margin-inline/padding-inline (87),
- * flex gap (84) ve <button> üzerinde display:grid (alt öğeler alt alta dizilir).
+ * flex gap (84), backdrop-filter (76) ve <button> üzerinde display:grid (alt öğeler alt alta dizilir).
  * var() içermeyen böyle bir bildirim atılır, önceki kural geçerli kalır. var() içeren bildirim ise hesaplama
  * anında geçersizleşip "unset"e düşer: .topbar padding-top 0, #addFab right/bottom auto olur.
  * Burada yalnız calc() ve var(--android-safe-*) kullanılır. max(a, b) olan boşluklar height:b + min-height:a
@@ -66,6 +66,16 @@
 .widget-promo-card{width:100%;max-width:420px}
 .delete-confirm-card{width:100%;max-width:360px}
 .delete-confirm-overlay{padding:20px calc(20px + var(--android-safe-right,0px)) calc(20px + var(--android-safe-bottom,0px)) calc(20px + var(--android-safe-left,0px))}
+
+/* backdrop-filter (76) yok: yarı saydam .topbar ve .bottom-nav bulanıklaştırılmadığı için kaydırılan içerik
+   arkalarından görünüyordu. www'deki degradeler aynen kalır; altlarına temanın zemin rengi (--bg; açık temada menü
+   için beyaz) neredeyse opak background-color olarak serilir. Bulanıklık olmadığından .97'de arkadaki keskin yazı
+   hâlâ seçiliyordu; .99 kalır. backdrop-filter olan 76–91 sürümlerinde uygulanmaz. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .topbar,.bottom-nav{background-color:rgba(7,11,21,.99)}
+  html[data-theme="light"] .topbar{background-color:rgba(244,247,251,.99)}
+  html[data-theme="light"] .bottom-nav{background-color:rgba(255,255,255,.99)}
+}
 
 /* www'deki media blokları ve yukarıdaki clamp() karşılıklarının eşikleri, genişten dara. */
 @media (min-width:700px){

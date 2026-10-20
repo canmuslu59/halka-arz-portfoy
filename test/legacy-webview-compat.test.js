@@ -66,7 +66,7 @@ test('legacy styles.css ends with the fresh handwritten overrides for old WebVie
   assert.doesNotMatch(css, /\b(?:margin|padding)-(?:inline|block)\b/);
   assert.doesNotMatch(css, /:(?:has|is|where)\(/);
   // Görülen hatalar: başlık durum çubuğunun altında, FAB sol altta menünün arkasında, haftalık % alt satırda,
-  // Cüzdan düğmesi yuvarlak.
+  // Cüzdan düğmesi yuvarlak, backdrop-filter olmadan üst çubuk ve alt menü saydam.
   const compact = css.replace(/\s+/g, ' ');
   assert.match(compact, /\.topbar \{ padding-top: 0; \} \.topbar:before \{ content: ""; display: block; height: var\(--android-safe-top,0px\); min-height: 14px; \}/);
   assert.match(compact, /:root \{ --fixed-dock-height:68px; \}/);
@@ -74,6 +74,7 @@ test('legacy styles.css ends with the fresh handwritten overrides for old WebVie
   assert.match(compact, /\.weekly-mover-row \{ display: flex;/);
   assert.match(compact, /\.wallet-center-tab,\s?\.wallet-center-tab\.active \{ width: 58px !important; height: 58px !important; min-height: 58px !important; \}/);
   assert.match(compact, /\.bottom-nav \.nav-tab \{ border-radius: 16px !important; \}/);
+  assert.match(compact, /@supports not \(\(backdrop-filter:blur\(1px\)\) or \(-webkit-backdrop-filter:blur\(1px\)\)\) \{ \.topbar, \.bottom-nav \{ background-color: rgba\(7, 11, 21, \.99\); \} html\[data-theme=light\] \.topbar \{ background-color: rgba\(244, 247, 251, \.99\); \} html\[data-theme=light\] \.bottom-nav \{ background-color: rgba\(255, 255, 255, \.99\); \} \}/);
 });
 
 test('legacy overrides replace every max()/env()/dvh declaration that becomes unset on the visible chrome', () => {
