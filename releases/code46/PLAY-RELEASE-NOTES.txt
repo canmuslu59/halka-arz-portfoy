@@ -1,0 +1,14 @@
+<tr-TR>
+v2.6.2
+• Yeni açılış ekranı: Uygulama açılırken fiyatlar arka planda hesaplanır, ekrana güncel değerlerle gelirsiniz.
+• Temettü Gelirim: Temettüleriniz alış tarihlerinize ve bedelsizlere göre otomatik hesaplanır. Toplam, bu yıl ve son 12 ay geliri, yıllık tahmin, temettü verimi ve temettü dahil toplam getiri tek ekranda.
+• Hisse detayında temettü geçmişi; eksik kaydı ekleyebilir, hatalı kaydı gizleyebilirsiniz.
+• Eski Android sürümlerinde uygulamanın açılmaması düzeltildi.
+</tr-TR>
+<en-US>
+v2.6.2
+• New launch screen: prices are calculated in the background while the app opens, so you land on up-to-date values.
+• Dividend Income: dividends are calculated automatically from your purchase dates and bonus issues. Total, this year and last 12 months, expected annual income, yield and total return including dividends on one screen.
+• Dividend history on the stock detail; add a missing record or hide an incorrect one.
+• Fixed the app not opening on older Android versions.
+</en-US>

@@ -58,6 +58,16 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 - Cloudflare: haber kuralları canlıda, Worker sürümü `486c22bd-32a9-4c6f-8a3a-05745c078ff0`. Geri dönüş: `b89a6b0e-f367-470c-86e4-40cd771f152e` (`releases/code43/CLOUD-DEPLOY.txt`).
 - Sorun çıkarsa: uygulamada Code41'e dön (yukarıdaki adımlar), Cloudflare'de Worker'ı `b89a6b0e…` sürümüne al. Play'de sorunsuz çalıştığı onaylanınca Last Known Good olarak işaretlenebilir.
 
+## Code46 / v2.6.2 — Aday (henüz Last Known Good değil)
+
+- Branch: `release/v2.6.2-code46`, tag `v2.6.2-code46`, derleme commit'i `c318f8bab1a19a5613d7558a170009488d476ae2`
+- Release kaydı: `releases/code46/` (README.md, SHA256SUMS.txt, SHA256SUMS-UNSIGNED.txt, jarsigner-verification.txt, PLAY-RELEASE-NOTES.txt)
+- İçerik: Code45 + eski Android WebView (Chrome < 92) desteği: `www/legacy` dönüştürülmüş kopyalar, polyfill'ler, eski WebView'e özel CSS.
+- Test: 520/520; Test Lab API 28/33/36 eski WebView koşuları başarılı.
+- İmzasız AAB SHA-256: `c1e183e9be2efc83f7d0cf1946b2dd10755a13ad6fde91b85e6c20af0d43171b`.
+- Final Play AAB: `Hisse-Portfoyum-v2.6.2-Code46-Play.aab`, SHA-256 `c27aa6f06f99082949522cb51729c9380f22cbdb215be1657c1fdac3ea09a0c4`; upload sertifikası `02:D9:…:A2:72` doğrulandı, içerik imzasız paketle 241/241 aynı.
+- Sorun çıkarsa: Code41'e dön (yukarıdaki adımlar, versionCode 47+).
+
 ## Code45 / v2.6.1 — Aday (henüz Last Known Good değil)
 
 - Branch: `release/v2.6.1-code45`, tag `v2.6.1-code45`
@@ -110,4 +120,4 @@ Alternatif: Code41'de olduğu gibi yayınlanmış AAB'nin yalnız manifestindeki
 
 ## Kural
 
-Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42, Code43, Code45 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
+Yeni bir production sürümü güvenli kabul edilmeden önce bu dosyadaki "Last Known Good" bölümü değiştirilmemelidir. Code42, Code43, Code45, Code46 ve sonraki sürümler, Play'de sorunsuz çalıştıkları kullanıcı tarafından onaylanana kadar Last Known Good olarak işaretlenmez.
